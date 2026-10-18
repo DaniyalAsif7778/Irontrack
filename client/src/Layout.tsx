@@ -5,6 +5,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { AppView } from "./types";
 import type { AuthUser } from "./types";
 import { NavButton, RoutineTimer } from "./components/components";
+import NotificationCenter from "./components/NotificationCenter";
+import InstallPrompt from "./components/InstallPrompt";
 
 type AppShellProps = {
   view: AppView;
@@ -46,13 +48,13 @@ export default function AppShell({ view, setView, user, signOut, focusMinutes = 
   }, [view]);
   return <div className="shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <div className="mobile-bar"><div className="brand-mark"><Dumbbell size={18} /><span>IronTrack</span></div>{user && !user.singleUser && <button className="mobile-sign-out" type="button" onClick={() => void signOut()} aria-label="Sign out"><LogOut size={17} /></button>}</div>
+    <div className="mobile-bar"><div className="brand-mark"><Dumbbell size={18} /><span>IronTrack</span></div><div className="mobile-bar-actions"><NotificationCenter onNavigate={setView} />{user && !user.singleUser && <button className="mobile-sign-out" type="button" onClick={() => void signOut()} aria-label="Sign out"><LogOut size={17} /></button>}</div></div>
     <aside className="sidebar">
       <div className="brand"><b><Dumbbell size={19} /> IronTrack</b><span>Strength, with intention</span></div>
       <nav aria-label="Main navigation">{navItems.map(item => <NavButton key={item.view} active={view === item.view} onClick={() => setView(item.view)} icon={item.icon}>{item.label}</NavButton>)}</nav>
       {user && <div className="account-menu"><span><b>{user.name}</b><small>{user.singleUser ? "Personal space" : user.email}</small></span>{!user.singleUser && <button type="button" onClick={() => void signOut()} aria-label="Sign out"><LogOut size={16} /></button>}</div>}
     </aside>
-    <main id="main-content"><div className="page-transition" ref={contentRef}>{children}</div></main>
+    <main id="main-content"><InstallPrompt /><div className="page-transition" ref={contentRef}>{children}</div></main>
     {moreOpen && <><button className="mobile-more-scrim" aria-label="Close more navigation" onClick={() => setMoreOpen(false)} /><nav className="mobile-more-menu" aria-label="More pages">{moreItems.map(item => <NavButton key={item.view} active={view === item.view} onClick={() => { setView(item.view); setMoreOpen(false); }} icon={item.icon}>{item.label}</NavButton>)}</nav></>}
     <nav className="mobile-nav" aria-label="Main navigation">{primaryMobileItems.map(item => <NavButton key={item.view} active={view === item.view} onClick={() => setView(item.view)} icon={item.icon}>{item.mobileLabel}</NavButton>)}<button type="button" className={moreOpen || moreItems.some(item => item.view === view) ? "active" : ""} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}><Settings2 /><span>More</span></button></nav>
     <RoutineTimer key={user?.id ?? "local-demo"} userId={user?.id} focusMinutes={focusMinutes} breakMinutes={breakMinutes} />

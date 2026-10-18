@@ -17,12 +17,14 @@ import WellnessPage from "./pages/wellness/WellnessPage";
 
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const WorkoutStatsPage = lazy(() => import("./pages/workout/WorkoutStatsPage"));
+const ExerciseDetailPage = lazy(() => import("./pages/workout/ExerciseDetailPage"));
 
 export default function App() {
   const { user, signOut } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
-  const view = (location.pathname.slice(1) || "home") as AppView;
+  const view = (location.pathname.startsWith("/exercise/") || location.pathname.startsWith("/workout/") ? "workout" : location.pathname.slice(1) || "home") as AppView;
   const setView = (nextView: AppView) => navigate(nextView === "home" ? "/" : `/${nextView}`);
   const date = useAppStore(state => state.selectedDate);
   const setDate = useAppStore(state => state.setSelectedDate);
@@ -99,7 +101,9 @@ export default function App() {
     { path: "/", element: <HomePage day={day} latest={latest} onRoutine={() => setView("routine")} /> },
     { path: "/home", element: <HomePage day={day} latest={latest} onRoutine={() => setView("routine")} /> },
     { path: "/workout", element: <WorkoutPage onError={setError} /> },
-    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} /> },
+    { path: "/workout/stats", element: <Suspense fallback={<p>Loading workout stats…</p>}><WorkoutStatsPage onError={setError} /></Suspense> },
+    { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
+    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} onRange={setAnalyticsDays} /></Suspense> },
     { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} /> },

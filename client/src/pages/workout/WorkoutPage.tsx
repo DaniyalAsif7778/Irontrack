@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Clock3, Dumbbell, Pause, Play, RotateCcw, Square, TimerReset, X } from "lucide-react";
+import { BarChart3, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell, Pause, Play, RotateCcw, Square, TimerReset, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api/api";
 import { ironToday } from "../../utils/date";
 
@@ -21,6 +22,7 @@ const todayWeekKey = () => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new
 const elapsedText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
 export default function Workout({ onError }: { onError: (message: string) => void }) {
+  const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState(todayWeekKey());
   const [active, setActive] = useState<ActiveWorkout | null>(readActive);
   const [now, setNow] = useState(Date.now());
@@ -145,7 +147,7 @@ export default function Workout({ onError }: { onError: (message: string) => voi
   const editingExercise = plan?.exercises.find(exercise => exercise.id === editId);
 
   return <>
-    <header><div><h1>Workout</h1><p>Build strength one controlled set at a time.</p></div><div className="workout-head-meta"><Dumbbell size={18} /><span>Dumbbells</span></div></header>
+    <header><div><h1>Workout</h1><p>Build strength one controlled set at a time.</p></div><div className="workout-header-actions"><button type="button" className="workout-stats-link" onClick={() => navigate("/workout/stats")}><BarChart3 size={16} /> Stats</button><div className="workout-head-meta"><Dumbbell size={18} /><span>Dumbbells</span></div></div></header>
     <div className="week-strip" aria-label="Weekly training split">
       {week.map(day => <button type="button" key={day.key} className={selectedKey === day.key ? "selected" : ""} onClick={() => setSelectedKey(day.key)}>
         <span>{day.label.slice(0, 3)}</span><b>{day.dayType ? dayLabels[day.dayType].split(" · ")[0] : "Rest"}</b>

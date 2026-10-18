@@ -40,7 +40,9 @@ const local = async <T>(path: string, options: RequestInit): Promise<T> => {
   if (path.startsWith("/routine/days/")) { const date = path.split("/").pop()!, type = dayType(date), labels: Record<string,string> = {fajr:"Fajr",dhuhr:"Dhuhr",asr:"Asr",maghrib:"Maghrib",isha:"Isha"}; const blocks = Object.entries(labels).map(([block,label])=>{ const tasks = store.tasks.filter(t=>t.dayType===type&&t.block===block).map(t=>({...t,completed:Boolean(t.completions?.[date])})); return {id:block,label,tasks,completed:tasks.filter(t=>t.completed).length,total:tasks.length}; }); return {date,dayType:type,blocks,progress:{completed:blocks.reduce((n,b)=>n+b.completed,0),total:blocks.reduce((n,b)=>n+b.total,0)}} as T; }
   if (path.startsWith("/analytics")) {
     const query = new URLSearchParams(path.split("?")[1] ?? ""), days = Math.max(1, Number(query.get("days")) || 7);
-    const today = new Date(), activity = Array.from({ length: days }, (_, index) => {
+    const todayValue = query.get("today");
+    const today = todayValue ? new Date(`${todayValue}T12:00:00`) : new Date();
+    const activity = Array.from({ length: days }, (_, index) => {
       const date = new Date(today); date.setDate(today.getDate() - (days - index - 1));
       const key = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
       const tasks = store.tasks.filter(task => task.dayType === dayType(key));

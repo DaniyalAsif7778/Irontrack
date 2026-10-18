@@ -6,12 +6,14 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
+  "categories": ["health", "lifestyle"],
   "background_color": "#080a0c",
   "theme_color": "#080a0c",
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "any",
+      "sizes": "any 192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }

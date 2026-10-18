@@ -76,14 +76,23 @@ Local API runs on port 4001 in single-user mode and binds to loopback only. The 
 
 ### Reference coverage
 
-- **Implemented:** PPL plan and high-rep days, exercise plan editor, in-progress workout persistence, set logging, rest timer, workout history, prayer-anchored routine cards, custom tasks/subtasks, routine timer, schedule management, body-weight logging/trend, routine completion and weight analytics, account/preferences, PWA manifest and cached app shell.
-- **Partial:** PWA shell and build assets can load after a visit, but workout/routine/weight writes require the API; no offline mutation queue. The 1 AM day key exists in the client, but analytics/date handling on the server needs a consistent timezone/day-boundary pass. Browser notification permission is available in Settings and routine timer notices only; scheduled reminders and notification center are absent.
-- **Not implemented:** Wellness water/movement tracking, routine analytics detail, workout analytics tabs for volume/history/PRs, exercise-specific history/PR detail, install prompt UI, robust offline writes, background notification scheduling, cross-device sync, and export/restore. Cloud sync and export/restore are explicitly out of scope per product direction.
+- **Implemented:** PPL plan and high-rep days, exercise plan editor, persisted workout sessions with pause/resume/end, set logging and rest timer, workout history, five workout analytics tabs, exercise history and estimated PRs, prayer-anchored tasks/subtasks and persistent timer, routine completion analytics, schedule management, body-weight logging/trend, water and movement check-ins, reminder settings and upcoming reminder center, account/preferences, responsive PWA shell, install guidance, and service-worker app-shell caching.
+- **Partial:** The PWA shell can load after a prior visit, but server-backed changes need a network connection; there is no offline write queue. Browser reminders are free and run while the app is open; delivery when fully closed needs Web Push/VAPID setup and is not implemented. The 1 AM routine day key now feeds routine analytics from the client; workout session dates remain workout calendar dates.
+- **Intentionally excluded:** Cross-device cloud sync and backup export/restore. Backup import UI/API was removed from the user flow; previously imported MongoDB records remain intact.
 - **Removed from the user flow:** Backup import UI/API. The supplied workout records remain in MongoDB.
 
-### Still required for a complete reference match
+### Phone workflow handoff — 2026-10-18
 
-1. Build the notification center and wellness tracking, with honest browser permission and background limits.
-2. Expand workout analytics and add exercise history/PR detail.
-3. Add routine analytics and align server day calculations with the 1 AM local boundary.
-4. Add the PWA install prompt and an offline write queue if offline editing is desired.
+- Added an install prompt with browser install support and iOS Safari home-screen instructions.
+- Added phone-friendly Workout Stats tabs (Summary, Overview, Volume, History, PRs) and exercise detail pages with load charts, session sets, and estimated 1RM.
+- Added Routine and Analytics tabs with 14-day completion view, daily heatmap, and activity streak.
+- Added a reminder center to the mobile header; scheduled task reminders can be opened directly in the routine. Wellness and reminder controls remain available under More → Wellness.
+- Analytics date ranges now use the client's IronTrack date key so the server doesn't interpret the 1 AM boundary in its own timezone.
+- The application has no automatic multi-device sync. To use it on a phone, deploy the frontend over HTTPS and point it at the deployed API; see [phone workflow and deployment](docs/phone-workflow.md).
+
+### Remaining before production use
+
+1. Deploy the API and frontend, set private environment variables in the hosting dashboard, and verify the Atlas network allowlist.
+2. Replace the temporary allow-all CORS setting with the exact deployed frontend origin before serving real accounts.
+3. Add an offline write queue if edits must be saved without the API network connection.
+4. Configure VAPID/Web Push if reminders must arrive while the app is fully closed.

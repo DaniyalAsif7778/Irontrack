@@ -33,9 +33,9 @@ function markSent(date: string, id: string) {
 
 export default function NotificationScheduler() {
   const date = ironToday();
-  const routine = useQuery({ queryKey: ["notifications", "routine", date], queryFn: () => api<Day>(`/routine/days/${date}`), staleTime: 30_000 });
-  const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000 });
-  const logs = useQuery({ queryKey: ["notifications", "workouts"], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000 });
+  const routine = useQuery({ queryKey: ["notifications", "routine", date], queryFn: () => api<Day>(`/routine/days/${date}`), staleTime: 30_000, refetchInterval: 60_000 });
+  const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000 });
+  const logs = useQuery({ queryKey: ["notifications", "workouts"], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000 });
 
   useEffect(() => {
     if (typeof Notification === "undefined") return;
@@ -49,26 +49,27 @@ export default function NotificationScheduler() {
         const tasks = routine.data.blocks.flatMap(block => block.tasks);
         for (const task of tasks) {
           if (task.reminderTime === time && !task.completed && !alreadySent(today, `task-${task._id}`)) {
-            await notify("Routine reminder", task.title, `task-${task._id}`);
-            markSent(today, `task-${task._id}`);
+            try { await notify("Routine reminder", task.title, `task-${task._id}`); markSent(today, `task-${task._id}`); }
+            catch { /* Keep it eligible for a retry after browser permission or service worker recovers. */ }
           }
         }
       }
       if (prefs.workoutAtNine && time === "09:00" && !alreadySent(today, "workout")) {
         const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getDay()];
         const dayType = week.data?.find(day => day.key === weekKey)?.dayType;
-        if (dayType && !logs.data?.some(session => session.date === today && session.dayType === dayType)) {
-          await notify("Workout day", "Your training session is ready when you are.", "workout-reminder");
+        if (dayType) {
+          if (!logs.data?.some(session => session.date === today && session.dayType === dayType)) {
+            try { await notify("Workout day", "Your training session is ready when you are.", "workout-reminder"); } catch { return; }
+          }
+          markSent(today, "workout");
         }
-        markSent(today, "workout");
       }
       for (const [key, title, message] of [["hydration", "Water check-in", "Take a moment for a glass of water."], ["movement", "Movement break", "Stand, stretch, and reset for a minute."]] as const) {
         if (!prefs[key]) continue;
         const storageKey = `irontrack_${key}_reminder_last`;
         const last = Number(localStorage.getItem(storageKey) ?? 0);
         if (now.getTime() - last >= 60 * 60_000 && document.visibilityState === "visible") {
-          await notify(title, message, `${key}-reminder`);
-          localStorage.setItem(storageKey, String(now.getTime()));
+          try { await notify(title, message, `${key}-reminder`); localStorage.setItem(storageKey, String(now.getTime())); } catch { /* Retry on the next scheduler tick. */ }
         }
       }
     };

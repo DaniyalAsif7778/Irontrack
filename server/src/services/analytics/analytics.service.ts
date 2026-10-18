@@ -2,9 +2,12 @@ import { RoutineCompletion, RoutineTask } from "../../models/routine/routine.mod
 import { WeightLog } from "../../models/weight/weight.model.js";
 import { User } from "../../models/auth/user.model.js";
 
-export async function getAnalytics(ownerId: string, days: number) {
+export async function getAnalytics(ownerId: string, days: number, today: string) {
+  const [year, month, dateOfMonth] = today.split("-").map(Number);
+  const end = new Date(Date.UTC(year, month - 1, dateOfMonth));
   const dates = Array.from({ length: days }, (_, index) => {
-    const day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - (days - index - 1));
+    const day = new Date(end);
+    day.setUTCDate(end.getUTCDate() - (days - index - 1));
     return day.toISOString().slice(0, 10);
   });
   const [weekdayTasks, weekendTasks, allTasks, weights, user] = await Promise.all([
@@ -22,7 +25,7 @@ export async function getAnalytics(ownerId: string, days: number) {
   const completedByDate = new Map<string, number>();
   completions.forEach(item => completedByDate.set(item.date, (completedByDate.get(item.date) ?? 0) + 1));
   const activity = dates.map(date => {
-    const total = [0, 6].includes(new Date(`${date}T00:00:00`).getDay()) ? weekendTasks.length : weekdayTasks.length;
+    const total = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? weekendTasks.length : weekdayTasks.length;
     const completed = completedByDate.get(date) ?? 0;
     return { date, completed, total, rate: total ? Math.round(completed / total * 100) : 0 };
   });
