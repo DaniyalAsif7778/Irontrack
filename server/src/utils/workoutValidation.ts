@@ -1,0 +1,41 @@
+import { WORKOUT_DAYS } from "../models/workout/workout.model.js";
+import type { Exercise } from "../services/workout/workoutData.js";
+
+const isDay = (value: unknown): value is typeof WORKOUT_DAYS[number] =>
+  typeof value === "string" && WORKOUT_DAYS.includes(value as typeof WORKOUT_DAYS[number]);
+
+export function workoutPlanPayload(input: any) {
+  if (!Array.isArray(input?.exercises) || input.exercises.length > 40) throw new Error("exercises must be a list of up to 40 items");
+  const exercises: Exercise[] = input.exercises.map((exercise: any) => {
+    if (!exercise || typeof exercise.id !== "string" || !exercise.id.trim()) throw new Error("every exercise needs an id");
+    if (typeof exercise.name !== "string" || !exercise.name.trim()) throw new Error("every exercise needs a name");
+    if (typeof exercise.muscle !== "string" || !exercise.muscle.trim()) throw new Error("every exercise needs a muscle group");
+    if (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 20) throw new Error("sets must be from 1 to 20");
+    if (!Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 100) throw new Error("reps must be from 1 to 100");
+    if (!Number.isFinite(exercise.rest) || exercise.rest < 0 || exercise.rest > 600) throw new Error("rest must be from 0 to 600 seconds");
+    if (typeof exercise.tempo !== "string") throw new Error("tempo must be text");
+    if (!Array.isArray(exercise.cues) || exercise.cues.some((cue: unknown) => typeof cue !== "string")) throw new Error("cues must be a list of text");
+    return { id: exercise.id.trim(), name: exercise.name.trim(), muscle: exercise.muscle.trim(), sets: exercise.sets, reps: exercise.reps, rest: exercise.rest, tempo: exercise.tempo.trim(), cues: exercise.cues.map((cue: string) => cue.trim()).filter(Boolean) };
+  });
+  if (new Set(exercises.map(exercise => exercise.id)).size !== exercises.length) throw new Error("exercise ids must be unique");
+  return exercises;
+}
+
+export function workoutLogPayload(input: any) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input?.date ?? "")) throw new Error("date must be YYYY-MM-DD");
+  if (!isDay(input.dayType)) throw new Error("invalid workout day");
+  if (!Array.isArray(input.exercises)) throw new Error("exercises must be a list");
+  if (!Number.isFinite(input.duration) || input.duration < 0 || input.duration > 86400) throw new Error("duration must be between 0 and 86400 seconds");
+  const exercises = input.exercises.map((exercise: any) => {
+    if (typeof exercise?.exerciseId !== "string" || typeof exercise?.name !== "string") throw new Error("each logged exercise needs an id and name");
+    if (!Array.isArray(exercise.sets)) throw new Error("each logged exercise needs a set list");
+    const sets = exercise.sets.map((set: any) => {
+      if (!Number.isInteger(set?.reps) || set.reps < 0 || set.reps > 1000 || !Number.isFinite(set?.weight) || set.weight < 0 || set.weight > 10000) throw new Error("sets need valid reps and weight");
+      return { reps: set.reps, weight: set.weight };
+    });
+    return { exerciseId: exercise.exerciseId, name: exercise.name, muscle: typeof exercise.muscle === "string" ? exercise.muscle : "", sets };
+  });
+  const totalSets = exercises.reduce((total: number, exercise: { sets: unknown[] }) => total + exercise.sets.length, 0);
+  const totalVolume = exercises.reduce((total: number, exercise: { sets: { reps: number; weight: number }[] }) => total + exercise.sets.reduce((sum, set) => sum + set.reps * set.weight, 0), 0);
+  return { date: input.date, dayType: input.dayType, exercises, totalSets, totalVolume, duration: Math.round(input.duration) };
+}

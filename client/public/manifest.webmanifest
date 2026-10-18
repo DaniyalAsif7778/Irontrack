@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "IronTrack",
+  "short_name": "IronTrack",
+  "description": "A calm, prayer-anchored routine and dumbbell workout tracker.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080a0c",
+  "theme_color": "#080a0c",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

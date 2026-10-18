@@ -1,0 +1,59 @@
+export type Task = {
+  _id: string;
+  title: string;
+  description: string;
+  type: string;
+  priority: "low" | "medium" | "high";
+  category: string;
+  duration: number;
+  dueDate: string;
+  reminderTime: string;
+  subtasks: { title: string; completed: boolean }[];
+  completed?: boolean;
+};
+
+export type RoutineBlock = {
+  id: string;
+  label: string;
+  tasks: Task[];
+  completed: number;
+  total: number;
+};
+
+export type Day = {
+  date: string;
+  dayType: "weekday" | "weekend";
+  blocks: RoutineBlock[];
+  progress: { completed: number; total: number };
+};
+
+export type Schedule = {
+  dayType: "weekday" | "weekend";
+  blocks: { id: string; label: string; tasks: Task[] }[];
+};
+
+export type TaskEditing = { block: string; task?: Task };
+
+export type Weight = { _id: string; date: string; weight: number; unit: "kg" | "lb" };
+export type WellnessDay = { date: string; waterGlasses: number; movementBreaks: number };
+
+export type AnalyticsData = {
+  days: number;
+  totalCompleted: number;
+  periodCompleted: number;
+  activity: { date: string; completed: number; total: number; rate: number }[];
+  weightTrend: {
+    entries: Pick<Weight, "date" | "weight" | "unit">[];
+    latest: Pick<Weight, "date" | "weight" | "unit"> | null;
+    change: number | null;
+  };
+};
+
+export type AppView = "home" | "workout" | "routine" | "analytics" | "weight" | "schedules" | "settings" | "wellness";
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  singleUser?: boolean;
+  preferences: { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number };
+};
