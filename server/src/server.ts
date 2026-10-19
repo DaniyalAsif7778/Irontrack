@@ -6,7 +6,7 @@ import { ensureSingleUser } from "./services/auth/singleUser.service.js";
 import { isSingleUserMode } from "./middlewares/requireAuth.js";
 import { startNotificationScheduler } from "./services/notifications/push.service.js";
 
-const port = Number(process.env.PORT ?? 4000);
+const port = Number(process.env.PORT );
 const uri = process.env.MONGODB_URI;
 const authSecret = process.env.AUTH_JWT_SECRET;
 
