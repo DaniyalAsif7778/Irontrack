@@ -6,7 +6,7 @@ import { ensureSingleUser } from "./services/auth/singleUser.service.js";
 import { isSingleUserMode } from "./middlewares/requireAuth.js";
 import { startNotificationScheduler } from "./services/notifications/push.service.js";
 
-const port = Number(process.env.PORT );
+const port = Number(process.env.PORT || 5000);
 const uri = process.env.MONGODB_URI;
 const authSecret = process.env.AUTH_JWT_SECRET;
 
@@ -26,7 +26,7 @@ if (process.env.NODE_ENV === "production" && process.env.SINGLE_USER_MODE === "t
 }
 
 const logStarted = () => logger.info({ port, singleUserMode: isSingleUserMode() }, "IronTrack API listening");
-if (isSingleUserMode()) app.listen(port, "127.0.0.1", logStarted);
+if (isSingleUserMode()) app.listen(port,  logStarted);
 else app.listen(port, logStarted);
 
 async function connectWhenAvailable() {
