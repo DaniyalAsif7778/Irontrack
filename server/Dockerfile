@@ -1,7 +1,7 @@
 FROM node:20
-WORKDIR /app
+WORKDIR /server
 COPY package*.json ./
 RUN npm install
 COPY . .
 EXPOSE 5000
-CMD ["node", "server.ts"]
+CMD ["node", "server.js"]
