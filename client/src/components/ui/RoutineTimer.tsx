@@ -51,10 +51,13 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
     localStorage.setItem(storageKey, JSON.stringify(timer));
   }, [timer, storageKey]);
 
+  useEffect(() => { window.dispatchEvent(new CustomEvent("routine-timer-update", { detail: { taskId: timer?.taskId ?? null } })); }, [timer?.taskId]);
+
   useEffect(() => {
     function start(event: Event) {
       const { taskId, taskTitle } = (event as CustomEvent<{ taskId: string; taskTitle: string }>).detail;
       setTimer({ taskId, taskTitle, phase: "focus", remainingMs: focusMinutes * 60_000, startedAt: Date.now(), focusLengthMs: focusMinutes * 60_000, breakLengthMs: breakMinutes * 60_000 });
+      window.dispatchEvent(new CustomEvent("routine-timer-update", { detail: { taskId } }));
     }
     window.addEventListener("irontrack:start-task-timer", start);
     return () => window.removeEventListener("irontrack:start-task-timer", start);
@@ -90,14 +93,22 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
     setTimer({ ...activeTimer, remainingMs: activeTimer.phase === "focus" ? activeTimer.focusLengthMs : activeTimer.breakLengthMs, startedAt: Date.now() });
   }
 
+  function close() {
+    window.dispatchEvent(new CustomEvent("routine-timer-update", { detail: { taskId: null } }));
+    setTimer(null);
+  }
+
+  const total = timer.phase === "focus" ? timer.focusLengthMs : timer.breakLengthMs;
+  const progress = Math.max(0, Math.min(1, left / total));
+  const radius = 44, circumference = 2 * Math.PI * radius;
   return <aside className="routine-timer" aria-label="Routine focus timer">
-    <div className={`timer-symbol ${timer.phase}`}>{timer.phase === "focus" ? <Timer size={17} /> : <Coffee size={17} />}</div>
-    <div className="timer-copy"><span>{timer.phase === "focus" ? "Focus session" : "Break"}{paused ? " · Paused" : ""}</span><strong>{timer.taskTitle}</strong></div>
-    <time className="timer-clock">{clock(left)}</time>
+    <div className="timer-head"><div className={`timer-symbol ${timer.phase}`}>{timer.phase === "focus" ? <Timer size={17} /> : <Coffee size={17} />}<span>{timer.phase === "focus" ? `Focus — ${Math.round(total / 60_000)} min` : `Break — ${Math.round(total / 60_000)} min`}{paused ? " · Paused" : ""}</span></div><button type="button" onClick={close} aria-label="Close timer"><X size={14} /></button></div>
+    <p className="timer-task-name">{timer.taskTitle}</p>
+    <div className="timer-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r={radius} fill="none" stroke="hsl(var(--secondary))" strokeWidth="8" /><circle cx="50" cy="50" r={radius} fill="none" stroke={timer.phase === "focus" ? "hsl(var(--primary))" : "hsl(var(--accent))"} strokeWidth="8" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} strokeLinecap="round" /></svg><time>{clock(left)}</time></div>
     <div className="timer-controls">
       <button type="button" onClick={pauseOrResume} aria-label={paused ? "Resume timer" : "Pause timer"}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
       <button type="button" onClick={reset} aria-label="Reset timer"><RotateCcw size={15} /></button>
-      <button type="button" onClick={() => setTimer(null)} aria-label="Stop timer"><X size={16} /></button>
+      <button type="button" onClick={close} aria-label="Stop timer"><X size={16} /></button>
     </div>
   </aside>;
 }

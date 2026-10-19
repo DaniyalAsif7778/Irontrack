@@ -1,5 +1,7 @@
 # Implementation progress
 
+For phase sequencing, production setup, and next-agent handoff, read [docs/roadmap.md](docs/roadmap.md).
+
 ## Upgrade phases
 
 ### Phase 1 — Responsive PWA foundation (complete)
@@ -77,7 +79,7 @@ Local API runs on port 4001 in single-user mode and binds to loopback only. The 
 ### Reference coverage
 
 - **Implemented:** PPL plan and high-rep days, exercise plan editor, persisted workout sessions with pause/resume/end, set logging and rest timer, workout history, five workout analytics tabs, exercise history and estimated PRs, prayer-anchored tasks/subtasks and persistent timer, routine completion analytics, schedule management, body-weight logging/trend, water and movement check-ins, reminder settings and upcoming reminder center, account/preferences, responsive PWA shell, install guidance, and service-worker app-shell caching.
-- **Partial:** The PWA shell can load after a prior visit, but server-backed changes need a network connection; there is no offline write queue. Browser reminders are free and run while the app is open; delivery when fully closed needs Web Push/VAPID setup and is not implemented. The 1 AM routine day key now feeds routine analytics from the client; workout session dates remain workout calendar dates.
+- **Partial:** The PWA shell can load after a prior visit, but server-backed changes need a network connection; there is no offline write queue. Web Push/VAPID now sends server-scheduled reminders while the app is closed when the API is online and the device has an active subscription; actual delivery still depends on host uptime, HTTPS, browser support, and permission. The 1 AM routine day key now feeds routine analytics from the client; workout session dates remain workout calendar dates.
 - **Intentionally excluded:** Cross-device cloud sync and backup export/restore. Backup import UI/API was removed from the user flow; previously imported MongoDB records remain intact.
 - **Removed from the user flow:** Backup import UI/API. The supplied workout records remain in MongoDB.
 
@@ -95,4 +97,4 @@ Local API runs on port 4001 in single-user mode and binds to loopback only. The 
 1. Deploy the API and frontend, set private environment variables in the hosting dashboard, and verify the Atlas network allowlist.
 2. Replace the temporary allow-all CORS setting with the exact deployed frontend origin before serving real accounts.
 3. Add an offline write queue if edits must be saved without the API network connection.
-4. Configure VAPID/Web Push if reminders must arrive while the app is fully closed.
+4. Configure the API host's VAPID environment variables and enable notifications from each installed phone/browser. Keep the VAPID private key secret.

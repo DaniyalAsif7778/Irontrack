@@ -22,7 +22,7 @@ export async function getDay(ownerId: string, date: string, dayType: string) {
   const completions = await RoutineCompletion.find({ date, taskId: { $in: tasks.map(task => task._id) }, completed: true }).lean();
   const done = new Set(completions.map(completion => String(completion.taskId)));
   const blocks = BLOCKS.map(id => {
-    const items = tasks.filter(task => task.block === id).map(task => ({ ...task, completed: done.has(String(task._id)) }));
+    const items = tasks.filter(task => task.block === id).map(task => ({ ...task, completed: done.has(String(task._id)) || task.status === "completed" }));
     return { id, label: blockLabel[id], tasks: items, completed: items.filter(task => task.completed).length, total: items.length };
   });
   return { date, dayType, blocks, progress: { completed: blocks.reduce((total, block) => total + block.completed, 0), total: blocks.reduce((total, block) => total + block.total, 0) } };
@@ -45,5 +45,6 @@ export async function deleteTask(ownerId: string, id: string) {
 
 export async function setCompletion(ownerId: string, id: string, date: string, completed: boolean) {
   if (!await RoutineTask.exists({ _id: id, ownerId })) return null;
+  await RoutineTask.updateOne({ _id: id, ownerId }, { $set: { status: completed ? "completed" : "pending" } });
   return RoutineCompletion.findOneAndUpdate({ taskId: id, date }, { completed }, { upsert: true, new: true, setDefaultsOnInsert: true });
 }

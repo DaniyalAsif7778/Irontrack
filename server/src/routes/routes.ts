@@ -7,11 +7,20 @@ import * as wellness from "../controllers/wellness/wellness.controller.js";
 import { asyncHandler } from "../middlewares/asyncHandler.js";
 import authRoutes from "./auth/auth.routes.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import * as notifications from "../controllers/notifications/notifications.controller.js";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
 router.use(requireAuth);
+
+
+router.get("/notifications/config", notifications.config);
+router.get("/notifications/status", asyncHandler(notifications.status));
+router.post("/notifications/subscriptions", asyncHandler(notifications.subscribe));
+router.put("/notifications/preferences", asyncHandler(notifications.updatePreferences));
+router.delete("/notifications/subscriptions", asyncHandler(notifications.unsubscribe));
+router.post("/notifications/test", asyncHandler(notifications.test));
 
 router.get("/routine/schedules/:dayType", asyncHandler(routine.getSchedule));
 router.post("/routine/schedules/copy", asyncHandler(routine.copySchedule));

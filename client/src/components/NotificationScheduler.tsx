@@ -45,7 +45,8 @@ export default function NotificationScheduler() {
       const today = ironToday(now);
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
       const prefs = readPreferences();
-      if (prefs.taskTimes && routine.data?.date === today) {
+      const serverPushEnabled = localStorage.getItem("irontrack_push_subscribed_v1") === "true";
+      if (!serverPushEnabled && prefs.taskTimes && routine.data?.date === today) {
         const tasks = routine.data.blocks.flatMap(block => block.tasks);
         for (const task of tasks) {
           if (task.reminderTime === time && !task.completed && !alreadySent(today, `task-${task._id}`)) {
@@ -54,7 +55,7 @@ export default function NotificationScheduler() {
           }
         }
       }
-      if (prefs.workoutAtNine && time === "09:00" && !alreadySent(today, "workout")) {
+      if (!serverPushEnabled && prefs.workoutAtNine && time === "09:00" && !alreadySent(today, "workout")) {
         const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getDay()];
         const dayType = week.data?.find(day => day.key === weekKey)?.dayType;
         if (dayType) {
@@ -65,6 +66,7 @@ export default function NotificationScheduler() {
         }
       }
       for (const [key, title, message] of [["hydration", "Water check-in", "Take a moment for a glass of water."], ["movement", "Movement break", "Stand, stretch, and reset for a minute."]] as const) {
+        if (serverPushEnabled) continue;
         if (!prefs[key]) continue;
         const storageKey = `irontrack_${key}_reminder_last`;
         const last = Number(localStorage.getItem(storageKey) ?? 0);

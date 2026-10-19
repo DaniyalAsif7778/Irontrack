@@ -1,14 +1,16 @@
 import { WORKOUT_DAYS } from "../../models/workout/workout.model.js";
 
 export type WorkoutDay = typeof WORKOUT_DAYS[number];
+export type ExerciseSet = { id?: string; reps: number; weight: number };
 export type Exercise = {
   id: string; name: string; sets: number; reps: number; muscle: string;
-  tempo: string; rest: number; cues: string[];
+  tempo: string; rest: number; cues: string[]; description?: string;
+  setList?: ExerciseSet[]; steps?: string[]; videoUrl?: string;
 };
 
 const basePlans: Record<"push" | "pull" | "legs", Exercise[]> = {
   push: [
-    { id: "push-floor-press", name: "Dumbbell Floor Press", sets: 3, reps: 10, muscle: "Chest", tempo: "3-1-2", rest: 60, cues: ["Keep your wrists stacked over your elbows.", "Lower until your upper arms rest lightly on the floor."] },
+    { id: "push-floor-press", name: "Dumbbell Floor Press", sets: 3, reps: 10, muscle: "Chest", tempo: "3-1-2", rest: 60, cues: ["Keep your wrists stacked over your elbows.", "Lower until your upper arms rest lightly on the floor."], description: "Press from the floor with a controlled, comfortable range of motion.", setList: [{ reps: 10, weight: 0 }, { reps: 10, weight: 0 }, { reps: 10, weight: 0 }], steps: ["Lie on the floor with knees bent and dumbbells over your chest.", "Lower your upper arms until they rest lightly on the floor.", "Press the dumbbells up without locking your elbows."], videoUrl: "" },
     { id: "push-shoulder-press", name: "Standing Shoulder Press", sets: 3, reps: 10, muscle: "Shoulders", tempo: "2-1-2", rest: 60, cues: ["Brace your midsection and avoid leaning back.", "Press in a smooth, controlled path."] },
     { id: "push-squeeze-press", name: "Dumbbell Squeeze Press", sets: 3, reps: 12, muscle: "Chest", tempo: "3-1-2", rest: 60, cues: ["Keep the dumbbells gently pressed together.", "Use a comfortable range of motion."] },
     { id: "push-lateral-raise", name: "Lateral Raise", sets: 3, reps: 12, muscle: "Shoulders", tempo: "2-1-3", rest: 45, cues: ["Use a light weight and soft elbows.", "Stop around shoulder height."] },

@@ -15,7 +15,15 @@ export function workoutPlanPayload(input: any) {
     if (!Number.isFinite(exercise.rest) || exercise.rest < 0 || exercise.rest > 600) throw new Error("rest must be from 0 to 600 seconds");
     if (typeof exercise.tempo !== "string") throw new Error("tempo must be text");
     if (!Array.isArray(exercise.cues) || exercise.cues.some((cue: unknown) => typeof cue !== "string")) throw new Error("cues must be a list of text");
-    return { id: exercise.id.trim(), name: exercise.name.trim(), muscle: exercise.muscle.trim(), sets: exercise.sets, reps: exercise.reps, rest: exercise.rest, tempo: exercise.tempo.trim(), cues: exercise.cues.map((cue: string) => cue.trim()).filter(Boolean) };
+    const setList = exercise.setList === undefined ? Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 })) : exercise.setList;
+    if (!Array.isArray(setList) || setList.length > 20 || setList.some((set: any) => !Number.isInteger(set?.reps) || set.reps < 1 || set.reps > 1000 || !Number.isFinite(set?.weight) || set.weight < 0 || set.weight > 10000)) throw new Error("set list must contain valid reps and weight");
+    const steps = exercise.steps ?? [];
+    if (!Array.isArray(steps) || steps.some((step: unknown) => typeof step !== "string")) throw new Error("steps must be a list of text");
+    const description = exercise.description ?? "", videoUrl = exercise.videoUrl ?? "";
+    if (typeof description !== "string" || description.length > 4000) throw new Error("description must be text under 4000 characters");
+    if (typeof videoUrl !== "string" || videoUrl.length > 2048) throw new Error("video URL must be text under 2048 characters");
+    if (videoUrl) { let parsed: URL; try { parsed = new URL(videoUrl); } catch { throw new Error("video URL must be a valid URL"); } if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("video URL must use HTTP or HTTPS"); }
+    return { id: exercise.id.trim(), name: exercise.name.trim(), muscle: exercise.muscle.trim(), sets: exercise.sets, reps: exercise.reps, rest: exercise.rest, tempo: exercise.tempo.trim(), cues: exercise.cues.map((cue: string) => cue.trim()).filter(Boolean), description, setList: setList.map((set: any, index: number) => ({ id: typeof set.id === "string" && set.id.trim() ? set.id.trim() : `set-${index + 1}`, reps: set.reps, weight: set.weight })), steps: steps.map((step: string) => step.trim()).filter(Boolean), videoUrl: videoUrl.trim() };
   });
   if (new Set(exercises.map(exercise => exercise.id)).size !== exercises.length) throw new Error("exercise ids must be unique");
   return exercises;

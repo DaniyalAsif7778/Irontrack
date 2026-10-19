@@ -9,6 +9,7 @@ export const taskSchema = z.object({
   duration: z.number().int().min(0).max(1440, "Duration cannot exceed 24 hours."),
   dueDate: z.string(),
   reminderTime: z.string(),
+  subtasks: z.array(z.object({ title: z.string().trim().min(1, "Enter a subtask title."), completed: z.boolean() })),
 });
 
 export type TaskFormValues = z.infer<typeof taskSchema>;

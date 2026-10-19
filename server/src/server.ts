@@ -4,6 +4,7 @@ import { connectDatabase } from "./db/db.js";
 import { logger } from "./utils/logger.js";
 import { ensureSingleUser } from "./services/auth/singleUser.service.js";
 import { isSingleUserMode } from "./middlewares/requireAuth.js";
+import { startNotificationScheduler } from "./services/notifications/push.service.js";
 
 const port = Number(process.env.PORT ?? 4000);
 const uri = process.env.MONGODB_URI;
@@ -24,14 +25,23 @@ if (process.env.NODE_ENV === "production" && process.env.SINGLE_USER_MODE === "t
   process.exit(1);
 }
 
-connectDatabase(uri)
-  .then(async () => {
-    if (isSingleUserMode()) await ensureSingleUser();
-    const logStarted = () => logger.info({ port, singleUserMode: isSingleUserMode() }, "IronTrack API listening");
-    if (isSingleUserMode()) app.listen(port, "127.0.0.1", logStarted);
-    else app.listen(port, logStarted);
-  })
-  .catch(error => {
-    logger.error({ err: error }, "MongoDB connection failed");
-    process.exit(1);
-  });
+const logStarted = () => logger.info({ port, singleUserMode: isSingleUserMode() }, "IronTrack API listening");
+if (isSingleUserMode()) app.listen(port, "127.0.0.1", logStarted);
+else app.listen(port, logStarted);
+
+async function connectWhenAvailable() {
+  while (true) {
+    try {
+      await connectDatabase(uri!);
+      if (isSingleUserMode()) await ensureSingleUser();
+      startNotificationScheduler();
+      logger.info("MongoDB connected; scheduled notifications are active");
+      return;
+    } catch (error) {
+      logger.error({ err: error }, "MongoDB connection failed; retrying in 30 seconds");
+      await new Promise(resolve => setTimeout(resolve, 30_000));
+    }
+  }
+}
+
+void connectWhenAvailable();

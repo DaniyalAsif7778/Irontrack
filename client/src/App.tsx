@@ -98,8 +98,8 @@ export default function App() {
   }
 
   const page = useRoutes([
-    { path: "/", element: <HomePage day={day} latest={latest} onRoutine={() => setView("routine")} /> },
-    { path: "/home", element: <HomePage day={day} latest={latest} onRoutine={() => setView("routine")} /> },
+    { path: "/", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
+    { path: "/home", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
     { path: "/workout", element: <WorkoutPage onError={setError} /> },
     { path: "/workout/stats", element: <Suspense fallback={<p>Loading workout stats…</p>}><WorkoutStatsPage onError={setError} /></Suspense> },
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
@@ -109,7 +109,7 @@ export default function App() {
     { path: "/schedules", element: <ScheduleManager onError={setError} /> },
     { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },
-    { path: "*", element: <HomePage day={day} latest={latest} onRoutine={() => setView("routine")} /> },
+    { path: "*", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
   ]);
   return <AppShell view={view} setView={setView} user={user} signOut={signOut} focusMinutes={preferences.focusMinutes} breakMinutes={preferences.breakMinutes}>
     {page}

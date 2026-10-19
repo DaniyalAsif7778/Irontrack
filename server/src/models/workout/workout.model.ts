@@ -6,7 +6,10 @@ const exerciseSchema = new Schema({
   id: { type: String, required: true }, name: { type: String, required: true, trim: true },
   sets: { type: Number, required: true, min: 1, max: 20 }, reps: { type: Number, required: true, min: 1, max: 100 },
   muscle: { type: String, required: true }, tempo: { type: String, default: "3-1-2" },
-  rest: { type: Number, default: 60, min: 0, max: 600 }, cues: { type: [String], default: [] }
+  rest: { type: Number, default: 60, min: 0, max: 600 }, cues: { type: [String], default: [] },
+  description: { type: String, default: "", maxlength: 4000 },
+  setList: { type: [new Schema({ id: { type: String, default: "" }, reps: { type: Number, min: 1, max: 1000 }, weight: { type: Number, min: 0, max: 10000 } }, { _id: false, id: false })], default: [] },
+  steps: { type: [String], default: [] }, videoUrl: { type: String, default: "", maxlength: 2048 }
 }, { _id: false });
 
 export const WorkoutPlan = model("WorkoutPlan", new Schema({
