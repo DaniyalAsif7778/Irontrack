@@ -14,11 +14,21 @@ export const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : false);
 
 const apiLimiter = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
+const allowedOrigins = (process.env.CLIENT_ORIGIN ?? "")
+  .split(",")
+  .map(origin => origin.trim())
+  .filter(Boolean);
+if (process.env.NODE_ENV !== "production") {
+  allowedOrigins.push("http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174");
+}
 
 app.use(helmet());
 app.use(cors({
   credentials: true,
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(new Error("Origin is not allowed by CORS"));
+  },
 }));
 app.use(cookieParser() as unknown as RequestHandler);
 app.use(express.json({ limit: "25mb" }));
