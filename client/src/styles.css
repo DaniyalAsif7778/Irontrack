@@ -17,7 +17,7 @@
   --secondary: 220 16% 14%;
   --secondary-foreground: 210 20% 90%;
   --muted: 220 14% 12%;
-  --muted-foreground: 215 14% 50%;
+  --muted-foreground: 215 14% 64%;
   --accent: 160 84% 44%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 72% 51%;
@@ -93,38 +93,30 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sidebar nav button svg { width: 18px; height: 18px; stroke-width: 1.8; }
 .sidebar nav button:hover { background: hsl(var(--sidebar-accent)); color: var(--ink); }
 .sidebar nav button.active { color: var(--ink); background: var(--surface-raised); box-shadow: inset 3px 0 var(--orange); }
-.import, .mobile-import {
-  position: relative; display: inline-flex; align-items: center; gap: 10px; color: var(--quiet); cursor: pointer;
-}
-.import { margin: auto 10px 0; padding: 12px 4px; font-size: 13px; }
-.import:hover, .mobile-import:hover { color: var(--ink); }
 .account-menu { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 4px 0; padding: 13px 10px 0; border-top: 1px solid var(--line); }
 .account-menu span { display: grid; min-width: 0; gap: 4px; }
 .account-menu b { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu small { overflow: hidden; color: var(--quiet); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu button, .mobile-sign-out { display: grid; flex: 0 0 34px; place-items: center; width: 34px; height: 34px; color: var(--quiet); background: transparent; border: 1px solid var(--line); border-radius: 7px; }
 .account-menu button:hover, .mobile-sign-out:hover { color: var(--ink); background: var(--surface-raised); }
-.import input, .mobile-import input {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;
-}
 .mobile-bar, .mobile-nav { display: none; }
 .auth-screen { display: grid; place-items: center; width: 100%; min-height: 100vh; margin: 0; padding: 24px; }
-.auth-card { width: min(430px, 100%); padding: clamp(22px, 5vw, 36px); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 80px hsl(var(--background) / .32); }
+.auth-card { width: min(430px, 100%); padding: clamp(20px, 4vw, 30px); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 80px hsl(var(--background) / .32); }
 .auth-brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 14px; font-weight: 600; }
 .auth-brand span { display: grid; place-items: center; width: 36px; height: 36px; color: hsl(var(--primary)); background: hsl(var(--primary) / .13); border-radius: 9px; }
-.auth-card h1 { margin: 28px 0 5px; font-size: 25px; font-weight: 600; letter-spacing: -.05em; }
-.auth-card > p { margin: 0 0 22px; }
+.auth-card h1 { margin: 22px 0 5px; font-size: 25px; font-weight: 600; letter-spacing: -.05em; }
+.auth-card > p { margin: 0 0 18px; }
 .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 0 18px; padding: 4px; background: var(--surface-soft); border-radius: 8px; }
 .auth-tabs button { min-height: 36px; color: var(--quiet); background: transparent; border: 0; border-radius: 6px; font-size: 12px; }
 .auth-tabs button.selected { color: var(--ink); background: var(--surface-raised); }
-.auth-form { display: grid; gap: 15px; }
+.auth-form { display: grid; gap: 12px; }
 .auth-form label { display: grid; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 500; }
-.auth-form input { width: 100%; min-width: 0; min-height: 42px; padding: 0 12px; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
+.auth-form input { width: 100%; min-width: 0; min-height: 38px; padding: 0 11px; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 9px; font-size: 13px; }
 .auth-form label > small { color: var(--danger); font-size: 11px; font-weight: 400; }
 .password-input { position: relative; display: block; }
 .password-input input { padding-right: 42px; }
 .password-input button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 34px; height: 34px; color: var(--quiet); background: transparent; border: 0; }
-.auth-submit { width: 100%; min-height: 43px; margin-top: 2px; color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border: 0; border-radius: 7px; font-size: 13px; font-weight: 600; }
+.auth-submit { width: 100%; min-height: 38px; margin-top: 2px; color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border: 0; border-radius: 9px; font-size: 13px; font-weight: 600; }
 .auth-submit:hover { background: hsl(var(--primary) / .88); }
 .auth-submit:disabled { opacity: .6; cursor: wait; }
 .auth-error { padding: 10px 12px; color: hsl(var(--destructive)); background: hsl(var(--destructive) / .1); border: 1px solid hsl(var(--destructive) / .24); border-radius: 7px; font-size: 12px; }
@@ -138,6 +130,74 @@ h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.025em; }
 p { color: var(--quiet); font-size: 14px; line-height: 1.55; }
 .skip-link { position: fixed; z-index: 20; top: 8px; left: 8px; padding: 10px 14px; transform: translateY(-150%); color: hsl(var(--background)); background: var(--ink); border-radius: 6px; }
 .skip-link:focus { transform: translateY(0); }
+
+/* Compact IronTrack chrome: keep the content dense, labels readable, and actions easy to find. */
+.sidebar {
+  justify-content: space-between;
+  width: 224px;
+  padding: 20px 14px 16px;
+  overflow-y: auto;
+}
+.brand { padding: 2px 12px 22px; }
+.brand b { font-size: 16px; }
+.brand span { font-size: 11px; }
+.sidebar nav { gap: 4px; }
+.sidebar nav button { min-height: 40px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+.account-menu { margin: 0 3px; padding: 11px 8px 0; }
+.account-menu button { flex-basis: 32px; width: 32px; height: 32px; border-radius: 9px; }
+main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px clamp(24px, 4vw, 58px) 64px; }
+.page-transition > header { gap: 15px; margin-bottom: 21px; }
+.page-transition > header h1 {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 7px 13px 8px;
+  color: hsl(var(--foreground));
+  background: linear-gradient(135deg, hsl(var(--card) / .86), hsl(var(--primary) / .09));
+  border: 1px solid hsl(var(--foreground) / .11);
+  border-radius: 13px;
+  box-shadow: 0 7px 22px hsl(220 45% 1% / .24), inset 0 1px hsl(var(--foreground) / .08);
+  font-size: clamp(23px, 2.6vw, 30px);
+  letter-spacing: -.045em;
+  line-height: 1.12;
+}
+.page-transition > header p { margin-top: 6px; color: hsl(var(--muted-foreground)); font-size: 13px; line-height: 1.45; }
+.page-transition > header > input,
+.routine-header-actions input[type="date"] {
+  min-height: 35px;
+  padding: 6px 9px;
+  color: var(--ink);
+  background: hsl(var(--card) / .84);
+  border: 1px solid hsl(var(--foreground) / .13);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.routine-header-actions input[type="date"] { width: 150px; }
+.page-transition input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.page-transition select {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+.page-transition textarea { min-height: 84px; padding: 9px 10px; border-radius: 9px; font-size: 13px; }
+.page-transition button { min-height: 32px; border-radius: 9px; font-size: 12px; }
+.page-transition .task-actions button { min-height: 30px; border-radius: 8px; }
+.page-transition .check { min-height: 19px; border-radius: 50%; }
+.page-transition .primary,
+.page-transition .start-workout,
+.page-transition .finish-workout,
+.page-transition .settings-save,
+.page-transition .auth-submit { min-height: 36px; padding: 0 13px; border-radius: 10px; font-size: 12px; }
+.page-transition :is(.hero, .block, .chart-card, .schedule-card, .settings-card, .workout-overview, .active-workout, .modal form) { border-radius: 11px; }
+
+@supports (backdrop-filter: blur(1px)) {
+  .page-transition > header h1 { background: hsl(var(--card) / .68); -webkit-backdrop-filter: blur(14px) saturate(135%); backdrop-filter: blur(14px) saturate(135%); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .page-transition > header h1 { background: hsl(var(--card) / .98); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
 
 .hero {
   position: relative; overflow: hidden; margin: 8px 0 18px; padding: clamp(24px, 4vw, 38px);
@@ -420,7 +480,6 @@ p { color: var(--quiet); font-size: 14px; line-height: 1.55; }
   }
   .brand-mark { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: -.04em; }
   .brand-mark svg { color: var(--orange); }
-  .mobile-import { min-height: 40px; padding: 0 9px; color: var(--quiet); font-size: 12px; }
   .mobile-nav {
     position: fixed; z-index: 8; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
     padding: 7px 6px calc(7px + env(safe-area-inset-bottom)); background: hsl(var(--sidebar-background) / .96); border-top: 1px solid var(--line);
