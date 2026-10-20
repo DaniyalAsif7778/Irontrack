@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Dumbbell, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { loginSchema, registerSchema, type AuthValues } from "../../schemas/auth";
 import { api } from "../../lib/api/api";
 import type { AuthUser } from "../../types";
@@ -12,7 +12,8 @@ const sessionKey = ["auth", "me"] as const;
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const location = useLocation();
+  const [mode, setMode] = useState<"login" | "register">(() => location.pathname === "/signup" ? "register" : "login");
   const [visiblePassword, setVisiblePassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const queryClient = useQueryClient();
@@ -39,6 +40,7 @@ export default function AuthPage() {
     setMode(next);
     setServerError("");
     reset();
+    navigate(next === "register" ? "/signup" : "/login", { replace: true });
   }
 
   return <main className="auth-screen">

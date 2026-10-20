@@ -3,7 +3,9 @@ import { Fragment } from "react";
 import { BarChart3, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell, Pause, Play, RotateCcw, Square, TimerReset, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../lib/api/api";
+import { ApiError, api } from "../../lib/api/api";
+import { enqueueOfflineAction } from "../../lib/api/offlineQueue";
+import { toast } from "sonner";
 import { ironToday } from "../../utils/date";
 
 type DayType = "push" | "pull" | "legs" | "push_high" | "pull_high" | "legs_high";
@@ -22,7 +24,7 @@ const readActive = (): ActiveWorkout | null => {
 const todayWeekKey = () => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${ironToday()}T12:00:00`).getDay()];
 const elapsedText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
-export default function Workout({ onError }: { onError: (message: string) => void }) {
+export default function Workout({ onError, accountId }: { onError: (message: string) => void; accountId?: string }) {
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState(todayWeekKey());
   const [active, setActive] = useState<ActiveWorkout | null>(readActive);
@@ -38,7 +40,14 @@ export default function Workout({ onError }: { onError: (message: string) => voi
   const logs = logsQuery.data ?? [];
   const loaded = !plansQuery.isPending && !weekQuery.isPending && !logsQuery.isPending;
   const finishMutation = useMutation({
-    mutationFn: (payload: { date: string; dayType: DayType; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; duration: number }) => api("/workout-logs", { method: "POST", body: JSON.stringify(payload) }),
+    mutationFn: async (payload: { date: string; dayType: DayType; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; duration: number; actionId: string }) => {
+      try { return await api("/workout-logs", { method: "POST", body: JSON.stringify(payload) }); }
+      catch (error) {
+        if (!accountId || !(error instanceof ApiError && error.status === 0)) throw error;
+        enqueueOfflineAction({ id: payload.actionId, accountId, kind: "workout_log", path: "/workout-logs", body: payload });
+        return { queuedOffline: true };
+      }
+    },
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ["workout", "logs"] }),
       queryClient.invalidateQueries({ queryKey: ["workout", "week"] }),
@@ -134,8 +143,9 @@ export default function Workout({ onError }: { onError: (message: string) => voi
       sets: (active.entries[exercise.id] ?? []).filter(entry => entry.completed).map(({ reps, weight }) => ({ reps, weight }))
     })).filter(exercise => exercise.sets.length);
     try {
-      await finishMutation.mutateAsync({ date: active.date, dayType: active.dayType, exercises, duration: elapsed });
+      const result = await finishMutation.mutateAsync({ date: active.date, dayType: active.dayType, exercises, duration: elapsed, actionId: crypto.randomUUID() }) as { queuedOffline?: boolean };
       setActive(null);
+      if (result.queuedOffline) toast.success("Workout saved on this device. It will sync when you reconnect.");
     } catch (reason) { onError((reason as Error).message); }
   }
 

@@ -14,6 +14,7 @@ import { useAppStore } from "./stores/appStore";
 import { useSession } from "./components/AuthGate";
 import NotificationScheduler from "./components/NotificationScheduler";
 import WellnessPage from "./pages/wellness/WellnessPage";
+import OfflineSyncStatus from "./components/OfflineSyncStatus";
 
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
@@ -39,7 +40,7 @@ export default function App() {
   const eventStatsQuery = useRoutineEventAnalytics(14);
   const weightsQuery = useWeightLogs();
   const analyticsQuery = useAnalytics(analyticsDays);
-  const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation, startTask: startTaskMutation, queueTask: queueTaskMutation, extendTask: extendTaskMutation, snoozeTask: snoozeTaskMutation } = useRoutineMutations(date);
+  const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation, startTask: startTaskMutation, queueTask: queueTaskMutation, extendTask: extendTaskMutation, snoozeTask: snoozeTaskMutation } = useRoutineMutations(date, user?.id);
   const { saveWeight: saveWeightMutation, removeWeight: removeWeightMutation } = useWeightMutations();
   const day = dayQuery.data ?? null;
   const selectedDayType = day?.dayType ?? ([0, 6].includes(new Date(`${date}T12:00:00`).getDay()) ? "weekend" : "weekday");
@@ -66,7 +67,7 @@ export default function App() {
   const title = useMemo(() => format(parseISO(date), "EEEE, MMM d"), [date]);
 
   async function complete(task: Task) {
-    try { await completeTask.mutateAsync(task); toast.success(task.completed ? `${task.title} returned to today's routine.` : `${task.title} marked complete.`); window.dispatchEvent(new CustomEvent("irontrack:stop-task-timer", { detail: { taskId: task._id } })); }
+    try { const result = await completeTask.mutateAsync(task) as { queuedOffline?: boolean }; toast.success(result.queuedOffline ? `${task.title} saved on this device. It will sync when you reconnect.` : task.completed ? `${task.title} returned to today's routine.` : `${task.title} marked complete.`); window.dispatchEvent(new CustomEvent("irontrack:stop-task-timer", { detail: { taskId: task._id } })); }
     catch (value) { setError((value as Error).message); }
   }
 
@@ -111,18 +112,19 @@ export default function App() {
   const page = useRoutes([
     { path: "/", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
     { path: "/home", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
-    { path: "/workout", element: <WorkoutPage onError={setError} /> },
+    { path: "/workout", element: <WorkoutPage onError={setError} accountId={user?.id} /> },
     { path: "/workout/stats", element: <Suspense fallback={<p>Loading workout stats…</p>}><WorkoutStatsPage onError={setError} /></Suspense> },
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
     { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} startTask={startRoutineTask} queueTask={queueRoutineTask} extendTask={extendRoutineTask} snoozeTask={snoozeRoutineTask} eventStats={eventStatsQuery.data} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} onRange={setAnalyticsDays} /></Suspense> },
     { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} /> },
-    { path: "/schedules", element: <ScheduleManager onError={setError} /> },
+    { path: "/schedules", element: <ScheduleManager onError={setError} prayerTimes={preferences.prayerTimes} /> },
     { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },
     { path: "*", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
   ]);
   return <AppShell view={view} setView={setView} user={user} signOut={signOut} focusMinutes={preferences.focusMinutes} breakMinutes={preferences.breakMinutes}>
+    <OfflineSyncStatus accountId={user?.id} />
     {page}
     <NotificationScheduler />
     {editing && <TaskDialog editing={editing} onClose={() => setEditing(null)} onSave={saveTask} />}

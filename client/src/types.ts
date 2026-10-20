@@ -51,6 +51,8 @@ export type TaskEditing = { block: string; task?: Task };
 
 export type Weight = { _id: string; date: string; weight: number; unit: "kg" | "lb" };
 export type WellnessDay = { date: string; waterGlasses: number; movementBreaks: number };
+export type PrayerTimes = Record<"fajr" | "dhuhr" | "asr" | "maghrib" | "isha", string>;
+export const DEFAULT_PRAYER_TIMES: PrayerTimes = { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" };
 
 export type AnalyticsData = {
   days: number;
@@ -70,5 +72,5 @@ export type AuthUser = {
   name: string;
   email: string;
   singleUser?: boolean;
-  preferences: { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number };
+  preferences: { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number; prayerTimes: PrayerTimes };
 };

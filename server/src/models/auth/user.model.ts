@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 
-export type UserPreferences = { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number };
+export type PrayerTimes = { fajr: string; dhuhr: string; asr: string; maghrib: string; isha: string };
+export type UserPreferences = { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number; prayerTimes: PrayerTimes };
 export type PublicUser = { id: string; name: string; email: string; preferences: UserPreferences };
 
 type UserFields = {
@@ -18,6 +19,13 @@ const userSchema = new Schema<UserFields>({
     weightUnit: { type: String, enum: ["kg", "lb"], default: "kg" },
     focusMinutes: { type: Number, min: 5, max: 120, default: 45 },
     breakMinutes: { type: Number, min: 5, max: 60, default: 15 },
+    prayerTimes: {
+      fajr: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$|^$/ },
+      dhuhr: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$|^$/ },
+      asr: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$|^$/ },
+      maghrib: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$|^$/ },
+      isha: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$|^$/ },
+    },
   },
 }, { timestamps: true });
 
@@ -30,6 +38,13 @@ export function toPublicUser(user: { _id: unknown; name: string; email: string; 
       weightUnit: user.preferences?.weightUnit === "lb" ? "lb" : "kg",
       focusMinutes: user.preferences?.focusMinutes ?? 45,
       breakMinutes: user.preferences?.breakMinutes ?? 15,
+      prayerTimes: {
+        fajr: user.preferences?.prayerTimes?.fajr ?? "",
+        dhuhr: user.preferences?.prayerTimes?.dhuhr ?? "",
+        asr: user.preferences?.prayerTimes?.asr ?? "",
+        maghrib: user.preferences?.prayerTimes?.maghrib ?? "",
+        isha: user.preferences?.prayerTimes?.isha ?? "",
+      },
     },
   };
 }

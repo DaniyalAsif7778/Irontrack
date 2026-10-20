@@ -20,10 +20,10 @@ export async function getAccount(userId: string): Promise<PublicUser | null> {
   return user ? toPublicUser(user) : null;
 }
 
-export async function updateAccount(userId: string, data: { name?: string; preferences?: { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number } }): Promise<PublicUser | null> {
+export async function updateAccount(userId: string, data: { name?: string; preferences?: Partial<PublicUser["preferences"]> }): Promise<PublicUser | null> {
   const update: Record<string, unknown> = {};
   if (data.name !== undefined) update.name = data.name;
-  if (data.preferences !== undefined) update.preferences = data.preferences;
+  if (data.preferences !== undefined) for (const [key, value] of Object.entries(data.preferences)) update[`preferences.${key}`] = value;
   const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
   return user ? toPublicUser(user) : null;
 }

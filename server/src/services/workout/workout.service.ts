@@ -18,6 +18,10 @@ export async function listLogs(ownerId: string, limitValue: unknown) {
 }
 
 export async function saveLog(ownerId: string, data: ReturnType<typeof import("../../utils/workoutValidation.js").workoutLogPayload>) {
+  if (data.actionId) {
+    const existingAction = await WorkoutLog.findOne({ ownerId, actionId: data.actionId });
+    if (existingAction) return existingAction;
+  }
   if (await WorkoutLog.exists({ ownerId, date: data.date, dayType: data.dayType })) return null;
   return WorkoutLog.create({ ...data, ownerId });
 }

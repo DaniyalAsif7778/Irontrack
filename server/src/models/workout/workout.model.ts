@@ -30,9 +30,11 @@ export const WorkoutLog = model("WorkoutLog", new Schema({
   date: { type: String, required: true }, dayType: { type: String, enum: WORKOUT_DAYS, required: true },
   exercises: { type: [loggedExerciseSchema], default: [] }, totalSets: { type: Number, required: true, min: 0 },
   totalVolume: { type: Number, required: true, min: 0 }, duration: { type: Number, required: true, min: 0 },
+  actionId: { type: String, default: "", maxlength: 120 },
   completedAt: { type: Date, default: Date.now }
 }, { timestamps: true }));
 WorkoutLog.schema.index({ ownerId: 1, date: 1, dayType: 1 }, { unique: true });
+WorkoutLog.schema.index({ ownerId: 1, actionId: 1 }, { unique: true, partialFilterExpression: { actionId: { $type: "string", $gt: "" } }, name: "workout_log_owner_action_unique" });
 
 export const WorkoutProgression = model("WorkoutProgression", new Schema({
   ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },

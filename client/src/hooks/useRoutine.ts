@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api/api";
+import { ApiError, api } from "../lib/api/api";
+import { enqueueOfflineAction } from "../lib/api/offlineQueue";
 import type { TaskFormValues } from "../schemas/routine";
 import type { Day, Schedule, Task, TaskEditing } from "../types";
 import { queryKeys } from "./queryKeys";
@@ -9,14 +10,23 @@ export function useRoutineDay(date: string) {
   return useQuery({ queryKey: [...queryKeys.routine.day(date), timezone], queryFn: () => api<Day>(`/routine/days/${date}?timezone=${encodeURIComponent(timezone)}`) });
 }
 
-export function useRoutineMutations(date: string) {
+export function useRoutineMutations(date: string, accountId?: string) {
   const queryClient = useQueryClient();
   const invalidateRoutine = () => queryClient.invalidateQueries({ queryKey: queryKeys.routine.days });
   const invalidateAnalytics = () => queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
   const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: ["routine-events"] });
 
   const completeTask = useMutation({
-    mutationFn: (task: Task) => api(`/routine/tasks/${task._id}/completion/${date}`, { method: "PUT", body: JSON.stringify({ completed: !task.completed, actionId: crypto.randomUUID() }) }),
+    mutationFn: async (task: Task) => {
+      const path = `/routine/tasks/${task._id}/completion/${date}`;
+      const body = { completed: !task.completed, actionId: crypto.randomUUID() };
+      try { return await api(path, { method: "PUT", body: JSON.stringify(body) }); }
+      catch (error) {
+        if (!accountId || !(error instanceof ApiError && error.status === 0)) throw error;
+        enqueueOfflineAction({ id: body.actionId, accountId, kind: "routine_completion", path, body });
+        return { queuedOffline: true };
+      }
+    },
     onSuccess: () => Promise.all([invalidateRoutine(), invalidateAnalytics(), invalidateEvents()]),
   });
   const saveSubtasks = useMutation({

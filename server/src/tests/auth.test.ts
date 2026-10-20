@@ -25,6 +25,8 @@ describe("account validation", () => {
 
   it("bounds account preference updates and rejects unknown keys", () => {
     expect(accountSettingsSchema.safeParse({ preferences: { weightUnit: "lb", focusMinutes: 50, breakMinutes: 10 } }).success).toBe(true);
+    expect(accountSettingsSchema.safeParse({ preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "05:10", dhuhr: "12:30", asr: "", maghrib: "18:25", isha: "20:10" } } }).success).toBe(true);
+    expect(accountSettingsSchema.safeParse({ preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "25:70", dhuhr: "", asr: "", maghrib: "", isha: "" } } }).success).toBe(false);
     expect(accountSettingsSchema.safeParse({ preferences: { weightUnit: "lb", focusMinutes: 2, breakMinutes: 10 } }).success).toBe(false);
     expect(accountSettingsSchema.safeParse({ email: "other@example.com" }).success).toBe(false);
   });

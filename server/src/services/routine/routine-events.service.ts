@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import { BLOCKS } from "../../constant.js";
+import { User } from "../../models/auth/user.model.js";
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
 import { sendOwnerPush } from "../notifications/push.service.js";
 
@@ -163,8 +164,12 @@ async function shiftFollowingTasks(ownerId: string, date: string, currentTaskId:
   const index = tasks.findIndex(task => String(task._id) === currentTaskId);
   const later = tasks.slice(index + 1);
   const ids = later.map(task => task._id);
+  const owner = await User.findById(ownerId).select("preferences.prayerTimes").session(session).lean();
   const prayerTasks = await RoutineTask.find({ ownerId, dayType, block: { $in: BLOCKS }, $or: [{ type: /^prayer$/i }, { title: /^prayer$/i }] }).select("block startTime reminderTime").session(session).lean();
   const prayerAnchors = new Map<string, number>();
+  for (const [block, anchor] of Object.entries(owner?.preferences?.prayerTimes ?? {})) {
+    if (anchor && /^([01]\d|2[0-3]):[0-5]\d$/.test(anchor)) prayerAnchors.set(block, Number(anchor.slice(0, 2)) * 60 + Number(anchor.slice(3)));
+  }
   for (const task of prayerTasks) {
     const anchor = task.startTime || task.reminderTime;
     if (anchor && /^([01]\d|2[0-3]):[0-5]\d$/.test(anchor) && !prayerAnchors.has(task.block)) prayerAnchors.set(task.block, Number(anchor.slice(0, 2)) * 60 + Number(anchor.slice(3)));
@@ -176,10 +181,11 @@ async function shiftFollowingTasks(ownerId: string, date: string, currentTaskId:
     const originalDate = occurrence.date;
     const nextStart = occurrence.startAt ? new Date(occurrence.startAt.getTime() + delta) : null;
     const nextEnd = occurrence.endAt ? new Date(occurrence.endAt.getTime() + delta) : null;
-    if (nextEnd && shouldCarryAfterCutoff(`${localParts(nextEnd, occurrence.timezone).hour}:${localParts(nextEnd, occurrence.timezone).minute}`)) {
-      const parts = localParts(nextEnd, occurrence.timezone);
-      const destinationDate = parts.year + "-" + parts.month + "-" + parts.day;
-      const nextDate = new Date(`${destinationDate}T12:00:00Z`); nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    const endParts = nextEnd ? localParts(nextEnd, occurrence.timezone) : null;
+    const endDate = endParts ? `${endParts.year}-${endParts.month}-${endParts.day}` : originalDate;
+    const endTime = endParts ? `${endParts.hour}:${endParts.minute}` : "";
+    if (nextEnd && (endDate > originalDate || shouldCarryAfterCutoff(endTime))) {
+      const nextDate = new Date(`${originalDate}T12:00:00Z`); nextDate.setUTCDate(nextDate.getUTCDate() + 1);
       occurrence.date = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, "0")}-${String(nextDate.getUTCDate()).padStart(2, "0")}`;
       const weekday = new Date(`${occurrence.date}T12:00:00Z`).getUTCDay();
       occurrence.dayType = weekday === 0 || weekday === 6 ? "weekend" : "weekday";

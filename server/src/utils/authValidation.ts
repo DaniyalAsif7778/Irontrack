@@ -17,5 +17,12 @@ export const accountSettingsSchema = z.object({
     weightUnit: z.enum(["kg", "lb"]),
     focusMinutes: z.number().int().min(5).max(120),
     breakMinutes: z.number().int().min(5).max(60),
+    prayerTimes: z.object({
+      fajr: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/),
+      dhuhr: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/),
+      asr: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/),
+      maghrib: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/),
+      isha: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/),
+    }).strict().optional(),
   }).strict().optional(),
 }).strict().refine(value => value.name !== undefined || value.preferences !== undefined, "Provide at least one setting to update");

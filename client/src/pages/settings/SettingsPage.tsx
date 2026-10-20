@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api } from "../../lib/api/api";
 import { settingsSchema, type SettingsValues } from "../../schemas/settings";
 import { useAppStore } from "../../stores/appStore";
+import { DEFAULT_PRAYER_TIMES } from "../../types";
 import type { AuthUser } from "../../types";
 
 const sessionKey = ["auth", "me"] as const;
@@ -25,11 +26,12 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
       weightUnit: user?.preferences.weightUnit ?? localPreferences.weightUnit,
       focusMinutes: user?.preferences.focusMinutes ?? localPreferences.focusMinutes,
       breakMinutes: user?.preferences.breakMinutes ?? localPreferences.breakMinutes,
+      prayerTimes: user?.preferences.prayerTimes ?? localPreferences.prayerTimes ?? DEFAULT_PRAYER_TIMES,
     },
   });
 
   async function save(values: SettingsValues) {
-    const preferences = { weightUnit: values.weightUnit, focusMinutes: values.focusMinutes, breakMinutes: values.breakMinutes };
+    const preferences = { weightUnit: values.weightUnit, focusMinutes: values.focusMinutes, breakMinutes: values.breakMinutes, prayerTimes: values.prayerTimes };
     try {
       if (user) {
         const result = await api<{ user: AuthUser }>("/auth/me", {
@@ -94,6 +96,14 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
           <label className="settings-field"><span>Break (minutes)</span><input type="number" min="5" max="60" step="1" {...register("breakMinutes", { valueAsNumber: true })} />{errors.breakMinutes && <small role="alert">{errors.breakMinutes.message}</small>}</label>
         </div>
         <p className="settings-hint">Changing timer lengths affects the next session, not a timer already running.</p>
+      </section>
+
+      <section className="settings-card">
+        <div className="settings-heading"><span><Clock3 size={18} /></span><div><h2>Prayer anchors</h2><p>Set fixed reference times for moving delayed tasks into the next prayer card.</p></div></div>
+        <div className="settings-prayer-grid">
+          {([["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]] as const).map(([key, label]) => <label className="settings-field" key={key}>{label}<input type="time" {...register(`prayerTimes.${key}`)} /></label>)}
+        </div>
+        <p className="settings-hint">These are manual reference times; IronTrack does not calculate or change them. They do not overwrite a task’s saved start time. Leave a time blank to use a prayer task’s time as the fallback anchor.</p>
       </section>
 
       <section className="settings-card">

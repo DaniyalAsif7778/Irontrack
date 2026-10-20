@@ -45,5 +45,6 @@ export function workoutLogPayload(input: any) {
   });
   const totalSets = exercises.reduce((total: number, exercise: { sets: unknown[] }) => total + exercise.sets.length, 0);
   const totalVolume = exercises.reduce((total: number, exercise: { sets: { reps: number; weight: number }[] }) => total + exercise.sets.reduce((sum, set) => sum + set.reps * set.weight, 0), 0);
-  return { date: input.date, dayType: input.dayType, exercises, totalSets, totalVolume, duration: Math.round(input.duration) };
+  const actionId = typeof input.actionId === "string" && input.actionId.length <= 120 ? input.actionId : "";
+  return { date: input.date, dayType: input.dayType, exercises, totalSets, totalVolume, duration: Math.round(input.duration), actionId };
 }
