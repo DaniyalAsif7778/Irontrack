@@ -10,6 +10,7 @@ type TimerState = {
   startedAt: number | null;
   focusLengthMs: number;
   breakLengthMs: number;
+  taskBlock?: boolean;
 };
 
 function remaining(state: TimerState, now: number) {
@@ -25,6 +26,7 @@ function readTimer(storageKey: string): TimerState | null {
       !["focus", "break"].includes(parsed.phase) || typeof parsed.remainingMs !== "number") return null;
     return {
       ...parsed,
+      taskBlock: parsed.taskBlock === true,
       focusLengthMs: typeof parsed.focusLengthMs === "number" ? parsed.focusLengthMs : 45 * 60_000,
       breakLengthMs: typeof parsed.breakLengthMs === "number" ? parsed.breakLengthMs : 15 * 60_000,
     };
@@ -55,12 +57,23 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
 
   useEffect(() => {
     function start(event: Event) {
-      const { taskId, taskTitle } = (event as CustomEvent<{ taskId: string; taskTitle: string }>).detail;
-      setTimer({ taskId, taskTitle, phase: "focus", remainingMs: focusMinutes * 60_000, startedAt: Date.now(), focusLengthMs: focusMinutes * 60_000, breakLengthMs: breakMinutes * 60_000 });
+      const { taskId, taskTitle, taskBlockMinutes } = (event as CustomEvent<{ taskId: string; taskTitle: string; taskBlockMinutes?: number }>).detail;
+      const durationMs = (taskBlockMinutes ?? focusMinutes) * 60_000;
+      setTimer({ taskId, taskTitle, phase: "focus", remainingMs: durationMs, startedAt: Date.now(), focusLengthMs: durationMs, breakLengthMs: breakMinutes * 60_000, taskBlock: taskBlockMinutes !== undefined });
       window.dispatchEvent(new CustomEvent("routine-timer-update", { detail: { taskId } }));
     }
+    function extend(event: Event) {
+      const { taskId } = (event as CustomEvent<{ taskId: string }>).detail;
+      setTimer(current => current?.taskId === taskId ? { ...current, phase: "focus", remainingMs: 15 * 60_000, focusLengthMs: 15 * 60_000, startedAt: Date.now(), taskBlock: true } : current);
+    }
+    function stop(event: Event) {
+      const { taskId } = (event as CustomEvent<{ taskId: string }>).detail;
+      setTimer(current => current?.taskId === taskId ? null : current);
+    }
     window.addEventListener("irontrack:start-task-timer", start);
-    return () => window.removeEventListener("irontrack:start-task-timer", start);
+    window.addEventListener("irontrack:extend-task-timer", extend);
+    window.addEventListener("irontrack:stop-task-timer", stop);
+    return () => { window.removeEventListener("irontrack:start-task-timer", start); window.removeEventListener("irontrack:extend-task-timer", extend); window.removeEventListener("irontrack:stop-task-timer", stop); };
   }, [focusMinutes, breakMinutes]);
 
   useEffect(() => {
@@ -69,6 +82,11 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
       const tick = Date.now();
       setNow(tick);
       if (remaining(timer, tick) > 0) return;
+      if (timer.taskBlock && timer.phase === "focus") {
+        setTimer({ ...timer, remainingMs: 0, startedAt: null });
+        if ("Notification" in window && Notification.permission === "granted") new Notification("Focus block complete", { body: `${timer.taskTitle} needs a finish or 15-minute extension.`, tag: `irontrack-task-${timer.taskId}` });
+        return;
+      }
       const phase: Phase = timer.phase === "focus" ? "break" : "focus";
       setTimer({ ...timer, phase, remainingMs: phase === "focus" ? timer.focusLengthMs : timer.breakLengthMs, startedAt: tick });
       if ("Notification" in window && Notification.permission === "granted") {

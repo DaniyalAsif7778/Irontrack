@@ -17,9 +17,14 @@ type RoutinePageProps = {
   remove: (id: string) => void;
   saveSubtasks: (task: Task, subtasks: Task["subtasks"]) => void;
   onError: (message: string) => void;
+  startTask: (task: Task) => void;
+  queueTask: (task: Task) => void;
+  extendTask: (task: Task) => void;
+  snoozeTask: (task: Task, minutes: number) => void;
+  eventStats: { days: number; counts: Record<string, { count: number; avgResponseMs: number | null }>; completionRate: number; totalEvents: number; averageResponseMs: number | null; recentEvents: Array<{ eventId: string; date: string; type: string; occurredAt: string; responseTimeMs: number | null; pushStatus?: string; taskId?: { title: string } | null }> } | undefined;
 };
 
-export default function RoutinePage({ date, title, day, dayType, dayLoading, dayError, setDate, complete, edit, remove, saveSubtasks, onError }: RoutinePageProps) {
+export default function RoutinePage({ date, title, day, dayType, dayLoading, dayError, setDate, complete, edit, remove, saveSubtasks, onError, startTask, queueTask, extendTask, snoozeTask, eventStats }: RoutinePageProps) {
   const [tab, setTab] = useState<"routine" | "analytics">("routine");
   const [now, setNow] = useState(() => new Date());
   const analytics = useAnalytics(14);
@@ -32,13 +37,16 @@ export default function RoutinePage({ date, title, day, dayType, dayLoading, day
     { id: "isha", label: "Isha", tasks: [], completed: 0, total: 0 },
   ];
   const blocks = day?.blocks ?? emptyBlocks;
+  const activeTaskId = blocks.flatMap(block => block.tasks).find(task => task.occurrence?.status === "active")?._id ?? null;
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => { if (analytics.error) onError(analytics.error.message); }, [analytics.error, onError]);
   return <>
     <header><div><h1>Routine</h1><p>Your day, anchored by prayer and intentional tasks.</p></div>{tab === "routine" && <div className="routine-header-actions"><input aria-label="Routine date" type="date" value={date} onChange={event => setDate(event.target.value)} /></div>}</header>
     <nav className="routine-tabs" aria-label="Routine view"><button type="button" className={tab === "routine" ? "selected" : ""} onClick={() => setTab("routine")}><Sun size={15} /> Routine</button><button type="button" className={tab === "analytics" ? "selected" : ""} onClick={() => setTab("analytics")}><Activity size={15} /> Analytics</button></nav>
     {tab === "analytics" ? <>
-      <div className="dashboard routine-analytics-metrics"><article className="metric-card"><span><Flame /></span><strong>{activity.filter(item => item.completed > 0).length}</strong><small>Active days · 14 days</small></article><article className="metric-card"><span><Activity /></span><strong>{analytics.data?.periodCompleted ?? 0}</strong><small>Tasks completed · 14 days</small></article><article className="metric-card"><span><Sun /></span><strong>{activity.length ? Math.round(activity.reduce((sum, day) => sum + day.rate, 0) / activity.length) : 0}%</strong><small>Average daily completion</small></article></div>
+      <div className="dashboard routine-analytics-metrics"><article className="metric-card"><span><Flame /></span><strong>{activity.filter(item => item.completed > 0).length}</strong><small>Active days · 14 days</small></article><article className="metric-card"><span><Activity /></span><strong>{analytics.data?.periodCompleted ?? 0}</strong><small>Tasks completed · 14 days</small></article><article className="metric-card"><span><Sun /></span><strong>{activity.length ? Math.round(activity.reduce((sum, day) => sum + day.rate, 0) / activity.length) : 0}%</strong><small>Average daily completion</small></article><article className="metric-card"><span><Clock3 /></span><strong>{eventStats?.totalEvents ?? 0}</strong><small>Tracked actions · {eventStats?.days ?? 14} days</small></article></div>
+      <section className="chart-card habit-event-insights"><div className="section-heading"><h2>Habit response</h2><span>Events recorded in IronTrack</span></div><div className="habit-event-grid"><article><b>{eventStats?.completionRate ?? 0}%</b><small>Task start-to-complete rate</small></article><article><b>{eventStats?.counts.task_started?.count ?? 0}</b><small>Tasks started</small></article><article><b>{eventStats?.counts.task_extended?.count ?? 0}</b><small>15-minute extensions</small></article><article><b>{eventStats?.counts.task_snoozed?.count ?? 0}</b><small>Snoozes</small></article><article><b>{eventStats?.counts.reminder_ignored?.count ?? 0}</b><small>Ignored reminders</small></article><article><b>{eventStats?.counts.task_deferred?.count ?? 0}</b><small>Moved to final prayer card</small></article><article><b>{eventStats?.averageResponseMs == null ? "—" : `${Math.round(eventStats.averageResponseMs / 60_000)}m`}</b><small>Average response time</small></article></div>{!eventStats?.totalEvents && <p className="chart-empty">Task response insights will appear after you start using reminders.</p>}</section>
+      {Boolean(eventStats?.recentEvents.length) && <section className="chart-card"><div className="section-heading"><h2>Recent routine activity</h2><span>Latest 20 actions</span></div><ul className="routine-event-feed">{eventStats?.recentEvents.map(event => <li key={event.eventId}><span className="routine-event-dot" /><div><b>{event.taskId?.title ?? event.type.replace(/_/g, " ")}</b><small>{event.type.replace(/_/g, " ")} · {new Date(event.occurredAt).toLocaleString()}</small></div><small>{event.pushStatus ? `Push ${event.pushStatus}` : event.date}</small></li>)}</ul></section>}
       <section className="chart-card"><div className="section-heading"><h2>Last 14 days</h2><span>Completed tasks by day</span></div>{analytics.isPending ? <p className="chart-empty">Loading routine history…</p> : <div className="routine-heatmap">{activity.map(item => <div className="routine-heat-day" key={item.date} title={`${item.date}: ${item.completed}/${item.total} tasks`}><span className={`routine-heat-cell ${item.rate >= 75 ? "high" : item.rate >= 35 ? "medium" : item.completed ? "low" : "empty"}`}><b>{item.completed}</b></span><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</small></div>)}</div>}<div className="routine-analytics-legend"><span>Complete more tasks each day to build a steady rhythm.</span><b>{activity.filter(item => item.rate === 100 && item.total > 0).length} complete days</b></div></section>
       <section className="chart-card"><div className="section-heading"><h2>Daily completion</h2><span>Completions / planned tasks</span></div><div className="routine-bars">{activity.map(item => <div className="routine-bar-day" key={item.date} title={`${item.completed} of ${item.total}`}><div><i style={{ height: `${Math.max(item.rate ? 6 : 0, item.rate)}%` }} /></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString(undefined, { day: "numeric" })}</small></div>)}</div></section>
     </> : <>
@@ -58,7 +66,7 @@ export default function RoutinePage({ date, title, day, dayType, dayLoading, day
         <div className="progress"><i style={{ width: `${block.total ? block.completed / block.total * 100 : 0}%` }} /></div>
         {block.tasks.map((task, index) => <div className="task-wrap" key={task._id}>
           {(index === firstAfterPrayer || (index === 0 && task.section === `post_${block.id}`)) && <h3 className="block-divider">After {block.label}</h3>}
-          <TaskCard task={task} blockId={block.id} complete={complete} edit={edit} remove={remove} saveSubtasks={saveSubtasks} />
+          <TaskCard task={task} blockId={block.id} complete={complete} edit={edit} remove={remove} saveSubtasks={saveSubtasks} activeTaskId={activeTaskId} now={now} startTask={startTask} queueTask={queueTask} extendTask={extendTask} snoozeTask={snoozeTask} />
         </div>)}
         <button className="add" onClick={() => edit({ block: block.id })}><Plus size={15} /> Add task</button>
       </section>;

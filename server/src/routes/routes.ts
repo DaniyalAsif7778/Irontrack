@@ -29,6 +29,11 @@ router.post("/routine/tasks", asyncHandler(routine.createTask));
 router.patch("/routine/tasks/:id", asyncHandler(routine.updateTask));
 router.delete("/routine/tasks/:id", asyncHandler(routine.deleteTask));
 router.put("/routine/tasks/:id/completion/:date", asyncHandler(routine.setCompletion));
+router.post("/routine/tasks/:id/occurrences/:date/start", asyncHandler(routine.startTask));
+router.post("/routine/tasks/:id/occurrences/:date/queue", asyncHandler(routine.queueTask));
+router.post("/routine/tasks/:id/occurrences/:date/extend", asyncHandler(routine.extendTask));
+router.post("/routine/tasks/:id/occurrences/:date/snooze", asyncHandler(routine.snoozeTask));
+router.get("/routine/events/analytics", asyncHandler(routine.eventAnalytics));
 
 router.get("/weight-logs", asyncHandler(weights.list));
 router.post("/weight-logs", asyncHandler(weights.create));

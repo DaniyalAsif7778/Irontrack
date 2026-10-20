@@ -5,7 +5,7 @@ import { format, parseISO } from "date-fns";
 import AppShell from "./Layout";
 import { HomePage, RoutinePage, TaskDialog, ScheduleManager, WeightPage, WorkoutPage } from "./pages/pages";
 import { api } from "./lib/api/api";
-import { useAnalytics, useRoutineDay, useRoutineMutations, useWeightLogs, useWeightMutations } from "./hooks/hooks";
+import { useAnalytics, useRoutineDay, useRoutineEventAnalytics, useRoutineMutations, useWeightLogs, useWeightMutations } from "./hooks/hooks";
 import { ironToday } from "./utils/date";
 import type { AnalyticsData, AppView, Day, Task, TaskEditing, Weight } from "./types";
 import type { TaskFormValues } from "./schemas/routine";
@@ -36,9 +36,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<TaskEditing | null>(null);
   const dayQuery = useRoutineDay(date);
+  const eventStatsQuery = useRoutineEventAnalytics(14);
   const weightsQuery = useWeightLogs();
   const analyticsQuery = useAnalytics(analyticsDays);
-  const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation } = useRoutineMutations(date);
+  const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation, startTask: startTaskMutation, queueTask: queueTaskMutation, extendTask: extendTaskMutation, snoozeTask: snoozeTaskMutation } = useRoutineMutations(date);
   const { saveWeight: saveWeightMutation, removeWeight: removeWeightMutation } = useWeightMutations();
   const day = dayQuery.data ?? null;
   const selectedDayType = day?.dayType ?? ([0, 6].includes(new Date(`${date}T12:00:00`).getDay()) ? "weekend" : "weekday");
@@ -65,25 +66,34 @@ export default function App() {
   const title = useMemo(() => format(parseISO(date), "EEEE, MMM d"), [date]);
 
   async function complete(task: Task) {
-    try { await completeTask.mutateAsync(task); }
+    try { await completeTask.mutateAsync(task); toast.success(task.completed ? `${task.title} returned to today's routine.` : `${task.title} marked complete.`); window.dispatchEvent(new CustomEvent("irontrack:stop-task-timer", { detail: { taskId: task._id } })); }
     catch (value) { setError((value as Error).message); }
   }
 
+  async function startRoutineTask(task: Task) {
+    try { await startTaskMutation.mutateAsync(task); toast.success(`${task.title} started. Your 45-minute block is running.`); window.dispatchEvent(new CustomEvent("irontrack:start-task-timer", { detail: { taskId: task._id, taskTitle: task.title, taskBlockMinutes: 45 } })); }
+    catch (value) { setError((value as Error).message); }
+  }
+  async function queueRoutineTask(task: Task) { try { await queueTaskMutation.mutateAsync(task); toast.success(`${task.title} is queued to start when you're ready.`); } catch (value) { setError((value as Error).message); } }
+  async function extendRoutineTask(task: Task) { try { const result = await extendTaskMutation.mutateAsync(task) as { shiftedTaskTitles?: string[] }; const shifted = result.shiftedTaskTitles ?? []; toast.success(`${task.title} got 15 more minutes.${shifted.length ? ` ${shifted.length} later task${shifted.length === 1 ? "" : "s"} shifted.` : ""}`); window.dispatchEvent(new CustomEvent("irontrack:extend-task-timer", { detail: { taskId: task._id } })); } catch (value) { setError((value as Error).message); } }
+  async function snoozeRoutineTask(task: Task, minutes: number) { try { const result = await snoozeTaskMutation.mutateAsync({ task, minutes }) as { shiftedTaskTitles?: string[] }; const shifted = result.shiftedTaskTitles ?? []; toast.success(`${task.title} snoozed for ${minutes} minutes.${shifted.length ? ` ${shifted.length} later task${shifted.length === 1 ? "" : "s"} shifted.` : ""}`); } catch (value) { setError((value as Error).message); } }
+
   async function saveSubtasks(task: Task, subtasks: Task["subtasks"]) {
-    try { await saveSubtasksMutation.mutateAsync({ task, subtasks }); }
+    try { await saveSubtasksMutation.mutateAsync({ task, subtasks }); toast.success(`${task.title} subtasks updated.`); }
     catch (value) { setError((value as Error).message); }
   }
 
   async function saveTask(value: TaskFormValues) {
     try {
       await saveTaskMutation.mutateAsync({ current: editing, value, dayType: selectedDayType });
+      toast.success(editing?.task ? "Routine task updated." : "Routine task added.");
       setEditing(null);
     } catch (reason) { setError((reason as Error).message); }
   }
 
   async function removeTask(id: string) {
     if (!confirm("Delete this routine task?")) return;
-    try { await removeTaskMutation.mutateAsync(id); }
+    try { await removeTaskMutation.mutateAsync(id); toast.success("Routine task removed."); }
     catch (reason) { setError((reason as Error).message); }
   }
 
@@ -104,7 +114,7 @@ export default function App() {
     { path: "/workout", element: <WorkoutPage onError={setError} /> },
     { path: "/workout/stats", element: <Suspense fallback={<p>Loading workout stats…</p>}><WorkoutStatsPage onError={setError} /></Suspense> },
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
-    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} /> },
+    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} startTask={startRoutineTask} queueTask={queueRoutineTask} extendTask={extendRoutineTask} snoozeTask={snoozeRoutineTask} eventStats={eventStatsQuery.data} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} onRange={setAnalyticsDays} /></Suspense> },
     { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} /> },

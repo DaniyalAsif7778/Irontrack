@@ -9,7 +9,7 @@ describe("RoutinePage empty routine state", () => {
   const props = {
     date: "2026-10-20", title: "Tuesday, Oct 20", day: null, dayType: "weekday" as const,
     dayLoading: true, dayError: null, setDate: vi.fn(), complete: vi.fn(), edit, remove: vi.fn(),
-    saveSubtasks: vi.fn(), onError: vi.fn(),
+    saveSubtasks: vi.fn(), onError: vi.fn(), startTask: vi.fn(), queueTask: vi.fn(), extendTask: vi.fn(), snoozeTask: vi.fn(), eventStats: undefined,
   };
 
   beforeEach(() => edit.mockClear());

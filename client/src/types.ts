@@ -8,6 +8,19 @@ export type Task = {
   duration: number;
   dueDate: string;
   reminderTime: string;
+  startTime: string;
+  endTime: string;
+  occurrence?: {
+    _id: string;
+    status: "planned" | "queued" | "active" | "completed" | "deferred";
+    startAt: string | null;
+    endAt: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    timezone: string;
+    workMinutes: number;
+    extensionCount: number;
+  } | null;
   section?: string;
   status?: "pending" | "completed";
   subtasks: { title: string; completed: boolean }[];

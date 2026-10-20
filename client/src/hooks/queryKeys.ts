@@ -7,5 +7,6 @@ export const queryKeys = {
   },
   weights: ["weight-logs"] as const,
   analytics: ["analytics"] as const,
+  routineEvents: (days: number) => ["routine-events", days] as const,
   wellness: (date: string) => ["wellness", date] as const,
 };

@@ -880,6 +880,26 @@ p { color: var(--quiet); font-size: 14px; line-height: 1.55; }
 .routine-type-lock { margin-block: 8px; }
 .routine-type-lock > span { min-height: 28px; padding: 5px 9px; font-size: 10px; }
 .routine-type-hint { margin: 4px 0 8px; font-size: 10px; }
+.task-occurrence-state { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: hsl(var(--primary)); font-size: 10px; }
+.task-occurrence-state.queued { color: hsl(var(--chart-4)); }
+.task-occurrence-state.deferred { color: hsl(var(--accent)); }
+.queued-pill { align-self: center; padding: 3px 7px; color: hsl(var(--chart-4)); background: hsl(var(--chart-4) / .12); border-radius: 99px; font-size: 10px; font-weight: 650; }
+.tags .task-scheduled-time { display: inline-flex; align-items: center; gap: 4px; color: hsl(var(--primary)); font-variant-numeric: tabular-nums; }
+.task-actions button { transition: background .16s ease, color .16s ease, transform .16s ease; }
+.task-actions button:hover { color: hsl(var(--foreground)); background: hsl(var(--primary) / .14); transform: translateY(-1px); }
+.habit-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.habit-event-grid article { display: grid; gap: 4px; min-width: 0; padding: 10px; background: hsl(var(--secondary) / .45); border: 1px solid var(--line); border-radius: 9px; }
+.habit-event-grid b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.habit-event-grid small { color: var(--quiet); font-size: 10px; }
+.routine-event-feed { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }
+.routine-event-feed li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 2px; border-top: 1px solid var(--line); }
+.routine-event-dot { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary) / .12); }
+.routine-event-feed li > div { display: grid; gap: 3px; min-width: 0; }
+.routine-event-feed li b { overflow: hidden; color: hsl(var(--foreground)); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.routine-event-feed li small { color: var(--quiet); font-size: 9px; }
+.routine-event-feed li > small { text-align: right; }
+.form-grid label { display: grid; gap: 5px; color: var(--quiet); font-size: 11px; }
+@media (max-width: 560px) { .habit-event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .routine-timer { width: min(224px, calc(100vw - 24px)); gap: 8px; padding: 11px; border-radius: 13px; }
 .timer-ring { width: 82px; height: 82px; }
 .timer-ring time { font-size: 17px; }
