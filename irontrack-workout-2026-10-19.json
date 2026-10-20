@@ -1,0 +1,1001 @@
+{
+  "app": "IronTrack",
+  "scope": "workout",
+  "version": 1,
+  "exportedAt": "2026-10-19T14:22:37.724Z",
+  "data": {
+    "custom_workout_plan": {
+      "pull_high_rep": [
+        {
+          "id": "pull-bent-row-hr",
+          "name": "Bent-Over Dumbbell Row",
+          "sets": 2,
+          "reps": 12,
+          "muscle": "Lats / Mid Back",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Keep back flat and neck neutral",
+            "Pull elbows back, not up",
+            "Squeeze shoulder blades at the top",
+            "Exhale as you pull, inhale as you lower"
+          ],
+          "description": "Stand with feet shoulder-width apart holding a dumbbell in each hand. Soften your knees and hinge forward at the hips until your torso is close to parallel with the floor, keeping your back flat and your gaze down and slightly ahead (not craned up) to keep your neck neutral. Let the dumbbells hang directly below your shoulders with arms fully extended. Drive your elbows straight back toward your hips to row the dumbbells to your lower ribs, keeping your torso still. Squeeze your shoulder blades together for 1 second at the top, then lower the dumbbells under control for 3 seconds back to a full arm extension. Exhale on the pull and inhale on the lower; never use a body swing or hip jerk to move the weight.",
+          "steps": [
+            "Stand with feet shoulder-width apart, holding a dumbbell in each hand.",
+            "Soften the knees and hinge forward at the hips, keeping the back flat.",
+            "Keep your neck neutral by looking down and slightly ahead, not up.",
+            "Let the dumbbells hang below the shoulders with arms fully extended.",
+            "Drive the elbows straight back toward the hips to row the weights up.",
+            "Squeeze the shoulder blades together for 1 second at the top, exhaling as you pull.",
+            "Lower the dumbbells under control for 3 seconds, inhaling as you go.",
+            "Keep the torso still throughout - no swinging or hip drive."
+          ],
+          "video": "https://www.youtube.com/results?search_query=bent+over+dumbbell+row+proper+form",
+          "setList": [
+            {
+              "id": "pull-bent-row-hr-s1",
+              "reps": 12,
+              "weight": 5
+            },
+            {
+              "id": "pull-bent-row-hr-s1788521777937",
+              "reps": 12,
+              "weight": 5
+            }
+          ]
+        },
+        {
+          "id": "pull-single-arm-row-hr",
+          "name": "Single Arm Row",
+          "sets": 2,
+          "reps": 15,
+          "muscle": "Lats",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Full stretch at the bottom",
+            "Pull toward the hip, not the shoulder",
+            "Keep hips square, don't rotate",
+            "Control the descent - don't let it drop"
+          ],
+          "description": "Place one hand and the same-side knee on a flat bench so your torso is roughly parallel to the floor, keeping your supporting arm straight and your back flat. Hold the dumbbell in the free hand and let it hang straight down with the shoulder relaxed. Row the dumbbell up toward your hip by driving the elbow back and keeping it close to your torso, squeezing the lat for 1 second at the top. Lower the dumbbell for 3 seconds back to a full stretch, keeping your torso still and your hips square to the bench rather than twisting toward the working arm. Complete all reps on one side before switching.",
+          "steps": [
+            "Place one hand and the same-side knee on a flat bench, back flat and parallel to the floor.",
+            "Hold the dumbbell in the free hand and let the arm hang straight down.",
+            "Keep the shoulder relaxed and the hips square to the bench.",
+            "Row the dumbbell toward the hip, driving the elbow back and keeping it close to the body.",
+            "Squeeze the lat for 1 second at the top, exhaling as you pull.",
+            "Lower the dumbbell under control for 3 seconds, inhaling as you go.",
+            "Allow a full, controlled stretch at the bottom without letting the weight drop.",
+            "Complete all reps on one side, then switch and repeat."
+          ],
+          "video": "https://www.youtube.com/results?search_query=single+arm+dumbbell+row+proper+form",
+          "setList": [
+            {
+              "id": "pull-single-arm-row-hr-s1",
+              "reps": 15,
+              "weight": 5
+            },
+            {
+              "id": "pull-single-arm-row-hr-s2",
+              "reps": 15,
+              "weight": 5
+            }
+          ]
+        },
+        {
+          "id": "pull-reverse-fly-hr",
+          "name": "Reverse Fly",
+          "sets": 2,
+          "reps": 15,
+          "muscle": "Rear Delts",
+          "tempo": "3-1-2",
+          "rest": 20,
+          "cues": [
+            "Slight, fixed bend in the elbows",
+            "Raise arms no higher than shoulder height",
+            "Lead with the elbows, not the hands",
+            "No momentum or torso swing"
+          ],
+          "description": "Hold a light dumbbell in each hand and stand with feet shoulder-width apart. Hinge forward at the hips, keeping your back flat and core braced, until your torso is close to parallel with the floor. Let the dumbbells hang below your chest with a slight, fixed bend in the elbows. Raise both arms out to the sides in a wide arc, leading with the elbows, until they reach shoulder height - do not raise them higher, since that shifts the load off the rear delts and toward the upper traps and increases shoulder strain. Squeeze your rear shoulders for 1 second at the top, then lower for 3 seconds under control. Keep your torso completely still throughout; if you need to swing to move the weight, it is too heavy.",
+          "steps": [
+            "Stand with feet shoulder-width apart holding a light dumbbell in each hand.",
+            "Hinge forward at the hips until the torso is close to parallel with the floor.",
+            "Keep the back flat, core braced, and a slight fixed bend in the elbows.",
+            "Let the dumbbells hang below the chest.",
+            "Raise both arms out to the sides in a wide arc, leading with the elbows.",
+            "Stop at shoulder height - do not raise the arms any higher.",
+            "Squeeze the rear delts for 1 second at the top, then lower for 3 seconds.",
+            "Keep the torso still - no swinging or using momentum."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+reverse+fly+proper+form",
+          "setList": [
+            {
+              "id": "pull-reverse-fly-hr-s1",
+              "reps": 15,
+              "weight": 5
+            },
+            {
+              "id": "pull-reverse-fly-hr-s2",
+              "reps": 15,
+              "weight": 5
+            }
+          ]
+        },
+        {
+          "id": "pull-shrugs-hr",
+          "name": "Dumbbell Shrugs",
+          "sets": 2,
+          "reps": 20,
+          "muscle": "Traps",
+          "tempo": "2-1-2",
+          "rest": 20,
+          "cues": [
+            "Lift shoulders straight up toward the ears",
+            "Hold briefly at the top",
+            "No rolling motion",
+            "Keep arms and neck relaxed"
+          ],
+          "description": "Stand upright with a dumbbell in each hand, arms hanging naturally at your sides, chest up, and core lightly braced. Keeping your arms straight and your neck relaxed (don't jut your chin forward), raise your shoulders straight up toward your ears. Hold the top position for 1 second, squeezing the traps, then lower your shoulders under control for 2 seconds back to the start. The movement is strictly vertical - avoid any forward or backward rolling of the shoulders, which does not add benefit and can irritate the shoulder joint.",
+          "steps": [
+            "Stand upright, feet shoulder-width apart, holding a dumbbell in each hand.",
+            "Let your arms hang naturally at your sides, chest up, core lightly braced.",
+            "Keep your neck relaxed rather than jutting your chin forward.",
+            "Raise both shoulders straight up toward your ears.",
+            "Hold and squeeze the traps for 1 second at the top.",
+            "Lower the shoulders under control for 2 seconds.",
+            "Keep the arms straight and relaxed throughout.",
+            "Move strictly up and down - do not roll the shoulders forward or back."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+shrug+proper+form",
+          "setList": [
+            {
+              "id": "pull-shrugs-hr-s1",
+              "reps": 20,
+              "weight": 5
+            },
+            {
+              "id": "pull-shrugs-hr-s2",
+              "reps": 20,
+              "weight": 5
+            }
+          ]
+        },
+        {
+          "id": "pull-bicep-curl-hr",
+          "name": "Bicep Curl",
+          "sets": 2,
+          "reps": 14,
+          "muscle": "Biceps",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Elbows pinned to your sides",
+            "No swinging or leaning back",
+            "Full extension at the bottom",
+            "Exhale on the curl, inhale on the lower"
+          ],
+          "description": "Stand upright with a dumbbell in each hand, palms facing forward, and elbows pinned close to your sides. Keeping your upper arms completely still, curl the dumbbells up toward your shoulders by bending only at the elbow. Squeeze the biceps for 1 second at the top, then lower the dumbbells under control for 3 seconds until your arms are fully extended. Keep your torso upright and braced throughout - do not lean back or swing the weights to generate momentum, as this shifts the work away from the biceps and onto the lower back.",
+          "steps": [
+            "Stand upright holding a dumbbell in each hand, palms facing forward.",
+            "Pin your elbows close to your sides and keep the upper arms still.",
+            "Brace your core and curl the dumbbells toward your shoulders.",
+            "Do not let your elbows drift forward as you curl.",
+            "Squeeze the biceps for 1 second at the top, exhaling as you go.",
+            "Lower the dumbbells under control for 3 seconds, inhaling as you go.",
+            "Reach full arm extension at the bottom without locking out hard.",
+            "Keep your torso upright - no leaning back or swinging."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+bicep+curl+proper+form",
+          "setList": [
+            {
+              "id": "pull-bicep-curl-hr-s2",
+              "reps": 14,
+              "weight": 14
+            },
+            {
+              "id": "pull-bicep-curl-hr-s1788521912320",
+              "reps": 14,
+              "weight": 14
+            }
+          ]
+        },
+        {
+          "id": "pull-hammer-curl-hr",
+          "name": "Hammer Curl",
+          "sets": 1,
+          "reps": 15,
+          "muscle": "Biceps / Forearms",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Neutral grip throughout (palms facing in)",
+            "Elbows pinned to your sides",
+            "Slow, controlled descent",
+            "No wrist rotation"
+          ],
+          "description": "Stand upright with a dumbbell in each hand, palms facing each other in a neutral grip, elbows pinned close to your sides, and shoulders relaxed. Curl the dumbbells up toward your shoulders while keeping the neutral grip fixed - do not rotate the wrists as you would in a standard curl. Briefly squeeze the biceps and forearms at the top, then lower the dumbbells under control for 3 seconds back to full arm extension. Keep your torso still throughout and avoid swinging the weights.",
+          "steps": [
+            "Stand upright holding a dumbbell in each hand, palms facing each other.",
+            "Pin your elbows close to your sides and relax your shoulders.",
+            "Curl the dumbbells upward while keeping the neutral grip fixed.",
+            "Do not rotate your wrists or let your elbows drift forward.",
+            "Squeeze the biceps and forearms briefly at the top.",
+            "Lower the dumbbells under control for 3 seconds.",
+            "Reach full arm extension at the bottom.",
+            "Keep the torso still throughout - no swinging."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+hammer+curl+proper+form",
+          "setList": [
+            {
+              "id": "pull-hammer-curl-hr-s1",
+              "reps": 15,
+              "weight": 5
+            }
+          ]
+        }
+      ],
+      "push_high_rep": [
+        {
+          "id": "push-floor-press-hr",
+          "name": "Dumbbell Floor Press",
+          "sets": 2,
+          "reps": 20,
+          "muscle": "Chest / Triceps",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Elbows at roughly 45 degrees from the torso",
+            "Lower until the upper arms touch the floor",
+            "Keep wrists stacked over elbows",
+            "Don't lock the elbows aggressively at the top"
+          ],
+          "description": "Lie on your back with your knees bent and feet flat on the floor. Hold a dumbbell in each hand directly above your chest with your wrists straight and stacked over your elbows. Lower the dumbbells under control for 3 seconds, keeping your elbows at roughly a 45-degree angle from your torso (not flared out to 90 degrees), until your upper arms gently touch the floor. Pause briefly without bouncing your elbows off the ground, then press the dumbbells back up in a straight line over your chest. Exhale on the press and inhale on the lower, finishing with your arms extended without snapping the elbows into a hard lockout.",
+          "steps": [
+            "Lie on your back with knees bent and feet flat on the floor.",
+            "Hold a dumbbell in each hand above your chest, wrists straight and stacked over the elbows.",
+            "Keep your elbows at roughly 45 degrees from your torso, not flared to the sides.",
+            "Lower the dumbbells under control for 3 seconds until the upper arms gently touch the floor.",
+            "Pause briefly without bouncing your elbows off the ground.",
+            "Press the dumbbells back up in a straight line, exhaling as you push.",
+            "Finish with arms extended without aggressively locking the elbows."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+floor+press+proper+form",
+          "setList": [
+            {
+              "id": "push-floor-press-hr-s1",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-floor-press-hr-s2",
+              "reps": 20,
+              "weight": ""
+            }
+          ]
+        },
+        {
+          "id": "push-incline-press-hr",
+          "name": "Incline Dumbbell Press",
+          "sets": 3,
+          "reps": 20,
+          "muscle": "Upper Chest / Shoulders",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Set the bench to a 30-45 degree incline",
+            "Press up and slightly back, not straight up",
+            "Keep wrists stacked over elbows",
+            "Keep elbows at roughly 45 degrees, not flared"
+          ],
+          "description": "Set an adjustable bench to a 30-45 degree incline and lie back on it with a dumbbell in each hand at shoulder height, palms facing forward and wrists stacked over your elbows. Keep your feet flat on the floor and your lower back lightly in contact with the bench pad. Press the dumbbells up and slightly back along the line of the incline, keeping your elbows at roughly 45 degrees from your torso rather than flaring them out to the sides. Stop just short of locking the elbows hard at the top, exhaling as you press. Lower the dumbbells under control for 3 seconds back to shoulder height, inhaling as you go, keeping the path smooth and controlled throughout.",
+          "steps": [
+            "Set an adjustable bench to a 30-45 degree incline and lie back on it.",
+            "Hold a dumbbell in each hand at shoulder height, palms facing forward.",
+            "Keep your feet flat on the floor and your lower back lightly on the bench.",
+            "Keep your wrists straight and stacked over your elbows.",
+            "Press the dumbbells up and slightly back, exhaling as you push.",
+            "Keep your elbows at roughly 45 degrees from your torso, not flared out.",
+            "Stop just short of locking the elbows hard at the top.",
+            "Lower the dumbbells under control for 3 seconds, inhaling as you go."
+          ],
+          "video": "https://www.youtube.com/results?search_query=incline+dumbbell+press+proper+form",
+          "setList": [
+            {
+              "id": "push-incline-press-hr-s1",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-incline-press-hr-s2",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-incline-press-hr-s3",
+              "reps": 20,
+              "weight": ""
+            }
+          ]
+        },
+        {
+          "id": "push-shoulder-press-hr",
+          "name": "Dumbbell Shoulder Press",
+          "sets": 2,
+          "reps": 20,
+          "muscle": "Shoulders",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Ribs down, don't arch the lower back",
+            "Press in a straight line, not forward",
+            "Keep wrists straight and stacked",
+            "Control the 3-second descent"
+          ],
+          "description": "Sit or stand tall holding a dumbbell in each hand at shoulder height, elbows slightly below the wrists. Brace your core and keep your ribs pulled down so your lower back doesn't arch as you press. Push both dumbbells straight overhead in a controlled path, keeping your wrists straight and avoiding any backward lean. Stop just short of a hard elbow lockout at the top, then lower the dumbbells under control for 3 seconds back to shoulder height. Exhale as you press up and inhale as you lower; if you feel your lower back arching to complete a rep, the weight is too heavy or the range is being forced.",
+          "steps": [
+            "Sit or stand tall holding a dumbbell in each hand at shoulder height.",
+            "Brace your core and keep your ribs pulled down.",
+            "Start with your elbows slightly below the dumbbells.",
+            "Press both dumbbells straight overhead in a controlled path, exhaling as you go.",
+            "Keep your wrists straight and avoid leaning backward.",
+            "Stop just short of locking the elbows out hard at the top.",
+            "Lower the dumbbells under control for 3 seconds, inhaling as you go.",
+            "Keep the torso stable throughout - no arching the lower back."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+shoulder+press+proper+form",
+          "setList": [
+            {
+              "id": "push-shoulder-press-hr-s1",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-shoulder-press-hr-s2",
+              "reps": 20,
+              "weight": ""
+            }
+          ]
+        },
+        {
+          "id": "push-lateral-raise-hr",
+          "name": "Lateral Raise",
+          "sets": 4,
+          "reps": 25,
+          "muscle": "Shoulders (Side Delts)",
+          "tempo": "3-1-2",
+          "rest": 20,
+          "cues": [
+            "Lead with the elbows, not the hands",
+            "Raise to shoulder height only",
+            "Keep a slight, fixed bend in the elbows",
+            "Shoulders down - no shrugging"
+          ],
+          "description": "Stand upright with a dumbbell in each hand at your sides, palms facing your body, and a slight, fixed bend in your elbows. Brace your core and keep your torso still. Raise both arms out to the sides in a wide arc, leading with your elbows, until they reach shoulder height - do not raise the dumbbells any higher, since that shifts the stress onto the shoulder joint and tends to pull the traps in to finish the movement. Hold briefly at the top, keeping your shoulders down away from your ears, then lower the dumbbells under control for 3 seconds back to your sides without swinging your hips or torso to help move the weight.",
+          "steps": [
+            "Stand upright with a dumbbell in each hand at your sides.",
+            "Keep a slight, fixed bend in your elbows and palms facing your body.",
+            "Brace your core and keep your torso still.",
+            "Raise both arms out to the sides in a wide arc, leading with the elbows.",
+            "Stop once your arms reach shoulder height - do not go higher.",
+            "Keep your shoulders down, away from your ears, throughout.",
+            "Lower the dumbbells under control for 3 seconds.",
+            "Avoid swinging your hips or torso to move the weight."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+lateral+raise+proper+form",
+          "setList": [
+            {
+              "id": "push-lateral-raise-hr-s1",
+              "reps": 25,
+              "weight": ""
+            },
+            {
+              "id": "push-lateral-raise-hr-s2",
+              "reps": 25,
+              "weight": ""
+            },
+            {
+              "id": "push-lateral-raise-hr-s3",
+              "reps": 25,
+              "weight": ""
+            },
+            {
+              "id": "push-lateral-raise-hr-s4",
+              "reps": 25,
+              "weight": ""
+            }
+          ]
+        },
+        {
+          "id": "push-chest-fly-hr",
+          "name": "Dumbbell Chest Fly",
+          "sets": 2,
+          "reps": 20,
+          "muscle": "Chest",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Keep a fixed, slight bend in the elbows",
+            "Lower only to a comfortable stretch",
+            "Don't force the dumbbells to the floor",
+            "Bring them together in a hugging arc"
+          ],
+          "description": "Lie on your back with knees bent and feet flat on the floor. Hold a dumbbell in each hand above your chest with palms facing each other and a slight, fixed bend in the elbows. Slowly open your arms out to the sides in a wide arc, lowering only until you feel a comfortable stretch across the chest - do not force the elbows or dumbbells down toward the floor, which overstretches the shoulder joint. Bring the dumbbells back together above your chest in the same hugging arc, exhaling as you close and squeezing the chest briefly at the top without letting the dumbbells clang together.",
+          "steps": [
+            "Lie on your back with knees bent and feet flat on the floor.",
+            "Hold a dumbbell in each hand above your chest, palms facing each other.",
+            "Keep a slight, fixed bend in the elbows throughout the movement.",
+            "Slowly open your arms out to the sides in a wide arc.",
+            "Lower only until you feel a comfortable chest stretch - do not force the range.",
+            "Bring the dumbbells back together above your chest in the same arc, exhaling as you close.",
+            "Squeeze the chest briefly at the top without clanking the dumbbells together."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+chest+fly+proper+form",
+          "setList": [
+            {
+              "id": "push-chest-fly-hr-s1",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-chest-fly-hr-s2",
+              "reps": 20,
+              "weight": ""
+            }
+          ]
+        },
+        {
+          "id": "push-tricep-ext-hr",
+          "name": "Overhead Triceps Extension",
+          "sets": 2,
+          "reps": 20,
+          "muscle": "Triceps",
+          "tempo": "3-1-2",
+          "rest": 35,
+          "cues": [
+            "Elbows pointed forward, close to the head",
+            "Stop the stretch at the base of the neck",
+            "Keep ribs down, don't flare them",
+            "Squeeze at the top without hard-locking the elbows"
+          ],
+          "description": "Stand or sit tall, holding one dumbbell securely with both hands, and press it overhead with arms extended. Keep your elbows pointed forward and close to your head, and brace your core so your ribs don't flare out as you move. Bend your elbows and lower the dumbbell behind your head for 3 seconds, stopping at the base of your neck or wherever you feel a comfortable stretch - do not force it lower than that. Extend your elbows to press the dumbbell back overhead, exhaling as you press, and briefly squeeze the triceps at the top without snapping the elbows into a hard lockout.",
+          "steps": [
+            "Stand or sit tall, holding one dumbbell securely with both hands overhead.",
+            "Keep your elbows pointed forward and close to your head.",
+            "Brace your core and keep your ribs from flaring out.",
+            "Bend your elbows and lower the dumbbell behind your head for 3 seconds.",
+            "Stop at the base of your neck or at a comfortable stretch - don't force the range.",
+            "Extend your elbows to press the dumbbell back overhead, exhaling as you press.",
+            "Squeeze the triceps at the top without aggressively locking the elbows."
+          ],
+          "video": "https://www.youtube.com/results?search_query=overhead+dumbbell+triceps+extension+proper+form",
+          "setList": [
+            {
+              "id": "push-tricep-ext-hr-s1",
+              "reps": 20,
+              "weight": ""
+            },
+            {
+              "id": "push-tricep-ext-hr-s2",
+              "reps": 20,
+              "weight": ""
+            }
+          ]
+        }
+      ],
+      "push": [
+        {
+          "id": "push-floor-press",
+          "name": "Dumbbell Floor Press (Heavier)",
+          "sets": 2,
+          "reps": 15,
+          "muscle": "Chest / Triceps",
+          "tempo": "2-1-2",
+          "rest": 60,
+          "cues": [
+            "Same path as the high-rep floor press, heavier load",
+            "Elbows at roughly 45 degrees from the torso",
+            "Lower until the upper arms touch the floor",
+            "Don't lock the elbows aggressively at the top"
+          ],
+          "description": "This is the same floor press pattern as the high-rep version, performed with a heavier dumbbell for a lower rep range and a longer rest. Lie on your back with your knees bent and feet flat on the floor, holding a dumbbell in each hand directly above your chest with wrists straight and stacked over your elbows. Lower the dumbbells for 2 seconds, keeping your elbows at roughly 45 degrees from your torso, until your upper arms gently touch the floor. Pause briefly without bouncing, then press back up in a straight line, exhaling as you push. Because the load is heavier here than on the high-rep day, rest a full 60 seconds between sets so your form doesn't break down on later reps.",
+          "steps": [
+            "Lie on your back with knees bent and feet flat on the floor.",
+            "Hold a heavier dumbbell in each hand above your chest, wrists straight and stacked over the elbows.",
+            "Keep your elbows at roughly 45 degrees from your torso, not flared to the sides.",
+            "Lower the dumbbells for 2 seconds until the upper arms gently touch the floor.",
+            "Pause briefly without bouncing your elbows off the ground.",
+            "Press the dumbbells back up in a straight line, exhaling as you push.",
+            "Finish with arms extended without aggressively locking the elbows.",
+            "Rest a full 60 seconds before the next set given the heavier load."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+floor+press+proper+form",
+          "setList": [
+            {
+              "id": "push-floor-press-s1",
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "id": "push-floor-press-s2",
+              "reps": 15,
+              "weight": 0
+            }
+          ]
+        },
+        {
+          "id": "push-shoulder-press",
+          "name": "Dumbbell Shoulder Press (Heavier)",
+          "sets": 3,
+          "reps": 15,
+          "muscle": "Shoulders",
+          "tempo": "2-1-2",
+          "rest": 60,
+          "cues": [
+            "Same path as the high-rep press, heavier load",
+            "Ribs down, don't arch the lower back",
+            "Press in a straight line, not forward",
+            "Rest longer between sets at this weight"
+          ],
+          "description": "This is the same overhead press pattern as the high-rep version, performed with a heavier dumbbell for a lower rep range. Sit or stand tall holding a dumbbell in each hand at shoulder height, elbows slightly below the wrists. Brace your core and keep your ribs pulled down so your lower back doesn't arch as you press. Push both dumbbells straight overhead, exhaling as you go, stopping just short of a hard lockout at the top. Lower for 2 seconds back to shoulder height, inhaling as you go. Because the weight is heavier here, rest a full 60 seconds between sets - if your lower back starts arching to finish a rep, drop the weight rather than force it.",
+          "steps": [
+            "Sit or stand tall holding a heavier dumbbell in each hand at shoulder height.",
+            "Brace your core and keep your ribs pulled down.",
+            "Start with your elbows slightly below the dumbbells.",
+            "Press both dumbbells straight overhead in a controlled path, exhaling as you go.",
+            "Keep your wrists straight and avoid leaning backward.",
+            "Stop just short of locking the elbows out hard at the top.",
+            "Lower the dumbbells for 2 seconds, inhaling as you go.",
+            "Rest a full 60 seconds before the next set given the heavier load."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+shoulder+press+proper+form",
+          "setList": [
+            {
+              "id": "push-shoulder-press-s1",
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "id": "push-shoulder-press-s2",
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "id": "push-shoulder-press-s3",
+              "reps": 15,
+              "weight": 0
+            }
+          ]
+        },
+        {
+          "id": "push-lateral-raise",
+          "name": "Lateral Raise (Heavier)",
+          "sets": 4,
+          "reps": 20,
+          "muscle": "Shoulders (Side Delts)",
+          "tempo": "2-1-2",
+          "rest": 30,
+          "cues": [
+            "Same path as the high-rep raise, heavier load",
+            "Lead with the elbows, not the hands",
+            "Raise to shoulder height only",
+            "Shoulders down - no shrugging"
+          ],
+          "description": "This is the same lateral raise pattern as the high-rep version, performed with a heavier dumbbell for a lower rep range. Stand upright with a dumbbell in each hand at your sides, a slight fixed bend in your elbows, and your core braced. Raise both arms out to the sides in a wide arc, leading with the elbows, stopping at shoulder height - do not go higher, since the heavier load makes it easier to compensate by shrugging the traps. Lower under control for 2 seconds back to your sides. Take a slightly longer 30-second rest here than on the high-rep version to keep your shoulders from fatiguing into poor form.",
+          "steps": [
+            "Stand upright with a heavier dumbbell in each hand at your sides.",
+            "Keep a slight, fixed bend in your elbows and palms facing your body.",
+            "Brace your core and keep your torso still.",
+            "Raise both arms out to the sides in a wide arc, leading with the elbows.",
+            "Stop once your arms reach shoulder height - do not go higher.",
+            "Keep your shoulders down, away from your ears, throughout.",
+            "Lower the dumbbells under control for 2 seconds.",
+            "Rest 30 seconds before the next set given the heavier load."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+lateral+raise+proper+form",
+          "setList": [
+            {
+              "id": "push-lateral-raise-s1",
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "id": "push-lateral-raise-s2",
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "id": "push-lateral-raise-s3",
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "id": "push-lateral-raise-s4",
+              "reps": 20,
+              "weight": 0
+            }
+          ]
+        }
+      ],
+      "pull": [
+        {
+          "id": "pull-hammer-curl",
+          "name": "Hammer Curl (Heavier)",
+          "sets": 3,
+          "reps": 15,
+          "muscle": "Biceps / Forearms",
+          "tempo": "2-1-2",
+          "rest": 45,
+          "cues": [
+            "Same path as the high-rep hammer curl, heavier load",
+            "Neutral grip throughout (palms facing in)",
+            "Elbows pinned to your sides",
+            "No wrist rotation or swinging"
+          ],
+          "description": "This is the same hammer curl pattern as the high-rep version, performed with a heavier dumbbell for more total sets. Stand upright with a dumbbell in each hand, palms facing each other in a neutral grip, elbows pinned close to your sides, and shoulders relaxed. Curl the dumbbells up toward your shoulders while keeping the neutral grip fixed, squeezing the biceps and forearms briefly at the top. Lower the dumbbells for 2 seconds back to full arm extension. Because the load is heavier, rest a full 45 seconds between sets and keep your torso still throughout - swinging the weight up is a sign the load is too heavy for strict form.",
+          "steps": [
+            "Stand upright holding a heavier dumbbell in each hand, palms facing each other.",
+            "Pin your elbows close to your sides and relax your shoulders.",
+            "Curl the dumbbells upward while keeping the neutral grip fixed.",
+            "Do not rotate your wrists or let your elbows drift forward.",
+            "Squeeze the biceps and forearms briefly at the top.",
+            "Lower the dumbbells for 2 seconds.",
+            "Reach full arm extension at the bottom.",
+            "Rest 45 seconds before the next set given the heavier load."
+          ],
+          "video": "https://www.youtube.com/results?search_query=dumbbell+hammer+curl+proper+form",
+          "setList": [
+            {
+              "id": "pull-hammer-curl-s1",
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "id": "pull-hammer-curl-s2",
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "id": "pull-hammer-curl-s3",
+              "reps": 15,
+              "weight": 0
+            }
+          ]
+        }
+      ]
+    },
+    "ppl_workout_logs": {
+      "2026-07-23_push_high_rep": {
+        "date": "2026-07-23",
+        "dayType": "push_high_rep",
+        "completedSets": {
+          "push-floor-press-hr": [
+            20,
+            20,
+            20,
+            20
+          ],
+          "push-incline-press-hr": [
+            20,
+            20,
+            20
+          ],
+          "push-shoulder-press-hr": [
+            20,
+            20,
+            20
+          ],
+          "push-lateral-raise-hr": [
+            25,
+            25,
+            25,
+            25
+          ],
+          "push-chest-fly-hr": [
+            20,
+            20,
+            20
+          ],
+          "push-tricep-ext-hr": [
+            20,
+            20,
+            20
+          ]
+        },
+        "totalSets": 20,
+        "exerciseCount": 6,
+        "duration": 27,
+        "savedAt": "2026-07-23T11:22:47.194Z"
+      },
+      "2026-08-31_push": {
+        "date": "2026-08-31",
+        "dayType": "push",
+        "completedSets": {
+          "push-floor-press": [
+            {
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "reps": 15,
+              "weight": 0
+            }
+          ],
+          "push-shoulder-press": [
+            {
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "reps": 15,
+              "weight": 0
+            }
+          ],
+          "push-lateral-raise": [
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            }
+          ]
+        },
+        "totalSets": 9,
+        "totalVolume": 0,
+        "exerciseCount": 6,
+        "duration": 34,
+        "savedAt": "2026-08-31T15:06:48.090Z"
+      },
+      "2026-09-04_pull_high_rep": {
+        "date": "2026-09-04",
+        "dayType": "pull_high_rep",
+        "completedSets": {
+          "pull-bent-row-hr": [
+            {
+              "reps": 12,
+              "weight": 5
+            },
+            {
+              "reps": 12,
+              "weight": 5
+            }
+          ],
+          "pull-single-arm-row-hr": [
+            {
+              "reps": 15,
+              "weight": 5
+            },
+            {
+              "reps": 15,
+              "weight": 5
+            }
+          ],
+          "pull-reverse-fly-hr": [
+            {
+              "reps": 15,
+              "weight": 5
+            },
+            {
+              "reps": 15,
+              "weight": 5
+            }
+          ],
+          "pull-shrugs-hr": [
+            {
+              "reps": 20,
+              "weight": 5
+            },
+            {
+              "reps": 20,
+              "weight": 5
+            }
+          ],
+          "pull-bicep-curl-hr": [
+            {
+              "reps": 14,
+              "weight": 14
+            },
+            {
+              "reps": 14,
+              "weight": 14
+            }
+          ],
+          "pull-hammer-curl-hr": [
+            {
+              "reps": 15,
+              "weight": 5
+            }
+          ]
+        },
+        "totalSets": 11,
+        "totalVolume": 1087,
+        "exerciseCount": 6,
+        "duration": 2299,
+        "savedAt": "2026-09-04T12:17:34.648Z"
+      },
+      "2026-09-08_pull": {
+        "date": "2026-09-08",
+        "dayType": "pull",
+        "completedSets": {
+          "pull-hammer-curl": [
+            {
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "reps": 15,
+              "weight": 0
+            },
+            {
+              "reps": 15,
+              "weight": 0
+            }
+          ]
+        },
+        "totalSets": 3,
+        "totalVolume": 0,
+        "exerciseCount": 6,
+        "duration": 8,
+        "savedAt": "2026-09-08T16:35:12.302Z"
+      },
+      "2026-09-10_push_high_rep": {
+        "date": "2026-09-10",
+        "dayType": "push_high_rep",
+        "completedSets": {
+          "push-floor-press-hr": [
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            }
+          ],
+          "push-shoulder-press-hr": [
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            }
+          ],
+          "push-chest-fly-hr": [
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            }
+          ],
+          "push-tricep-ext-hr": [
+            {
+              "reps": 20,
+              "weight": 0
+            },
+            {
+              "reps": 20,
+              "weight": 0
+            }
+          ]
+        },
+        "totalSets": 8,
+        "totalVolume": 0,
+        "exerciseCount": 4,
+        "duration": 291,
+        "savedAt": "2026-09-10T12:33:18.905Z"
+      }
+    },
+    "ppl_progression": {
+      "push-floor-press-hr": {
+        "maxReps": 20,
+        "maxSets": 4,
+        "sessions": 2,
+        "lastDate": "2026-09-10"
+      },
+      "push-incline-press-hr": {
+        "maxReps": 20,
+        "maxSets": 3,
+        "sessions": 1,
+        "lastDate": "2026-07-23"
+      },
+      "push-shoulder-press-hr": {
+        "maxReps": 20,
+        "maxSets": 3,
+        "sessions": 2,
+        "lastDate": "2026-09-10"
+      },
+      "push-lateral-raise-hr": {
+        "maxReps": 25,
+        "maxSets": 4,
+        "sessions": 1,
+        "lastDate": "2026-07-23"
+      },
+      "push-chest-fly-hr": {
+        "maxReps": 20,
+        "maxSets": 3,
+        "sessions": 2,
+        "lastDate": "2026-09-10"
+      },
+      "push-tricep-ext-hr": {
+        "maxReps": 20,
+        "maxSets": 3,
+        "sessions": 2,
+        "lastDate": "2026-09-10"
+      },
+      "push-shoulder-press": {
+        "maxReps": 15,
+        "maxSets": 3,
+        "sessions": 1,
+        "lastDate": "2026-08-31"
+      },
+      "push-lateral-raise": {
+        "maxReps": 20,
+        "maxSets": 4,
+        "sessions": 1,
+        "lastDate": "2026-08-31"
+      },
+      "pull-bent-row-hr": {
+        "maxReps": 12,
+        "maxSets": 2,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-single-arm-row-hr": {
+        "maxReps": 15,
+        "maxSets": 2,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-reverse-fly-hr": {
+        "maxReps": 15,
+        "maxSets": 2,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-shrugs-hr": {
+        "maxReps": 20,
+        "maxSets": 2,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-bicep-curl-hr": {
+        "maxReps": 14,
+        "maxSets": 2,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-hammer-curl-hr": {
+        "maxReps": 15,
+        "maxSets": 1,
+        "sessions": 1,
+        "lastDate": "2026-09-04"
+      },
+      "pull-hammer-curl": {
+        "maxReps": 15,
+        "maxSets": 3,
+        "sessions": 1,
+        "lastDate": "2026-09-08"
+      }
+    }
+  }
+}

@@ -1,0 +1,980 @@
+# IronTrack — UI Structure Reference
+
+> Detailed breakdown of the **Workout page cards**, **Routine prayer cards (with timer)**, and **Home page** structure.
+> Each section lists the component file, layout, every visual element, the Tailwind classes used, and the governing code.
+
+---
+
+## 1. Workout Page
+
+**File:** `src/pages/Workout.jsx`
+
+The Workout page is a two-screen flow: **Plan** → **Mode**. A single `screen` state toggles between them.
+
+### Page Shell
+
+```jsx
+<div className="fixed inset-0 bg-background flex flex-col lg:pl-64">
+  <div className="max-w-2xl lg:max-w-4xl mx-auto w-full flex flex-col flex-1 min-h-0">
+    {screen !== "mode" && <div className="pt-12 shrink-0" />}
+    <div className="flex-1 overflow-y-auto px-5 pb-24 lg:pb-10">
+      {/* plan or mode screen */}
+    </div>
+  </div>
+  <BottomNav />
+</div>
+```
+
+| Element | Tailwind | Purpose |
+|---|---|---|
+| Root | `fixed inset-0 bg-background flex flex-col lg:pl-64` | Full-screen flex column; `lg:pl-64` leaves room for the desktop sidebar. |
+| Container | `max-w-2xl lg:max-w-4xl mx-auto w-full flex flex-col flex-1 min-h-0` | Centers content, caps width on mobile/tablet, widens on desktop. |
+| Top spacer | `pt-12 shrink-0` | Pushes content below the status-bar area on the plan screen. |
+| Scroll area | `flex-1 overflow-y-auto px-5 pb-24 lg:pb-10` | Scrollable body; `pb-24` clears the mobile bottom nav. |
+
+---
+
+### 1A. Workout Plan Screen
+
+**File:** `src/components/ppl/WorkoutPlanScreen.jsx`
+
+Shows the weekly day selector, the list of exercise cards for the selected day, and the "Start Workout" button.
+
+#### Header
+
+```jsx
+<div className="flex items-center justify-between gap-2">
+  <h1 className="text-2xl font-bold">Workout Tracker</h1>
+  <div className="flex gap-1.5">
+    {/* Import / Export buttons — h-8 px-2 text-xs gap-1 */}
+  </div>
+</div>
+```
+
+#### Horizontal Day Nav
+
+A scrollable row of day buttons (Mon–Sun). The active day is highlighted.
+
+```jsx
+<div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+  {schedule.map(({ day, label, type }) => (
+    <button className={cn(
+      "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors min-w-[44px]",
+      active ? "bg-primary text-primary-foreground border-primary"
+             : "bg-card text-muted-foreground border-border"
+    )}>
+      {label}
+    </button>
+  ))}
+</div>
+```
+
+| State | Classes |
+|---|---|
+| Active | `bg-primary text-primary-foreground border-primary` |
+| Inactive | `bg-card text-muted-foreground border-border` |
+| Shared | `shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors min-w-[44px]` |
+
+#### Day Subheader + Lock Indicator
+
+```jsx
+<h2 className="text-base font-bold">{DAY_TYPE_LABELS[selectedDayType]}</h2>
+<p className="text-xs text-muted-foreground">{exercises.length} exercises</p>
+
+{locked && (
+  <div className="flex items-center gap-2 text-xs text-accent">
+    <Lock className="w-4 h-4" /> Completed today — locked.
+  </div>
+)}
+```
+
+The lock re-checks every 30 seconds via `setInterval` so it engages the moment a workout completes and releases at midnight without a reload.
+
+---
+
+### 1B. Exercise Plan Card
+
+**File:** `src/components/ppl/ExercisePlanCard.jsx`
+
+Each exercise in the plan renders as one card. When the day is locked (workout already completed today), the card dims to `opacity-60` and all edit controls hide.
+
+```jsx
+<Card className={cn("p-4 transition-opacity", locked && "opacity-60")}>
+```
+
+#### Card Header — name, muscle, volume, edit/delete
+
+```jsx
+<div className="flex items-start justify-between gap-3">
+  <div className="min-w-0 flex-1">
+    <div className="flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+      <p className="text-[15px] font-semibold tracking-tight truncate">{exercise.name}</p>
+    </div>
+    <p className="text-[11px] text-muted-foreground mt-0.5 ml-3.5">
+      {exercise.muscle} · {plannedVolume} kg vol
+    </p>
+  </div>
+  {!locked && (
+    <div className="flex gap-0.5 shrink-0">
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"><Pencil /></Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"><Trash2 /></Button>
+    </div>
+  )}
+</div>
+```
+
+| Element | Tailwind |
+|---|---|
+| Bullet dot | `w-1.5 h-1.5 rounded-full bg-primary shrink-0` |
+| Exercise name | `text-[15px] font-semibold tracking-tight truncate` |
+| Muscle/volume | `text-[11px] text-muted-foreground mt-0.5 ml-3.5` |
+| Edit buttons | `h-7 w-7` ghost icon buttons; hover `text-primary` / `text-destructive` |
+
+#### Description
+
+```jsx
+{exercise.description && (
+  <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{exercise.description}</p>
+)}
+```
+
+#### Sets List
+
+A header row (`Set` / `Reps × Weight`) followed by one row per set. Each set is inline-editable.
+
+```jsx
+<div className="flex items-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+  <span className="w-8">Set</span>
+  <span className="flex-1 pl-1">Reps × Weight</span>
+</div>
+{setList.map((s, i) => (
+  <div className="flex items-center gap-2 text-xs">
+    <span className="text-muted-foreground w-8 shrink-0 font-mono">{i + 1}</span>
+    <span className="flex-1">{s.reps} reps × {s.weight}kg</span>
+    {/* per-set edit + delete buttons — h-6 w-6 */}
+  </div>
+))}
+```
+
+**Edit mode** swaps the display row for two `<Input>` fields (`h-7 w-16 text-xs`) plus Save / cancel buttons.
+
+#### Add Set Button
+
+```jsx
+<button className="mt-2 w-full py-1.5 rounded-lg border border-dashed border-border text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors flex items-center justify-center gap-1">
+  <Plus className="w-3 h-3" /> Add set
+</button>
+```
+
+#### Step-by-step Instructions
+
+```jsx
+<ol className="space-y-1.5">
+  {exercise.steps.map((st, i) => (
+    <li className="flex items-start gap-2">
+      <span className="w-4 h-4 rounded-full bg-secondary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+      <span className="text-xs text-muted-foreground leading-relaxed">{st}</span>
+    </li>
+  ))}
+</ol>
+```
+
+Separated from the sets by `mt-3 pt-3 border-t border-border/60`.
+
+#### Video Demo Link
+
+```jsx
+<a className="mt-3 inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+  <ExternalLink className="w-3 h-3" /> Watch demo
+</a>
+```
+
+---
+
+### 1C. Start Workout Button + Empty / Rest States
+
+```jsx
+{/* Empty state */}
+<div className="p-8 text-center border-2 border-dashed border-border rounded-xl">
+  <p className="text-sm text-muted-foreground mb-3">No exercises yet</p>
+  <Button variant="outline" size="sm"><Plus /> Add exercise</Button>
+</div>
+
+{/* Rest day */}
+<div className="p-8 text-center border-2 border-dashed border-border rounded-xl">
+  <p className="text-sm font-semibold">Rest Day</p>
+  <p className="text-xs text-muted-foreground mt-1">Recover well. Light mobility or a walk is great.</p>
+</div>
+
+{/* Add new exercise */}
+<button className="w-full py-3 rounded-xl border-2 border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors flex items-center justify-center gap-1.5 text-sm font-semibold">
+  <Plus className="w-4 h-4" /> ADD NEW EXERCISE TO {dayLabel}
+</button>
+
+{/* Start workout */}
+<Button className="w-full h-12 text-base font-semibold" onClick={() => onStartWorkout(selectedDayType)}>
+  <Play className="w-5 h-5 mr-2" /> Start Workout
+</Button>
+```
+
+---
+
+### 1D. Workout Mode Screen (active session)
+
+**File:** `src/components/ppl/WorkoutModeScreen.jsx`
+
+Once "Start Workout" is tapped, the mode screen takes over. It has **four phases** rendered conditionally:
+
+| Phase | What shows |
+|---|---|
+| `active` | Main exercise card + weight entry + Done button |
+| `repTimer` | Rep-tempo countdown ring |
+| `rest` | Set-rest countdown ring |
+| `exerciseRest` | Between-exercise rest countdown ring |
+| `done` | Completion trophy + stats grid |
+
+#### Progress Bar (top of every phase)
+
+```jsx
+<div className="flex items-center gap-2">
+  <Button variant="ghost" size="icon" className="shrink-0 -ml-2"><ArrowLeft /></Button>
+  <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+    <div className="h-full bg-primary rounded-full" style={{ width: `${progressPct}%` }} />
+  </div>
+  <span className="text-xs text-muted-foreground shrink-0">{exIdx + 1}/{exercises.length}</span>
+</div>
+```
+
+#### Timer Row (active phase only)
+
+Two timers sit side by side: a **workout total clock** (stopwatch from session start) and a **per-exercise stopwatch**.
+
+```jsx
+<div className="flex items-center justify-between px-1">
+  <WorkoutClock startTime={workoutStart} />   {/* Timer icon + mm:ss */}
+  <ExerciseTimer running={phase === "active"} /> {/* Clock icon + mm:ss */}
+</div>
+```
+
+Both render as `flex items-center gap-1.5 text-xs text-muted-foreground` with a `font-mono font-semibold` time string.
+
+#### Exercise Pills
+
+A horizontal scroll of numbered pills; the current exercise is filled, completed ones are accent-tinted.
+
+```jsx
+<div className="flex gap-1.5 overflow-x-auto pb-1">
+  {exercises.map((ex, i) => (
+    <div className={cn(
+      "shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold border",
+      i === exIdx ? "bg-primary text-primary-foreground border-primary"
+      : i < exIdx ? "bg-accent/20 text-accent border-accent/30"
+      : "bg-secondary text-muted-foreground border-border"
+    )}>{i + 1}</div>
+  ))}
+</div>
+```
+
+#### Main Exercise Card (active phase)
+
+```jsx
+<Card className="p-5">
+  <div className="flex items-start justify-between gap-2 mb-4">
+    <div>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{exercise.muscle}</p>
+      <h2 className="text-xl font-bold mt-0.5">{exercise.name}</h2>
+    </div>
+    <div className="text-right shrink-0">
+      <p className="text-3xl font-black text-primary">{currentSet}<span className="text-base text-muted-foreground font-semibold">/{exercise.sets}</span></p>
+      <p className="text-[10px] text-muted-foreground">set</p>
+    </div>
+  </div>
+
+  {/* Reps / Tempo / Rest grid */}
+  <div className="grid grid-cols-3 gap-2 mb-4">
+    <div className="bg-secondary rounded-xl p-3 text-center">
+      <p className="text-2xl font-bold">{exercise.reps}</p>
+      <p className="text-[10px] text-muted-foreground">reps</p>
+    </div>
+    <div className="bg-secondary rounded-xl p-3 text-center">
+      <p className="text-base font-bold">{tempo.eccentric}-{tempo.pause}-{tempo.concentric}</p>
+      <p className="text-[10px] text-muted-foreground">tempo</p>
+    </div>
+    <div className="bg-secondary rounded-xl p-3 text-center">
+      <p className="text-base font-bold">{exercise.rest || 60}s</p>
+      <p className="text-[10px] text-muted-foreground">rest</p>
+    </div>
+  </div>
+
+  {/* Cues */}
+  {exercise.cues?.length > 0 && (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cues</p>
+      {exercise.cues.map((cue, i) => (
+        <div className="flex items-start gap-2">
+          <ChevronRight className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+          <p className="text-xs text-foreground">{cue}</p>
+        </div>
+      ))}
+    </div>
+  )}
+</Card>
+```
+
+#### Weight Entry Row
+
+```jsx
+<div className="bg-secondary rounded-xl p-3 flex items-center gap-3">
+  <div className="w-9 h-9 rounded-lg bg-background flex items-center justify-center shrink-0">
+    <Dumbbell className="w-4 h-4 text-primary" />
+  </div>
+  <div className="flex-1">
+    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Weight this set (kg)</p>
+    <Input type="number" className="h-9 mt-1 bg-background border-none text-base font-semibold" placeholder="0" />
+  </div>
+</div>
+```
+
+#### Bottom Actions
+
+```jsx
+<Button className="h-12 text-base font-semibold"><Check /> Done — Set {currentSet} of {exercise.sets}</Button>
+<div className="grid grid-cols-2 gap-2">
+  <Button variant="outline" className="h-10 text-xs"><Zap /> Rep Timer</Button>
+  <Button variant="outline" className="h-10 text-xs"><SkipForward /> Skip Exercise</Button>
+</div>
+```
+
+#### Countdown Ring (used by Rest + Rep timers)
+
+A circular SVG progress ring with the seconds countdown in the center.
+
+```jsx
+function CountdownRing({ total, left, color, size = 128 }) {
+  const r = 44;
+  const circ = 2 * Math.PI * r;
+  const pct = total > 0 ? ((total - left) / total) : 0;
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="hsl(var(--secondary))" strokeWidth="7" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="7}
+          strokeDasharray={circ} strokeDashoffset={circ - pct * circ} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s linear" }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-black">{left}</span>
+        <span className="text-[9px] text-muted-foreground uppercase tracking-wide">sec</span>
+      </div>
+    </div>
+  );
+}
+```
+
+- **Set Rest** ring color: `hsl(var(--primary))`
+- **Exercise Rest** ring color: `hsl(var(--chart-3))`
+- **Rep Timer** ring color cycles by phase: eccentric → `hsl(var(--primary))`, pause → `hsl(var(--chart-4))`, concentric → `hsl(var(--accent))`
+
+#### Done Screen
+
+```jsx
+<div className="flex flex-col items-center py-12 gap-6 text-center px-4">
+  <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent flex items-center justify-center">
+    <Trophy className="w-10 h-10 text-accent" />
+  </div>
+  <h2 className="text-2xl font-bold">Workout Complete!</h2>
+  <div className="w-full grid grid-cols-2 gap-3 max-w-xs">
+    <div className="bg-secondary rounded-xl p-3 text-center">
+      <p className="text-xl font-bold text-accent">{totalSets}</p>
+      <p className="text-[10px] text-muted-foreground">Sets</p>
+    </div>
+    {/* Duration / Exercises / kg Volume tiles — same shape */}
+  </div>
+  <Button className="w-full max-w-xs h-12">Back to Schedule</Button>
+</div>
+```
+
+---
+
+## 2. Routine Prayer Cards
+
+**Files:**
+- `src/components/todo/RoutineView.jsx` — the page that lays out the prayer blocks
+- `src/components/routine/RoutineTaskCard.jsx` — individual task card
+- `src/components/routine/TaskTimer.jsx` — the floating focus timer
+
+### 2A. RoutineView Layout
+
+The routine is organized into **5 prayer blocks**, each grouping the prayer itself plus the sections after it:
+
+```js
+const PRAYER_BLOCKS = [
+  { prayer: "fajr",    label: "Fajr",    icon: Sunrise, sections: ["fajr", "post_fajr", "class"] },
+  { prayer: "dhuhr",   label: "Dhuhr",   icon: Sun,     sections: ["dhuhr", "post_dhuhr"] },
+  { prayer: "asr",     label: "Asr",     icon: CloudSun,sections: ["asr", "post_asr"] },
+  { prayer: "maghrib", label: "Maghrib", icon: Sunset,  sections: ["maghrib", "post_maghrib"] },
+  { prayer: "isha",    label: "Isha",    icon: Moon,    sections: ["isha", "post_isha"] },
+];
+```
+
+The routine auto-selects **weekday** vs **weekend** based on today's date (locked — no manual toggle).
+
+#### Live Clock + Progress Header
+
+```jsx
+<div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
+  <div>
+    <p className="text-xs text-muted-foreground uppercase tracking-wider">
+      {now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+    </p>
+    <p className="text-2xl font-bold tabular-nums">
+      {now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+    </p>
+  </div>
+  <div className="flex items-center gap-3">
+    <div className="text-right">
+      <p className="text-xs text-muted-foreground">Progress</p>
+      <p className="text-lg font-bold text-primary">{completedDefault}/{totalDefault}</p>
+    </div>
+    <button onClick={resetDay} className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors">
+      <RotateCcw className="w-4 h-4" />
+    </button>
+  </div>
+</div>
+```
+
+The clock updates every second via `useLiveClock()` (`setInterval` 1000ms). The reset button clears today's default-task statuses and re-opens custom tasks (analytics preserved).
+
+#### Routine Type Selector (locked)
+
+```jsx
+<div className="flex gap-2 p-1 bg-card border border-border rounded-xl">
+  <div className={cn(
+    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold",
+    routineType === "weekday" ? "bg-primary text-primary-foreground" : "text-muted-foreground/50"
+  )}>
+    <Sun className="w-4 h-4" /> Weekday
+  </div>
+  <div className={cn(
+    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold",
+    routineType === "weekend" ? "bg-primary text-primary-foreground" : "text-muted-foreground/50"
+  )}>
+    <Moon className="w-4 h-4" /> Weekend
+  </div>
+</div>
+<p className="text-[10px] text-muted-foreground text-center -mt-1">Routine auto-selected by day (locked)</p>
+```
+
+---
+
+### 2B. PrayerCard Component
+
+Each prayer block renders as a `<Card>` with a header (icon + label + progress badge), a progress bar, then the grouped sections.
+
+```jsx
+<Card className="p-4 space-y-3">
+  {/* Header */}
+  <div className="flex items-center justify-between">
+    <span className="text-base font-bold flex items-center gap-2">
+      <BlockIcon className="w-4 h-4 text-primary" />
+      {block.label}
+    </span>
+    <span className="text-xs font-semibold text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+      {totalDone}/{totalAll}
+    </span>
+  </div>
+
+  {/* Progress bar */}
+  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+    <div className="h-full bg-accent rounded-full transition-all duration-300"
+         style={{ width: `${totalAll ? (totalDone / totalAll) * 100 : 0}%` }} />
+  </div>
+
+  {/* Sections */}
+  <div className="space-y-4">
+    {sectionTasks.map(({ sec, defaults, customs }) => (
+      <div className="space-y-2">
+        {!sec.isPrayer && sec.label && hasContent && (
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{sec.label}</p>
+        )}
+        {/* default task cards + custom task cards */}
+        {!sec.locked && (
+          <button className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-secondary/50 transition-all">
+            <Plus className="w-3 h-3" /> Add task
+          </button>
+        )}
+      </div>
+    ))}
+  </div>
+</Card>
+```
+
+| Element | Tailwind |
+|---|---|
+| Card | `p-4 space-y-3` |
+| Block icon | `w-4 h-4 text-primary` |
+| Count badge | `text-xs font-semibold text-muted-foreground bg-secondary px-2 py-1 rounded-full` |
+| Progress track | `h-1.5 bg-secondary rounded-full overflow-hidden` |
+| Progress fill | `h-full bg-accent rounded-full transition-all duration-300` |
+| Section label | `text-[11px] font-semibold uppercase tracking-wider text-muted-foreground` |
+| Add-task button | `w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-secondary/50 transition-all` |
+
+**Default vs custom tasks:** Built-in default tasks pull their status from `state.doneToday[today][taskId]`. Custom tasks live in `state.tempTasks[section]` and carry their own `status` field. Both render through the same `RoutineTaskCard` component.
+
+---
+
+### 2C. RoutineTaskCard — the individual task card
+
+**File:** `src/components/routine/RoutineTaskCard.jsx`
+
+This is the card used for every task inside a prayer block (both defaults and customs).
+
+#### Card Shell
+
+```jsx
+<div className={cn(
+  "group relative flex items-start gap-3 p-3 rounded-xl border transition-all overflow-hidden",
+  isCompleted ? "border-border bg-secondary/20" : "border-border bg-secondary/40",
+  isActive && "ring-2 ring-primary"
+)}>
+  <span className="absolute left-0 top-0 bottom-0 w-1.5 bg-border" />
+```
+
+| State | Classes |
+|---|---|
+| Completed | `border-border bg-secondary/20` |
+| Pending | `border-border bg-secondary/40` |
+| Active timer | adds `ring-2 ring-primary` |
+| Left accent stripe | `absolute left-0 top-0 bottom-0 w-1.5 bg-border` (neutral gray — not priority-colored) |
+
+#### Status Icon (left)
+
+A clickable circle that cycles status one-way: pending → in-progress → completed.
+
+```jsx
+<button onClick={() => !isCompleted && onCycle?.(task.id)} className="mt-0.5 hover:scale-110 transition-transform">
+  <StatusIcon status={status} />
+</button>
+```
+
+```js
+function StatusIcon({ status }) {
+  if (status === "completed")    return <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />;
+  if (status === "in-progress")  return <Loader className="w-5 h-5 text-yellow-400 shrink-0" />;
+  return <Circle className="w-5 h-5 text-muted-foreground shrink-0" />;
+}
+```
+
+#### Title + Done Badge
+
+```jsx
+<p className={cn("text-sm font-medium leading-snug", isCompleted && "line-through text-muted-foreground")}>
+  {task.title}
+</p>
+{isCompleted && (
+  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">Done</span>
+)}
+```
+
+#### Description (hidden when completed)
+
+```jsx
+{task.description && !isCompleted && (
+  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{task.description}</p>
+)}
+```
+
+#### Metadata Pills Row
+
+A wrapping row of small badges: type, priority, category, duration, due date, reminder, subtask count.
+
+```jsx
+<div className="flex flex-wrap items-center gap-2 mt-1.5">
+  {/* Type badge — colored by TASK_TYPE_CONFIG */}
+  <span className={cn("text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full", cfg.color, cfg.bg)}>
+    {cfg.label}
+  </span>
+  {/* Priority */}
+  <span className={cn("text-[10px] font-semibold capitalize", PRIORITY_COLOR[task.priority])}>{task.priority}</span>
+  {/* Category */}
+  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">{task.category}</span>
+  {/* Duration */}
+  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+    <Clock className="w-2.5 h-2.5" />{duration}
+  </span>
+  {/* Due date (red if overdue) */}
+  <span className={cn("text-[10px] flex items-center gap-0.5", isOverdue ? "text-destructive font-semibold" : "text-muted-foreground")}>
+    <Calendar className="w-2.5 h-2.5" />{date}
+  </span>
+  {/* Reminder */}
+  <span className="text-[10px] flex items-center gap-0.5 text-primary">
+    <Bell className="w-2.5 h-2.5" />{task.reminderTime}
+  </span>
+  {/* Subtask count */}
+  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground">{subtaskDone}/{subtaskCount}</span>
+</div>
+```
+
+**Type colors** (from `TASK_TYPE_CONFIG` in `routineData.js`):
+
+| Type | Text class | BG class |
+|---|---|---|
+| prayer | `text-yellow-400` | `bg-yellow-400/10` |
+| deep_work | `text-blue-400` | `bg-blue-400/10` |
+| light_work | `text-sky-400` | `bg-sky-400/10` |
+| physical | `text-green-400` | `bg-green-400/10` |
+| reading | `text-purple-400` | `bg-purple-400/10` |
+| journaling | `text-pink-400` | `bg-pink-400/10` |
+| wind_down | `text-indigo-400` | `bg-indigo-400/10` |
+| planning | `text-orange-400` | `bg-orange-400/10` |
+| class | `text-muted-foreground` | `bg-secondary/50` |
+
+**Priority colors:** `high → text-red-400`, `medium → text-yellow-400`, `low → text-blue-400`.
+
+#### Subtasks
+
+Each subtask is a smaller row with its own status icon, title, metadata, and hover-revealed edit/delete.
+
+```jsx
+<div className="flex items-start gap-2 group/sub rounded-lg p-1 -mx-1 hover:bg-secondary/40">
+  <button onClick={() => sStatus !== "completed" && onCycleSub?.(task.id, s.id)} className="hover:scale-110 transition-transform shrink-0 mt-0.5">
+    <SubStatusIcon status={sStatus} />  {/* w-4 h-4 versions of the status icons */}
+  </button>
+  <div className="flex-1 min-w-0">
+    <span className={cn("text-xs", sStatus === "completed" ? "line-through text-muted-foreground" : "text-foreground")}>{s.title}</span>
+    {/* subtask metadata pills — text-[9px] */}
+  </div>
+  <div className="flex gap-0.5 opacity-0 group-hover/sub:opacity-100 transition-opacity shrink-0">
+    {/* edit + delete (X) buttons — w-3 h-3 */}
+  </div>
+</div>
+```
+
+#### Add Subtask Button
+
+```jsx
+{canSubtask && !isCompleted && (
+  <button className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+    <Plus className="w-3 h-3" /> Add subtask
+  </button>
+)}
+```
+
+#### Hover Actions (right side)
+
+Edit, delete, and — for non-prayer tasks — a **Start focus timer** play button. These are `opacity-0 group-hover:opacity-100` so they only appear on hover.
+
+```jsx
+<div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+  {task.type !== "prayer" && !isCompleted && onStart && (
+    <button className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="Start focus timer">
+      <Play className="w-3.5 h-3.5" />
+    </button>
+  )}
+  <button className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"><Pencil /></button>
+  <button className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 /></button>
+</div>
+```
+
+> **Prayer tasks** (`type === "prayer"`) never show the play/timer button — they are not focus-timed.
+
+---
+
+### 2D. The Routine Focus Timer (TaskTimer)
+
+**File:** `src/components/routine/TaskTimer.jsx`
+
+When a non-prayer task's play button is tapped, `startActiveTaskTimer()` saves the task to localStorage and a **floating timer widget** appears at the bottom-right of every page (it's mounted globally in `App.jsx`).
+
+#### Timer Constants
+
+```js
+export const TIMER_WORK_SECS  = 45 * 60;  // 45-minute focus session
+export const TIMER_BREAK_SECS = 15 * 60;  // 15-minute break
+```
+
+The timer is a **Pomodoro-style** work/break cycle: 45 min focus → 15 min break → repeats. It auto-transitions between phases and fires a browser notification at each switch.
+
+#### Widget Shell
+
+```jsx
+<div className="fixed bottom-20 lg:bottom-6 right-3 lg:right-6 z-40 w-64 bg-card border border-border rounded-2xl shadow-2xl p-4 space-y-3">
+```
+
+| Element | Tailwind |
+|---|---|
+| Position | `fixed bottom-20 lg:bottom-6 right-3 lg:right-6 z-40` (sits above the mobile bottom nav) |
+| Size | `w-64` |
+| Surface | `bg-card border border-border rounded-2xl shadow-2xl p-4 space-y-3` |
+
+#### Header — phase icon + label + close
+
+```jsx
+<div className="flex items-center justify-between">
+  <div className="flex items-center gap-2 min-w-0">
+    {phase === "work"
+      ? <Brain className="w-4 h-4 text-blue-400 shrink-0" />
+      : <Coffee className="w-4 h-4 text-green-400 shrink-0" />}
+    <span className="text-xs font-semibold text-foreground truncate">
+      {phase === "work" ? "Focus — 45 min" : "Break — 15 min"}
+    </span>
+  </div>
+  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleClose}>
+    <X className="w-3.5 h-3.5" />
+  </Button>
+</div>
+```
+
+#### Task Name
+
+```jsx
+<p className="text-sm font-medium text-foreground truncate -mt-1">{taskTitle}</p>
+```
+
+#### Progress Ring + Countdown
+
+A circular SVG ring (same technique as the workout countdown). The ring fills as time elapses; the center shows `mm:ss`.
+
+```jsx
+<div className="relative w-24 h-24">
+  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="44" fill="none" stroke="hsl(var(--secondary))" strokeWidth="8" />
+    <circle cx="50" cy="50" r="44" fill="none"
+      stroke={phase === "work" ? "hsl(var(--primary))" : "hsl(var(--accent))"}
+      strokeWidth="8"
+      strokeDasharray={`${2 * Math.PI * 44}`}
+      strokeDashoffset={`${2 * Math.PI * 44 * (1 - pct / 100)}`}
+      strokeLinecap="round"
+      style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+  </svg>
+  <div className="absolute inset-0 flex items-center justify-center">
+    <span className="text-xl font-bold font-mono tabular-nums text-foreground">{mins}:{secs}</span>
+  </div>
+</div>
+```
+
+- **Work phase** ring color: `hsl(var(--primary))` (blue)
+- **Break phase** ring color: `hsl(var(--accent))` (green)
+
+#### Controls
+
+```jsx
+<div className="flex gap-2">
+  <Button variant={isRunning ? "secondary" : "default"} size="sm" className="w-24" onClick={() => setIsRunning(r => !r)}>
+    {isRunning ? <><Pause className="w-3.5 h-3.5 mr-1.5" />Pause</> : <><Play className="w-3.5 h-3.5 mr-1.5" />Start</>}
+  </Button>
+  <Button variant="ghost" size="sm" onClick={handleReset}>
+    <RotateCcw className="w-3.5 h-3.5" />
+  </Button>
+</div>
+```
+
+#### Persistence & Cross-Component Sync
+
+- State is saved to localStorage on every tick (`saveActiveTaskTimer`), so it survives page reloads and navigation.
+- It listens for `routine-timer-update` custom events and `storage` events, so if a task is started from the RoutineView, the widget reloads instantly.
+- When the widget is closed (`handleClose`), it clears the stored timer and dispatches `routine-timer-update` so the RoutineView can update its active-task highlight.
+
+---
+
+## 3. Home Page
+
+**File:** `src/pages/Home.jsx`
+
+The Home page is a dashboard summarizing today's workout, streak/consistency stats, the week overview, recent sessions, and quick links.
+
+### Page Shell
+
+```jsx
+<div className="fixed inset-0 bg-background overflow-y-auto pb-24 lg:pb-10 lg:pl-64">
+  <div className="max-w-2xl lg:max-w-4xl mx-auto w-full">
+    {/* header + content */}
+  </div>
+  <PWAInstallBanner />
+  <BottomNav />
+</div>
+```
+
+### Header
+
+```jsx
+<div className="px-5 pt-12 pb-5 flex items-start justify-between">
+  <div>
+    <p className="text-sm text-muted-foreground font-medium">{getGreeting()}, {settings.name}</p>
+    <h1 className="text-2xl font-bold mt-0.5">Dumbbell Tracker</h1>
+  </div>
+  <div className="mt-1"><NotificationBell /></div>
+</div>
+```
+
+Greeting is time-based: "Good morning" (before 12), "Good afternoon" (before 17), "Good evening".
+
+### Today's Workout Card (hero)
+
+A tappable gradient card linking to `/Workout`. Shows today's PPL day type, the date, and a Start/View button.
+
+```jsx
+<Link to="/Workout">
+  <Card className="p-5 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border-primary/30 active:scale-[0.98] transition-transform">
+    <div className="flex items-center justify-between">
+      <div className="flex-1">
+        <p className="text-xs text-primary font-semibold uppercase tracking-widest">
+          Today · {date}
+        </p>
+        <h2 className="text-xl font-bold mt-1">{todayLabel}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {isRest ? "Active recovery & rest" : `Day ${todayDay.day} · Tap to start`}
+        </p>
+      </div>
+      <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/20 flex items-center justify-center shrink-0 ml-3">
+        {isRest ? <Moon className="w-7 h-7 text-primary" /> : <Dumbbell className="w-7 h-7 text-primary" />}
+      </div>
+    </div>
+    <Button className="w-full mt-4 bg-primary hover:bg-primary/90 font-semibold h-11">
+      {isRest ? "View Recovery Plan" : "Start Workout"}
+      <ChevronRight className="w-4 h-4 ml-1" />
+    </Button>
+  </Card>
+</Link>
+```
+
+| Element | Tailwind |
+|---|---|
+| Card | `p-5 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border-primary/30 active:scale-[0.98] transition-transform` |
+| Date label | `text-xs text-primary font-semibold uppercase tracking-widest` |
+| Day title | `text-xl font-bold mt-1` |
+| Icon circle | `w-14 h-14 rounded-2xl bg-primary/20 border border-primary/20 flex items-center justify-center shrink-0 ml-3` |
+| CTA button | `w-full mt-4 bg-primary hover:bg-primary/90 font-semibold h-11` |
+
+### Stats Row (3 cards)
+
+```jsx
+<div className="grid grid-cols-3 gap-3">
+  <StatCard icon={Flame}      label="Streak"  value={`${streak}d`}          colorClass="text-accent"    bgClass="bg-accent/15" />
+  <StatCard icon={Target}     label="Weekly"  value={`${weekConsistency}%`} colorClass="text-primary"   bgClass="bg-primary/15" />
+  <StatCard icon={TrendingUp} label="Total"   value={totalWorkouts}         colorClass="text-chart-4"   bgClass="bg-chart-4/15" />
+</div>
+```
+
+**StatCard sub-component:**
+
+```jsx
+function StatCard({ icon: Icon, label, value, colorClass, bgClass }) {
+  return (
+    <Card className="p-4 flex flex-col gap-2">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${bgClass}`}>
+        <Icon className={`w-4 h-4 ${colorClass}`} />
+      </div>
+      <div>
+        <p className="text-xl font-bold leading-none">{value}</p>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-1">{label}</p>
+      </div>
+    </Card>
+  );
+}
+```
+
+### Week Overview
+
+```jsx
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+    <Calendar className="w-3.5 h-3.5" /> This Week
+  </h3>
+  <WeekOverview />
+</div>
+```
+
+Renders the `<WeekOverview />` component (`src/components/WeekOverview.jsx`) which shows 7 day cells with done/today/upcoming/missed/rest statuses.
+
+### Recent Sessions
+
+The 3 most recent workout logs, each as a small card with a colored left bar (by day type).
+
+```jsx
+<h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+  <BarChart3 className="w-3.5 h-3.5" /> Recent Sessions
+</h3>
+<div className="space-y-2">
+  {recentSessions.map((w, i) => (
+    <Card key={i} className="p-3 flex items-center gap-3">
+      <div className={cn("w-2 self-stretch rounded-full shrink-0", {
+        push: "bg-primary", pull: "bg-accent", legs: "bg-chart-3",
+        push_high_rep: "bg-primary", pull_high_rep: "bg-accent", legs_high_rep: "bg-chart-3",
+      }[w.dayType] || "bg-muted")} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate">{DAY_TYPE_LABELS[w.dayType]}</p>
+        <p className="text-[10px] text-muted-foreground">{w.date} · {w.totalSets} sets · {w.exerciseCount} exercises</p>
+      </div>
+      {w.duration > 0 && (
+        <p className="text-xs font-semibold text-muted-foreground shrink-0">{Math.round(w.duration / 60)}m</p>
+      )}
+    </Card>
+  ))}
+</div>
+```
+
+### Next Workout Preview (only on rest days)
+
+```jsx
+{isRest && nextWorkoutDay && (
+  <Link to="/Workout">
+    <Card className="p-4 flex items-center gap-4 border-dashed active:bg-secondary/70 transition-colors">
+      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+        <Dumbbell className="w-5 h-5 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold">{DAY_TYPE_LABELS[nextWorkoutDay.type]}</p>
+        <p className="text-[10px] text-muted-foreground">{nextWorkoutDay.label} · Tap to preview</p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+    </Card>
+  </Link>
+)}
+```
+
+### Quick Links Grid
+
+A 2-column grid of tappable cards linking to Stats, Settings, and Notifications.
+
+```jsx
+<div className="grid grid-cols-2 gap-3">
+  <Link to="/Stats">
+    <Card className="p-4 active:bg-secondary/70 transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-chart-3/15 flex items-center justify-center shrink-0">
+          <TrendingUp className="w-4 h-4 text-chart-3" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Analytics</p>
+          <p className="text-[10px] text-muted-foreground">View progress</p>
+        </div>
+      </div>
+    </Card>
+  </Link>
+  {/* Settings + Notifications — same shape, different icon/color */}
+</div>
+```
+
+| Link | Icon | Icon bg | Icon color |
+|---|---|---|---|
+| Analytics | `TrendingUp` | `bg-chart-3/15` | `text-chart-3` |
+| Settings | `Dumbbell` | `bg-chart-4/15` | `text-chart-4` |
+| Notifications | `Bell` | `bg-primary/15` | `text-primary` |
+
+---
+
+## Summary of Shared Patterns
+
+| Pattern | Tailwind |
+|---|---|
+| Section heading | `text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2` |
+| Small card | `Card p-3` or `p-4` |
+| Icon chip | `w-9 h-9 rounded-xl flex items-center justify-center` |
+| Pill badge | `text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full` |
+| Progress bar track | `h-1.5 bg-secondary rounded-full overflow-hidden` |
+| Progress bar fill | `h-full bg-primary rounded-full transition-all duration-300` |
+| Hover-reveal actions | `opacity-0 group-hover:opacity-100 transition-opacity` |
+| Dashed empty state | `border-2 border-dashed border-border rounded-xl` |
+| Circular timer ring | SVG `r=44`, `strokeDasharray`/`strokeDashoffset` math, `-rotate-90` |

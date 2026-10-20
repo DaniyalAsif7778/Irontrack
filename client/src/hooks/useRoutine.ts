@@ -27,6 +27,21 @@ export function useRoutineMutations(date: string, accountId?: string) {
         return { queuedOffline: true };
       }
     },
+    onMutate: async task => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.routine.day(date) });
+      const previous = queryClient.getQueriesData<Day>({ queryKey: queryKeys.routine.day(date) });
+      queryClient.setQueriesData<Day>({ queryKey: queryKeys.routine.day(date) }, current => {
+        if (!current) return current;
+        const completed = !task.completed;
+        const blocks = current.blocks.map(block => {
+          const tasks = block.tasks.map(item => item._id === task._id ? { ...item, completed } : item);
+          return { ...block, tasks, completed: tasks.filter(item => item.completed).length };
+        });
+        return { ...current, blocks, progress: { ...current.progress, completed: blocks.reduce((sum, block) => sum + block.completed, 0) } };
+      });
+      return { previous };
+    },
+    onError: (_error, _task, context) => context?.previous.forEach(([key, value]) => queryClient.setQueryData(key, value)),
     onSuccess: () => Promise.all([invalidateRoutine(), invalidateAnalytics(), invalidateEvents()]),
   });
   const saveSubtasks = useMutation({
