@@ -3,29 +3,58 @@ import jwt, { type JwtPayload } from "jsonwebtoken";
 import { fail } from "./errorHandler.js";
 
 export const SESSION_COOKIE = "irontrack_session";
+export const REFRESH_COOKIE = "irontrack_refresh";
 export const SESSION_ISSUER = "irontrack-api";
 export const SESSION_AUDIENCE = "irontrack-client";
-export const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+export const REFRESH_AUDIENCE = "irontrack-refresh";
+export const SESSION_MAX_AGE = 15 * 60 * 1000;
+export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
 export function isSingleUserMode() {
   return process.env.SINGLE_USER_MODE === "true" && process.env.NODE_ENV !== "production";
 }
 
 export function signSession(userId: string) {
-  return jwt.sign({}, sessionSecret(), {
+  return jwt.sign({ tokenType: "access" }, sessionSecret(), {
     subject: userId,
     issuer: SESSION_ISSUER,
     audience: SESSION_AUDIENCE,
-    expiresIn: "7d",
+    expiresIn: "15m",
   });
 }
 
-export const sessionCookieOptions = {
+export function signRefreshSession(userId: string, tokenId: string) {
+  return jwt.sign({ tokenType: "refresh" }, refreshSecret(), {
+    subject: userId,
+    jwtid: tokenId,
+    issuer: SESSION_ISSUER,
+    audience: REFRESH_AUDIENCE,
+    expiresIn: "30d",
+  });
+}
+
+export function verifyRefreshSession(token: string) {
+  const payload = jwt.verify(token, refreshSecret(), { issuer: SESSION_ISSUER, audience: REFRESH_AUDIENCE }) as JwtPayload;
+  if (payload.tokenType !== "refresh" || !payload.sub || !payload.jti) throw new Error("Invalid refresh token");
+  return { userId: payload.sub, tokenId: payload.jti };
+}
+
+const cookieBase = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" as const : "lax" as const,
+  sameSite: "lax" as const,
+};
+
+export const sessionCookieOptions = {
+  ...cookieBase,
   path: "/api",
   maxAge: SESSION_MAX_AGE,
+};
+
+export const refreshCookieOptions = {
+  ...cookieBase,
+  path: "/api/auth",
+  maxAge: REFRESH_MAX_AGE,
 };
 
 export const requireAuth: RequestHandler = (req, res, next) => {
@@ -40,7 +69,7 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   if (!token) { fail(res, "Sign in to continue", 401); return; }
   try {
     const payload = jwt.verify(token, sessionSecret(), { issuer: SESSION_ISSUER, audience: SESSION_AUDIENCE }) as JwtPayload;
-    if (!payload.sub) { fail(res, "Sign in to continue", 401); return; }
+    if (payload.tokenType !== "access" || !payload.sub) { fail(res, "Sign in to continue", 401); return; }
     req.auth = { userId: payload.sub };
     next();
   } catch {
@@ -51,5 +80,11 @@ export const requireAuth: RequestHandler = (req, res, next) => {
 function sessionSecret() {
   const secret = process.env.AUTH_JWT_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32) throw new Error("AUTH_JWT_SECRET must contain at least 32 bytes.");
+  return secret;
+}
+
+function refreshSecret() {
+  const secret = process.env.AUTH_REFRESH_SECRET || process.env.AUTH_JWT_SECRET;
+  if (!secret || Buffer.byteLength(secret) < 32) throw new Error("AUTH_REFRESH_SECRET must contain at least 32 bytes.");
   return secret;
 }

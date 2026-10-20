@@ -898,6 +898,7 @@ p { color: var(--quiet); font-size: 14px; line-height: 1.55; }
 .routine-heatmap { gap: 5px; }
 .routine-heat-cell { width: min(100%, 44px); border-radius: 6px; }
 .routine-bars { height: 120px; }
+.routine-load-state { margin: 8px 0; padding: 8px 10px; color: hsl(var(--muted-foreground)); background: hsl(var(--card) / .7); border: 1px solid hsl(var(--border) / .7); border-radius: 7px; font-size: 11px; }
 @media (max-width: 700px) {
   .dashboard { gap: 7px; }
   .dashboard section { padding: 10px; }

@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Dumbbell, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { loginSchema, registerSchema, type AuthValues } from "../../schemas/auth";
 import { api } from "../../lib/api/api";
 import type { AuthUser } from "../../types";
@@ -10,6 +11,7 @@ import type { AuthUser } from "../../types";
 const sessionKey = ["auth", "me"] as const;
 
 export default function AuthPage() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [visiblePassword, setVisiblePassword] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -27,6 +29,7 @@ export default function AuthPage() {
         ? await api<{ user: AuthUser }>("/auth/register", { method: "POST", body: JSON.stringify({ name: values.name, email: values.email, password: values.password }) })
         : await api<{ user: AuthUser }>("/auth/login", { method: "POST", body: JSON.stringify({ email: values.email, password: values.password }) });
       queryClient.setQueryData(sessionKey, payload.user);
+      if (mode === "register") navigate("/", { replace: true });
     } catch (reason) {
       setServerError(reason instanceof Error ? reason.message : "We could not sign you in. Try again.");
     }

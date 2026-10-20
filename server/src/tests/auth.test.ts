@@ -1,8 +1,9 @@
 import cookieParser from "cookie-parser";
 import express from "express";
+import jwt from "jsonwebtoken";
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
-import { requireAuth, SESSION_COOKIE, signSession } from "../middlewares/requireAuth.js";
+import { requireAuth, signRefreshSession, SESSION_COOKIE, signSession } from "../middlewares/requireAuth.js";
 import apiRoutes from "../routes/routes.js";
 import { accountSettingsSchema, loginSchema, registerSchema } from "../utils/authValidation.js";
 
@@ -43,6 +44,16 @@ describe("account session middleware", () => {
     const response = await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=${token}`).expect(200);
     expect(response.body.userId).toBe("507f1f77bcf86cd799439011");
   });
+
+  it("rejects malformed, expired, and refresh tokens as access cookies", async () => {
+    await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=not-a-jwt`).expect(401);
+    const expired = jwt.sign({ tokenType: "access" }, process.env.AUTH_JWT_SECRET!, {
+      subject: "507f1f77bcf86cd799439011", issuer: "irontrack-api", audience: "irontrack-client", expiresIn: -1,
+    });
+    await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=${expired}`).expect(401);
+    const refreshToken = signRefreshSession("507f1f77bcf86cd799439011", "refresh-id");
+    await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=${refreshToken}`).expect(401);
+  });
 });
 
 describe("API authentication boundary", () => {
@@ -55,5 +66,9 @@ describe("API authentication boundary", () => {
     await request(app).patch("/api/auth/me").send({ name: "Updated" }).expect(401);
     await request(app).get("/api/weight-logs").expect(401);
     await request(app).get("/api/workout-plans").expect(401);
+  });
+
+  it("returns a clean unauthorized response when the refresh cookie is missing", async () => {
+    await request(app).post("/api/auth/refresh").expect(401);
   });
 });

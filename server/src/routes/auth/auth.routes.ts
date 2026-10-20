@@ -12,6 +12,7 @@ if (!isSingleUserMode()) {
   router.post("/login", signInLimiter, auth.login);
 }
 router.post("/logout", auth.logout);
+router.post("/refresh", auth.refresh);
 router.get("/me", auth.requireAuth, auth.me);
 router.patch("/me", auth.requireAuth, auth.updateMe);
 

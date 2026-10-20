@@ -41,6 +41,7 @@ export default function App() {
   const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation } = useRoutineMutations(date);
   const { saveWeight: saveWeightMutation, removeWeight: removeWeightMutation } = useWeightMutations();
   const day = dayQuery.data ?? null;
+  const selectedDayType = day?.dayType ?? ([0, 6].includes(new Date(`${date}T12:00:00`).getDay()) ? "weekend" : "weekday");
   const weights = weightsQuery.data ?? [];
   const analytics = analyticsQuery.data ?? null;
   const latest = weights[0];
@@ -75,7 +76,7 @@ export default function App() {
 
   async function saveTask(value: TaskFormValues) {
     try {
-      await saveTaskMutation.mutateAsync({ current: editing, value, dayType: day?.dayType });
+      await saveTaskMutation.mutateAsync({ current: editing, value, dayType: selectedDayType });
       setEditing(null);
     } catch (reason) { setError((reason as Error).message); }
   }
@@ -103,7 +104,7 @@ export default function App() {
     { path: "/workout", element: <WorkoutPage onError={setError} /> },
     { path: "/workout/stats", element: <Suspense fallback={<p>Loading workout stats…</p>}><WorkoutStatsPage onError={setError} /></Suspense> },
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
-    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} /> },
+    { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} onRange={setAnalyticsDays} /></Suspense> },
     { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} /> },

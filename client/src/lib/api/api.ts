@@ -4,7 +4,9 @@ const configuredBase = (import.meta.env.VITE_API_URL as string | undefined)?.tri
 const localDevBase = import.meta.env.DEV
   ? "http://127.0.0.1:4001/api"
   : undefined;
-const remoteBase = (configuredBase || localDevBase)?.replace(/\/$/, "");
+const remoteBase = import.meta.env.DEV
+  ? (configuredBase || localDevBase)?.replace(/\/$/, "")
+  : "/api";
 export const isRemoteApi = () => Boolean(remoteBase);
 const http = axios.create({
   baseURL: remoteBase,
@@ -12,6 +14,19 @@ const http = axios.create({
   headers: { "Content-Type": "application/json" },
   withCredentials: true,
 });
+let refreshPromise: Promise<boolean> | null = null;
+
+function refreshSession() {
+  if (!refreshPromise) {
+    refreshPromise = http.post("/auth/refresh")
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
+const noRefreshPaths = new Set(["/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"]);
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -73,13 +88,22 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   try {
-    const response = await http.request<T>({
+    const config = {
       url: path,
       method: options.method ?? "GET",
       data: options.body,
       headers: Object.fromEntries(headers.entries()),
       signal: options.signal ?? undefined,
-    });
+    };
+    let response;
+    try {
+      response = await http.request<T>(config);
+    } catch (reason) {
+      const authPath = path.split("?", 1)[0];
+      if (!axios.isAxiosError(reason) || reason.response?.status !== 401 || noRefreshPaths.has(authPath)) throw reason;
+      if (!await refreshSession()) throw reason;
+      response = await http.request<T>(config);
+    }
     return response.data;
   } catch (reason) {
     if (axios.isAxiosError(reason)) {
