@@ -96,7 +96,7 @@ export default function TaskCard({ task, blockId, complete, edit, remove, saveSu
           {occurrence?.status === "deferred" && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[9px] font-semibold text-accent">Moved</span>}
           {isQueued && activeTaskId && <span className="rounded-full bg-chart-4/10 px-2 py-0.5 text-[9px] font-semibold text-chart-4">Next</span>}
         </div>
-        <div className="relative z-30 shrink-0" ref={menuRef}>
+        <div className="relative z-10 shrink-0" ref={menuRef}>
           <button type="button" className="grid h-[30px] w-[30px] place-items-center !rounded-md !bg-transparent !p-0 text-muted-foreground hover:!bg-muted hover:!text-foreground" aria-label={`Task actions for ${task.title}`} aria-haspopup="menu" aria-expanded={menuOpen} aria-controls={`task-menu-${task._id}`} onClick={() => setMenuOpen(open => !open)}><MoreHorizontal size={18} /></button>
           {menuOpen && <div className="absolute right-0 top-[calc(100%+5px)] z-20 grid w-[190px] max-w-[calc(100vw-40px)] gap-0.5 rounded-lg border border-border/80 bg-popover/90 p-1 text-popover-foreground shadow-[0_12px_30px_hsl(var(--background)_/_0.4)] backdrop-blur-xl" id={`task-menu-${task._id}`} role="menu" aria-label={`${task.title} actions`}>
             <button type="button" className="flex min-h-9 w-full items-center gap-2.5 !rounded-md !bg-transparent px-2.5 text-left text-xs hover:!bg-muted" role="menuitem" onClick={() => runMenuAction(() => complete(task))}><Check size={15} className="shrink-0 text-muted-foreground" />{task.completed ? "Mark incomplete" : "Mark complete"}</button>
