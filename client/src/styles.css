@@ -743,7 +743,7 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .routine-type-hint { margin: 5px 0 12px; color: var(--quiet); font-size: 9px; text-align: center; }
 .routine-header-actions { display: flex; align-items: center; gap: 7px; }
 .routine-live-head { font-variant-numeric: tabular-nums; }
-.task { position: relative; overflow: hidden; background: hsl(var(--secondary) / .32); border-left: 1px solid var(--line); }
+.task { position: relative; overflow: visible; background: hsl(var(--secondary) / .32); border-left: 1px solid var(--line); }
 .task::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: hsl(var(--border)); content: ""; }
 .task.done { opacity: 1; background: hsl(var(--secondary) / .17); }
 .task.timer-active { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
@@ -759,6 +759,27 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .timer-ring circle:last-child { transition: stroke-dashoffset .5s ease; }
 .timer-ring time { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink); font-family: ui-monospace, monospace; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .routine-timer { right: 12px; bottom: 80px; display: grid; width: min(256px, calc(100vw - 24px)); gap: 10px; padding: 14px; border-radius: 16px; }
+.task-head { display: flex; align-items: flex-start; gap: 8px; }
+.task-head .tags { flex: 1; min-width: 0; margin-top: 0; }
+.task-menu { position: relative; z-index: 2; flex: 0 0 auto; }
+.task-menu-toggle { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--quiet); background: transparent; border: 0; border-radius: 5px; }
+.task-menu-toggle:hover { color: var(--ink); background: var(--surface-raised); }
+.task-menu-list {
+  position: absolute; right: 0; top: calc(100% + 5px); z-index: 20; display: grid; gap: 2px; width: 190px; max-width: calc(100vw - 40px);
+  padding: 4px; color: hsl(var(--popover-foreground)); background: hsl(var(--popover) / .96); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 12px 30px hsl(var(--background) / .4);
+}
+.task-menu-list button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px; color: hsl(var(--foreground));
+  background: transparent; border: 0; border-radius: 6px; font-size: 12px; text-align: left;
+}
+.task-menu-list button:hover { background: var(--surface-raised); }
+.task-menu-list button.danger { color: hsl(var(--destructive)); }
+.task-menu-list svg { flex-shrink: 0; width: 15px; height: 15px; color: var(--quiet); }
+.task.menu-open { z-index: 4; }
+.task-moved-pill { padding: 2px 7px; color: hsl(var(--accent)); background: hsl(var(--accent) / .12); border-radius: 999px; font-size: 9px; font-weight: 650; }
+.task-schedule { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.task-head + .task-title-line { margin-top: 8px; }
 .task-title-line { display: flex; align-items: center; gap: 7px; }
 .task-title-line .task-title-done { color: var(--quiet); text-decoration: line-through; }
 .task-done-badge { padding: 2px 5px; color: hsl(var(--accent)); background: hsl(var(--accent) / .14); border-radius: 999px; font-size: 8px; font-style: normal; font-weight: 700; text-transform: uppercase; }
