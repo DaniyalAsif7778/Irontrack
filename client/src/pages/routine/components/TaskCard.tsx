@@ -9,6 +9,7 @@ import {
   Bell,
   PauseCircle,
   AlarmClock,
+  Timer,
   TimerReset,
   MoreHorizontal,
 } from "lucide-react";
@@ -194,20 +195,24 @@ export default function TaskCard({
           </div>
         </div>
         <div className="task-title-line">
-          <b className={task.completed ? "task-title-done" : ""}>{task.title}</b>
+          <h3 className={`task-title${task.completed ? " task-title-done" : ""}`}>{task.title}</h3>
           {task.completed && <em className="task-done-badge">Done</em>}
         </div>
-        {task.description && !task.completed && <p>{task.description}</p>}
+        {task.description && !task.completed && <p className="task-description">{task.description}</p>}
         {(task.duration > 0 || (task.startTime && task.endTime)) && (
           <div className="task-schedule">
             {task.duration > 0 && (
               <span className="task-duration">
-                <Clock3 size={12} /> {task.duration}m
+                <Timer size={13} aria-hidden />
+                {task.duration} min
               </span>
             )}
             {task.startTime && task.endTime && (
               <span className="task-scheduled-time">
-                <Clock3 size={12} /> {task.startTime}–{task.endTime}
+                <Clock3 size={13} aria-hidden />
+                <time>{task.startTime}</time>
+                <span className="task-time-sep" aria-hidden>–</span>
+                <time>{task.endTime}</time>
               </span>
             )}
           </div>
