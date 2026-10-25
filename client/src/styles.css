@@ -742,7 +742,7 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .routine-type-lock > .selected { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); }
 .routine-type-lock > .muted { color: var(--quiet); opacity: .55; }
 .routine-type-hint { margin: 5px 0 12px; color: var(--quiet); font-size: 9px; text-align: center; }
-.routine-header-actions { display: flex; align-items: center; gap: 7px; }
+.routine-header-actions { display: flex; align-items: center; gap: 2px; }
 .routine-live-head { font-variant-numeric: tabular-nums; }
 .task { position: relative; overflow: visible; background: hsl(var(--secondary) / .32); border-left: 1px solid var(--line); }
 .task::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: hsl(var(--border)); content: ""; }
