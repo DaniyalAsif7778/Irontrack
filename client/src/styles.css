@@ -121,6 +121,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-submit:disabled { opacity: .6; cursor: wait; }
 .auth-error { padding: 10px 12px; color: hsl(var(--destructive)); background: hsl(var(--destructive) / .1); border: 1px solid hsl(var(--destructive) / .24); border-radius: 7px; font-size: 12px; }
 .auth-note { display: block; margin-top: 16px; color: var(--quiet); font-size: 11px; }
+.auth-notice { padding: 10px 12px; color: hsl(var(--accent)); background: hsl(var(--accent) / .1); border: 1px solid hsl(var(--accent) / .24); border-radius: 7px; font-size: 12px; }
+.auth-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 14px; margin-top: 14px; }
+.auth-links button, .auth-text-button { padding: 0; color: hsl(var(--primary)); background: none; border: 0; font-size: 12px; text-align: left; }
+.auth-links button:hover, .auth-text-button:hover { text-decoration: underline; }
+.auth-text-button { margin-top: 14px; }
 main { width: min(1100px, calc(100% - 248px)); min-height: 100vh; margin-left: 248px; padding: 52px clamp(28px, 5vw, 72px) 72px; }
 .page-transition > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 27px; }
 .page-transition > header h1 { max-width: 700px; margin: 0; font-size: clamp(26px, 3vw, 36px); font-weight: 600; letter-spacing: -.055em; line-height: 1.12; }
@@ -465,6 +470,12 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .settings-security { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; color: var(--sage); background: hsl(var(--accent) / .08); border: 1px solid hsl(var(--accent) / .18); border-radius: 7px; font-size: 11px; line-height: 1.6; }
 .settings-security svg { flex: 0 0 auto; margin-top: 1px; }
 .settings-security b { margin-right: 4px; color: var(--ink); }
+.settings-session-list { display: grid; gap: 0; margin: 14px 0 0; padding: 0; list-style: none; }
+.settings-session-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
+.settings-session-list li > div { display: grid; min-width: 0; gap: 6px; }
+.settings-session-list strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
+.settings-session-list small { color: var(--quiet); font-size: 11px; overflow-wrap: anywhere; }
+.settings-current-session { padding: 3px 7px; color: hsl(var(--accent)); background: hsl(var(--accent) / .1); border-radius: 999px; font-size: 10px; font-weight: 600; }
 .settings-actions { display: flex; justify-content: flex-end; }
 .settings-save { color: hsl(var(--primary-foreground)); background: var(--orange); border: 0; }
 .settings-save:hover { background: hsl(var(--primary) / .86); }

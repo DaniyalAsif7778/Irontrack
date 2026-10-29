@@ -30,7 +30,7 @@ The app uses a React/Vite frontend, an Express API, and MongoDB Atlas. One low-c
 - Set `NODE_ENV=production`, `MONGODB_URI`, and a long random `AUTH_JWT_SECRET` in the API host's private environment settings. Set `PORT` if the provider requires it. Do not commit `.env` files or paste secret values into GitHub.
 - Add the API host to the MongoDB Atlas network access list. For a hosted API, `127.0.0.1` on the development machine is not reachable from the internet.
 - The current backend intentionally reflects every request origin to support the requested development setup. Before public deployment, update `server/src/app.ts` to allow only the frontend's HTTPS origin. Credentialed cookies require the exact origin, not `*`.
-- Production uses the account flow; local `SINGLE_USER_MODE` is development-only. Create/sign in to the account from the phone after deployment.
+- Create and verify an account, then sign in from each phone or browser to access its private data.
 
 ## Notifications and connectivity
 

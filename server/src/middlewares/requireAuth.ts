@@ -10,10 +10,6 @@ export const REFRESH_AUDIENCE = "irontrack-refresh";
 export const SESSION_MAX_AGE = 15 * 60 * 1000;
 export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
-export function isSingleUserMode() {
-  return process.env.SINGLE_USER_MODE === "true" && process.env.NODE_ENV !== "production";
-}
-
 export function signSession(userId: string) {
   return jwt.sign({ tokenType: "access" }, sessionSecret(), {
     subject: userId,
@@ -58,13 +54,6 @@ export const refreshCookieOptions = {
 };
 
 export const requireAuth: RequestHandler = (req, res, next) => {
-  if (isSingleUserMode()) {
-    const userId = process.env.SINGLE_USER_ID;
-    if (!userId) { fail(res, "Single-user profile has not been initialized", 503); return; }
-    req.auth = { userId };
-    next();
-    return;
-  }
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) { fail(res, "Sign in to continue", 401); return; }
   try {

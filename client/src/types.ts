@@ -71,6 +71,5 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
-  singleUser?: boolean;
   preferences: { weightUnit: "kg" | "lb"; focusMinutes: number; breakMinutes: number; prayerTimes: PrayerTimes };
 };

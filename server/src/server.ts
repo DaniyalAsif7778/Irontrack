@@ -2,8 +2,6 @@ import "dotenv/config";
 import { app } from "./app.js";
 import { connectDatabase } from "./db/db.js";
 import { logger } from "./utils/logger.js";
-import { ensureSingleUser } from "./services/auth/singleUser.service.js";
-import { isSingleUserMode } from "./middlewares/requireAuth.js";
 import { startNotificationScheduler } from "./services/notifications/push.service.js";
 
 const port = Number(process.env.PORT || 5000);
@@ -20,20 +18,13 @@ if (!authSecret || Buffer.byteLength(authSecret) < 32) {
   process.exit(1);
 }
 
-if (process.env.NODE_ENV === "production" && process.env.SINGLE_USER_MODE === "true") {
-  logger.error("SINGLE_USER_MODE is for local use only. Protect production with authentication.");
-  process.exit(1);
-}
-
-const logStarted = () => logger.info({ port, singleUserMode: isSingleUserMode() }, "IronTrack API listening");
-if (isSingleUserMode()) app.listen(port,  logStarted);
-else app.listen(port, logStarted);
+const logStarted = () => logger.info({ port }, "IronTrack API listening");
+app.listen(port, logStarted);
 
 async function connectWhenAvailable() {
   while (true) {
     try {
       await connectDatabase(uri!);
-      if (isSingleUserMode()) await ensureSingleUser();
       startNotificationScheduler();
       logger.info("MongoDB connected; scheduled notifications are active");
       return;

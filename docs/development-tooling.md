@@ -43,12 +43,12 @@ This is a React/Vite PWA with a separate Express/MongoDB API. The package manife
 
 `tsx` and `typescript` are development/build dependencies. `vitest`, `supertest`, and `@types/*` packages are development-only. Run backend tests with `npm run test -w irontrack-server`.
 
-The API applies authentication to data routes and scopes routine, weight, workout and analytics queries by owner ID. For a personal local install, `SINGLE_USER_MODE=true` initializes one owner profile and skips the signup/login screen; it also disables registration. This mode is rejected in production because unauthenticated internet access would expose the data. Production uses signed HttpOnly account sessions. The API also applies Helmet headers, a configured CORS origin list, a 2 MB JSON body limit, Mongo operator sanitization, API and sign-in rate limits, and Morgan-to-Pino logging. `CLIENT_ORIGIN` is a comma-separated list. Keep it specific to the deployed client URL. Set `TRUST_PROXY=1` only when hosted behind one trusted reverse proxy so IP-based rate limits use the client address.
+Every data route requires a verified account session, and routine, weight, workout and analytics records are scoped by owner ID. Registration, sign-in, email verification, password recovery, and session review are account-based in every server environment; there is no server-side authentication bypass. The API also applies Helmet headers, a configured CORS origin list, JSON body limits, Mongo operator sanitization, API and auth rate limits, and Morgan-to-Pino logging. `CLIENT_ORIGIN` is a comma-separated list. Keep it specific to the deployed client URL. Set `TRUST_PROXY=1` only when hosted behind one trusted reverse proxy so IP-based rate limits use the client address.
 
 ## Phases
 
 1. **Core tracking:** responsive PWA, routines, weight history, workout plans/logs, analytics, timer, and validated API.
-2. **Accounts and privacy:** signed HttpOnly sessions and per-account data in production, with a local-only single-owner mode for personal development.
+2. **Accounts and privacy:** verified email accounts, rotating HttpOnly sessions, and per-account data in every server environment.
 3. **Settings and personalization:** account profile, default weight unit, timer lengths, and browser notification permission.
 4. **Next work:** design and implement offline reads/writes with an explicit conflict policy, then add sync status and cross-device recovery. Current data entry requires a live API connection.
 5. **Optional services:** enable uploads, mail, realtime or billing only when matching product behavior is scoped, configured, and tested. Add OpenAPI documentation against actual route contracts.

@@ -1,9 +1,8 @@
 import webpush, { type PushSubscription as WebPushSubscription } from "web-push";
 import { PushDelivery, PushSubscription } from "../../models/notifications/notification.model.js";
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
-import { WorkoutLog } from "../../models/workout/workout.model.js";
+import { WorkoutLog, WorkoutProgram } from "../../models/workout/workout.model.js";
 import { WellnessLog } from "../../models/wellness/wellness.model.js";
-import { workoutWeek } from "../workout/workoutData.js";
 import { logger } from "../../utils/logger.js";
 
 const publicKey = process.env.VAPID_PUBLIC_KEY ?? "";
@@ -171,7 +170,8 @@ export async function dispatchDueNotifications(now = new Date()) {
       }
       if (prefs.workoutAtNine && time === "09:00") {
         const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][weekday];
-        const dayType = workoutWeek.find(day => day.key === weekKey)?.dayType;
+        const program = await WorkoutProgram.findOne({ ownerId }).lean();
+        const dayType = program?.days.find(day => day.key === weekKey)?.planId;
         if (dayType && !await WorkoutLog.exists({ ownerId, date: dateKey, dayType })) {
           await send(subscription, `workout:${dateKey}`, "Workout day", "Your training session is ready when you are.", "/workout").catch(() => undefined);
         }

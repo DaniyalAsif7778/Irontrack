@@ -1,11 +1,11 @@
 # IronTrack implementation roadmap
 
-This document is the handoff point for future implementation sessions. Read it with [architecture.md](architecture.md), [phone-workflow.md](phone-workflow.md), and [PROGRESS.md](../PROGRESS.md) before changing app structure or adding a feature. Product scope is a personal, dumbbell-based fitness tracker that works well on a phone and desktop. Keep React/Vite as one responsive installable PWA; do not introduce Electron or duplicate platform apps unless the product goal changes.
+This document is the handoff point for future implementation sessions. Read it with [architecture.md](architecture.md), [phone-workflow.md](phone-workflow.md), and [PROGRESS.md](../PROGRESS.md) before changing app structure or adding a feature. Product scope is an account-based, dumbbell-focused fitness tracker that works well on a phone and desktop. Keep React/Vite as one responsive installable PWA; do not introduce Electron or duplicate platform apps unless the product goal changes.
 
 ## Current architecture
 
 - `client/` is the TypeScript React/Vite PWA. React Router handles pages, TanStack Query handles API/server state, Zustand holds client preferences, Axios is the API transport, Zod validates forms and API data, Tailwind styles shared component patterns.
-- `server/` is the TypeScript Express API. MongoDB/Mongoose persists the single account's routine, workout, weight, wellness and push subscription data. Auth middleware scopes user-owned data by `ownerId`.
+- `server/` is the TypeScript Express API. MongoDB/Mongoose persists each account's routine, workout, weight, wellness and push subscription data. Auth middleware scopes user-owned data by `ownerId`.
 - `client/public/sw.js` caches the app shell and handles notification display/clicks. Web Push wakes the service worker while the UI is closed on supported browsers.
 - The browser calls the authenticated `/api/notifications/*` endpoints. The server checks schedules once per minute, using each subscription's IANA timezone, and sends due push through VAPID/Web Push.
 - Never put the VAPID private key, MongoDB URI, or auth signing secret in client variables, committed files, logs, or example values that look usable. Local secrets belong in ignored `server/.env`; deployment secrets belong in the API host's private environment settings.
@@ -23,7 +23,7 @@ This document is the handoff point for future implementation sessions. Read it w
 ## Before production use
 
 1. Deploy the frontend and API on HTTPS. For cookie authentication, prefer one site origin with the API proxied under `/api`, or carefully configure cross-site cookies and CORS.
-2. Set `MONGODB_URI`, `AUTH_JWT_SECRET`, `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` in the API host's private environment. Set the deployed client/API origins and proxy settings. Do not use unauthenticated `SINGLE_USER_MODE` in production.
+2. Set `MONGODB_URI`, `AUTH_JWT_SECRET`, `AUTH_REFRESH_SECRET`, `EMAIL_USER`, `EMAIL_PASS`, `CLIENT_URL`, `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` in the API host's private environment. Set the deployed client/API origins and proxy settings.
 3. Replace the temporary reflect-all credentialed CORS configuration in `server/src/app.ts` with the exact trusted site origin(s) before exposing a real account.
 4. Ensure the free API host's sleep behavior is acceptable. Web Push can wait in the browser push service, but scheduled reminders are evaluated only while the Express process is awake. A sleeping free instance may miss its schedule until it wakes; use an always-on host if punctual reminders matter.
 5. Open Wellness on every phone/browser, grant notification permission, enable background notifications, and press **Send server test**. Android and desktop need HTTPS (localhost is exempt). iPhone/iPad push requires a compatible installed web app and current OS/browser support; verify on the target device.

@@ -1,15 +1,64 @@
-import { WORKOUT_DAYS, WorkoutLog, WorkoutPlan } from "../../models/workout/workout.model.js";
-import { defaultWorkoutPlans, workoutWeek } from "./workoutData.js";
-import type { Exercise } from "./workoutData.js";
+import { WorkoutLog, WorkoutPlan, WorkoutProgram, WORKOUT_WEEKDAYS, WORKOUT_WEEKDAY_LABELS } from "../../models/workout/workout.model.js";
+import { legacyWorkoutNames, legacyWorkoutWeek, type Exercise } from "./workoutData.js";
 
-export async function listPlans(ownerId: string) {
-  const saved = await WorkoutPlan.find({ ownerId }).lean();
-  const byDay = new Map(saved.map(plan => [plan.dayType, plan.exercises]));
-  return WORKOUT_DAYS.map(dayType => ({ dayType, exercises: byDay.get(dayType) ?? defaultWorkoutPlans[dayType] }));
+function toPublicPlan(plan: { dayType: string; name?: string; exercises: Exercise[] }) {
+  return { id: plan.dayType, name: plan.name?.trim() || legacyWorkoutNames[plan.dayType] || "Workout day", exercises: plan.exercises };
 }
 
-export function savePlan(ownerId: string, dayType: string, exercises: Exercise[]) {
-  return WorkoutPlan.findOneAndUpdate({ ownerId, dayType }, { ownerId, dayType, exercises }, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true });
+export async function listPlans(ownerId: string) {
+  const saved = await WorkoutPlan.find({ ownerId }).sort({ createdAt: 1 }).lean();
+  return saved.map(plan => toPublicPlan(plan as { dayType: string; name?: string; exercises: Exercise[] }));
+}
+
+export async function savePlan(ownerId: string, planId: string, name: string, exercises: Exercise[]) {
+  const plan = await WorkoutPlan.findOneAndUpdate(
+    { ownerId, dayType: planId },
+    { $set: { ownerId, dayType: planId, name, exercises } },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  ).lean();
+  return toPublicPlan(plan as { dayType: string; name?: string; exercises: Exercise[] });
+}
+
+export async function deletePlan(ownerId: string, planId: string) {
+  const result = await WorkoutPlan.deleteOne({ ownerId, dayType: planId });
+  if (result.deletedCount) {
+    const program = await WorkoutProgram.findOne({ ownerId });
+    if (program) {
+      program.days = program.days.map(day => day.planId === planId ? { ...day.toObject(), planId: null } : day) as typeof program.days;
+      await program.save();
+    }
+  }
+  return result.deletedCount > 0;
+}
+
+export async function listWeek(ownerId: string) {
+  const program = await WorkoutProgram.findOne({ ownerId }).lean();
+  if (program?.days.length === WORKOUT_WEEKDAYS.length) return program.days;
+
+  const plans = await WorkoutPlan.find({ ownerId }).select("dayType").lean();
+  const planIds = new Set(plans.map(plan => plan.dayType));
+  const legacyAssignments = new Map(legacyWorkoutWeek.map(day => [day.key, day.planId]));
+  return WORKOUT_WEEKDAYS.map(key => {
+    const legacyPlanId = legacyAssignments.get(key) ?? null;
+    return {
+      key,
+      label: WORKOUT_WEEKDAY_LABELS[key],
+      planId: legacyPlanId && planIds.has(legacyPlanId) ? legacyPlanId : null,
+    };
+  });
+}
+
+export async function saveWeek(ownerId: string, days: { key: string; label: string; planId: string | null }[]) {
+  const program = await WorkoutProgram.findOneAndUpdate(
+    { ownerId },
+    { $set: { ownerId, days } },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  ).lean();
+  return program?.days ?? days;
+}
+
+export async function ownerHasPlan(ownerId: string, planId: string) {
+  return Boolean(await WorkoutPlan.exists({ ownerId, dayType: planId }));
 }
 
 export async function listLogs(ownerId: string, limitValue: unknown) {
@@ -25,5 +74,3 @@ export async function saveLog(ownerId: string, data: ReturnType<typeof import(".
   if (await WorkoutLog.exists({ ownerId, date: data.date, dayType: data.dayType })) return null;
   return WorkoutLog.create({ ...data, ownerId });
 }
-
-export { workoutWeek };

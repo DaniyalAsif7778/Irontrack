@@ -25,8 +25,8 @@ function renderAuth() {
 describe("account access flow", () => {
   beforeEach(() => api.mockReset());
 
-  it("takes a new account to Home after the server accepts signup", async () => {
-    api.mockResolvedValue({ user: { id: "user-1", name: "Daniyal", email: "daniyal@example.com" } });
+  it("asks new accounts to verify their email before signing in", async () => {
+    api.mockResolvedValue({ message: "If this address can receive mail, a verification link is on its way." });
     renderAuth();
 
     fireEvent.click(screen.getByRole("tab", { name: /create account/i }));
@@ -35,7 +35,8 @@ describe("account access flow", () => {
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a-long-enough-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/"));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Check your inbox" })).toBeInTheDocument());
+    expect(screen.getByTestId("location")).toHaveTextContent("/signup");
     expect(api).toHaveBeenCalledWith("/auth/register", expect.objectContaining({ method: "POST" }));
   });
 

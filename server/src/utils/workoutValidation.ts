@@ -1,8 +1,8 @@
-import { WORKOUT_DAYS } from "../models/workout/workout.model.js";
+import { WORKOUT_WEEKDAYS, WORKOUT_WEEKDAY_LABELS } from "../models/workout/workout.model.js";
 import type { Exercise } from "../services/workout/workoutData.js";
 
-const isDay = (value: unknown): value is typeof WORKOUT_DAYS[number] =>
-  typeof value === "string" && WORKOUT_DAYS.includes(value as typeof WORKOUT_DAYS[number]);
+const isPlanId = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(value);
 
 export function workoutPlanPayload(input: any) {
   if (!Array.isArray(input?.exercises) || input.exercises.length > 40) throw new Error("exercises must be a list of up to 40 items");
@@ -29,9 +29,39 @@ export function workoutPlanPayload(input: any) {
   return exercises;
 }
 
+export function workoutPlanDataPayload(input: any) {
+  if (!input || typeof input.name !== "string" || !input.name.trim() || input.name.trim().length > 80) {
+    throw new Error("workout day name must contain 1 to 80 characters");
+  }
+  return { name: input.name.trim(), exercises: workoutPlanPayload(input) };
+}
+
+export function workoutWeekPayload(input: any, ownedPlanIds: string[]) {
+  if (!Array.isArray(input?.days) || input.days.length !== WORKOUT_WEEKDAYS.length) {
+    throw new Error("weekly schedule must contain exactly seven days");
+  }
+  const byKey = new Map<string, any>();
+  for (const day of input.days) {
+    if (!day || !WORKOUT_WEEKDAYS.includes(day.key)) throw new Error("weekly schedule contains an invalid weekday");
+    if (byKey.has(day.key)) throw new Error("weekday keys must be unique");
+    byKey.set(day.key, day);
+  }
+  if (byKey.size !== WORKOUT_WEEKDAYS.length) throw new Error("weekly schedule must include each unique weekday");
+  return {
+    days: WORKOUT_WEEKDAYS.map(key => {
+      const planId = byKey.get(key).planId;
+      if (planId !== null && !isPlanId(planId)) throw new Error("weekday plan assignment is invalid");
+      if (planId !== null && !ownedPlanIds.includes(planId)) throw new Error("workout day must belong to this account");
+      return { key, label: WORKOUT_WEEKDAY_LABELS[key], planId };
+    }),
+  };
+}
+
 export function workoutLogPayload(input: any) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input?.date ?? "")) throw new Error("date must be YYYY-MM-DD");
-  if (!isDay(input.dayType)) throw new Error("invalid workout day");
+  if (!isPlanId(input.dayType)) throw new Error("invalid workout day");
+  const dayName = typeof input.dayName === "string" ? input.dayName.trim() : "";
+  if (dayName.length > 80) throw new Error("workout day name is too long");
   if (!Array.isArray(input.exercises)) throw new Error("exercises must be a list");
   if (!Number.isFinite(input.duration) || input.duration < 0 || input.duration > 86400) throw new Error("duration must be between 0 and 86400 seconds");
   const exercises = input.exercises.map((exercise: any) => {
@@ -46,5 +76,5 @@ export function workoutLogPayload(input: any) {
   const totalSets = exercises.reduce((total: number, exercise: { sets: unknown[] }) => total + exercise.sets.length, 0);
   const totalVolume = exercises.reduce((total: number, exercise: { sets: { reps: number; weight: number }[] }) => total + exercise.sets.reduce((sum, set) => sum + set.reps * set.weight, 0), 0);
   const actionId = typeof input.actionId === "string" && input.actionId.length <= 120 ? input.actionId : "";
-  return { date: input.date, dayType: input.dayType, exercises, totalSets, totalVolume, duration: Math.round(input.duration), actionId };
+  return { date: input.date, dayType: input.dayType, dayName, exercises, totalSets, totalVolume, duration: Math.round(input.duration), actionId };
 }

@@ -26,7 +26,10 @@ function refreshSession() {
   return refreshPromise;
 }
 
-const noRefreshPaths = new Set(["/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"]);
+const noRefreshPaths = new Set([
+  "/auth/login", "/auth/register", "/auth/refresh", "/auth/logout",
+  "/auth/verify-email", "/auth/resend-verification", "/auth/password/forgot", "/auth/password/reset",
+]);
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {

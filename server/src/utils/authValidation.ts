@@ -11,6 +11,16 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(128),
 }).strict();
 
+export const emailSchema = z.object({
+  email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
+}).strict();
+
+export const tokenSchema = z.object({ token: z.string().min(32).max(256) }).strict();
+
+export const resetPasswordSchema = tokenSchema.extend({
+  password: z.string().min(12).max(128),
+}).strict();
+
 export const accountSettingsSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   preferences: z.object({

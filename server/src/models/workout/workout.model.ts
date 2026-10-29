@@ -1,6 +1,9 @@
 import { Schema, model } from "mongoose";
 
-export const WORKOUT_DAYS = ["push", "pull", "legs", "push_high", "pull_high", "legs_high"] as const;
+export const WORKOUT_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export const WORKOUT_WEEKDAY_LABELS: Record<typeof WORKOUT_WEEKDAYS[number], string> = {
+  mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday",
+};
 
 const exerciseSchema = new Schema({
   id: { type: String, required: true }, name: { type: String, required: true, trim: true },
@@ -14,10 +17,23 @@ const exerciseSchema = new Schema({
 
 export const WorkoutPlan = model("WorkoutPlan", new Schema({
   ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-  dayType: { type: String, enum: WORKOUT_DAYS, required: true },
+  // dayType is retained as the storage key so existing custom plans remain addressable.
+  dayType: { type: String, required: true, trim: true, maxlength: 80 },
+  name: { type: String, required: true, trim: true, maxlength: 80, default: "Workout day" },
   exercises: { type: [exerciseSchema], default: [] }
 }, { timestamps: true }));
 WorkoutPlan.schema.index({ ownerId: 1, dayType: 1 }, { unique: true });
+
+const workoutWeekDaySchema = new Schema({
+  key: { type: String, enum: WORKOUT_WEEKDAYS, required: true },
+  label: { type: String, required: true },
+  planId: { type: String, default: null, maxlength: 80 },
+}, { _id: false });
+
+export const WorkoutProgram = model("WorkoutProgram", new Schema({
+  ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+  days: { type: [workoutWeekDaySchema], required: true, default: [] },
+}, { timestamps: true }));
 
 const loggedSetSchema = new Schema({ reps: { type: Number, required: true, min: 0, max: 1000 }, weight: { type: Number, required: true, min: 0, max: 10000 } }, { _id: false });
 const loggedExerciseSchema = new Schema({
@@ -27,7 +43,8 @@ const loggedExerciseSchema = new Schema({
 
 export const WorkoutLog = model("WorkoutLog", new Schema({
   ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-  date: { type: String, required: true }, dayType: { type: String, enum: WORKOUT_DAYS, required: true },
+  date: { type: String, required: true }, dayType: { type: String, required: true, maxlength: 80 },
+  dayName: { type: String, default: "", maxlength: 80 },
   exercises: { type: [loggedExerciseSchema], default: [] }, totalSets: { type: Number, required: true, min: 0 },
   totalVolume: { type: Number, required: true, min: 0 }, duration: { type: Number, required: true, min: 0 },
   actionId: { type: String, default: "", maxlength: 120 },

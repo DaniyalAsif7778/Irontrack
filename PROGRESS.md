@@ -34,7 +34,6 @@ For phase sequencing, production setup, and next-agent handoff, read [docs/roadm
 - Required authentication for API data routes and scoped routine tasks, weights, workout plans/logs, and analytics to the current account.
 - Added per-account unique indexes for dates and workout schedules. The database connection removes only the old conflicting indexes; legacy unowned records remain untouched and inaccessible.
 - Kept local demo mode available when `VITE_API_URL` is not configured.
-- Added a local-only single-user mode for the personal development setup. It initializes one owner profile automatically, hides signup/login, and scopes all records to that owner. Production startup rejects this mode; production keeps signed-in accounts.
 - Added `AUTH_JWT_SECRET` configuration guidance plus server session/validation and frontend form validation tests.
 - Verified both production TypeScript/Vite builds and both workspace test suites.
 
@@ -63,7 +62,7 @@ For phase sequencing, production setup, and next-agent handoff, read [docs/roadm
 
 ## Configuration still required
 
-Local API runs on port 4001 in single-user mode and binds to loopback only. The current Vite page on port 5174 now defaults to that API even if its process started before `.env` was configured. The corrected workout export was imported without overwriting existing records: 4 plans, 5 sessions, and 15 progression records. The corrected routine backup has no routine tasks or weight records. The routine screen now explains that and offers a first-task action. The imported workout plans and session history are visible in the app.
+Local API runs on port 4001 with MongoDB-backed account authentication. The current Vite page on port 5174 defaults to that API even if its process started before `.env` was configured. The corrected workout export was imported without overwriting existing records: 4 plans, 5 sessions, and 15 progression records. The corrected routine backup has no routine tasks or weight records. The routine screen now explains that and offers a first-task action. The imported workout plans and session history are visible in the app.
 
 ## 2026-09-26 update
 - MongoDB connection configuration added locally (credentials are stored only in ignored server/.env).

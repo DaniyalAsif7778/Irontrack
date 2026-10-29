@@ -6,6 +6,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "load:smoke": "npm run build && node scripts/load-smoke.mjs",
+    "load:db": "npm run build && node scripts/database-load.mjs",
     "test": "vitest run"
   },
   "dependencies": {

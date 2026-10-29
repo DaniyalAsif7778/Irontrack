@@ -8,6 +8,8 @@ type UserFields = {
   name: string;
   email: string;
   passwordHash: string;
+  emailVerified: boolean;
+  verificationExpiresAt?: Date;
   preferences: UserPreferences;
 };
 
@@ -15,6 +17,9 @@ const userSchema = new Schema<UserFields>({
   name: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
   email: { type: String, required: true, trim: true, lowercase: true, unique: true, maxlength: 254 },
   passwordHash: { type: String, required: true, select: false },
+  // Existing accounts without this field remain usable; registrations explicitly set false.
+  emailVerified: { type: Boolean, default: true },
+  verificationExpiresAt: { type: Date, default: undefined },
   preferences: {
     weightUnit: { type: String, enum: ["kg", "lb"], default: "kg" },
     focusMinutes: { type: Number, min: 5, max: 120, default: 45 },
@@ -30,6 +35,7 @@ const userSchema = new Schema<UserFields>({
 }, { timestamps: true });
 
 export const User = model<UserFields>("User", userSchema);
+User.schema.index({ verificationExpiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export function toPublicUser(user: { _id: unknown; name: string; email: string; preferences?: Partial<UserPreferences> }): PublicUser {
   return {

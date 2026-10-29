@@ -24,10 +24,23 @@ describe("AuthGate public entry", () => {
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });
 
-  it("keeps private routes on the sign-in form for a signed-out visitor", async () => {
+  it("keeps the loading state until the server confirms whether a visitor has a session", async () => {
+    let resolveSession!: (value: unknown) => void;
+    api.mockReturnValueOnce(new Promise(resolve => { resolveSession = resolve; }));
+    renderGate("/");
+
+    expect(screen.getByRole("status")).toHaveTextContent(/checking your account/i);
+    expect(screen.queryByRole("heading", { name: /make room for the work/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Private app")).not.toBeInTheDocument();
+
+    resolveSession({ user: { id: "user-1", name: "Amina", email: "amina@example.com", preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" } } } });
+    expect(await screen.findByText("Private app")).toBeInTheDocument();
+  });
+
+  it("sends signed-out visitors from a protected route to the public landing page", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/workout");
-    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /make room for the work that matters/i })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });
 
