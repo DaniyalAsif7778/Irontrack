@@ -89,12 +89,15 @@ export default function AuthPage() {
   async function resendVerification() {
     const email = getValues("email");
     setServerError("");
+    setNotice("");
+    if (!email.trim()) { setServerError("Enter your email address first."); return; }
+    setIsWorking(true);
     try {
       const result = await api<{ message: string }>("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
       setNotice(result.message);
     } catch (reason) {
       setServerError(reason instanceof Error ? reason.message : "Try again in a few minutes.");
-    }
+    } finally { setIsWorking(false); }
   }
 
   async function saveNewPassword(event: React.FormEvent<HTMLFormElement>) {
@@ -134,7 +137,7 @@ export default function AuthPage() {
           {notice && <div className="auth-notice" role="status">{notice}</div>}
           <button className="auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Working…" : mode === "login" ? "Sign in" : mode === "register" ? "Create account" : "Send reset link"}</button>
         </form>
-        {mode === "login" && <div className="auth-links"><button type="button" onClick={() => changeMode("forgot")}>Forgot password?</button>{serverError && <button type="button" onClick={() => void resendVerification()}>Resend verification email</button>}</div>}
+        {mode === "login" && <div className="auth-links"><button type="button" onClick={() => changeMode("forgot")}>Forgot password?</button><button type="button" onClick={() => void resendVerification()} disabled={isWorking}>Resend verification email</button></div>}
         {mode === "forgot" && <button className="auth-text-button" type="button" onClick={() => changeMode("login")}>Back to sign in</button>}
         {mode === "register" && <small className="auth-note">Use 12 or more characters for your password.</small>}
       </>}
