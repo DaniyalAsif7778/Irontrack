@@ -1,0 +1,60 @@
+x-server-environment: &server-environment
+  NODE_ENV: production
+  PORT: 5000
+  MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI in the deployment environment}
+  AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Set AUTH_JWT_SECRET in the deployment environment}
+  AUTH_REFRESH_SECRET: ${AUTH_REFRESH_SECRET:?Set AUTH_REFRESH_SECRET in the deployment environment}
+  EMAIL_USER: ${EMAIL_USER:?Set EMAIL_USER in the deployment environment}
+  EMAIL_PASS: ${EMAIL_PASS:?Set EMAIL_PASS in the deployment environment}
+  CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
+  CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+  REDIS_URL: redis://default:${REDIS_PASSWORD:?Set a hex REDIS_PASSWORD in the deployment environment}@redis:6379/0
+  EMAIL_WORKER_CONCURRENCY: ${EMAIL_WORKER_CONCURRENCY:-5}
+
+services:
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment: *server-environment
+    ports:
+      - "${API_PORT:-4001}:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  auth-email-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    command: ["node", "dist/workers/authEmail.worker.js"]
+    restart: unless-stopped
+    environment: *server-environment
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set a hex REDIS_PASSWORD in the deployment environment}
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1", "--requirepass", "${REDIS_PASSWORD:?Set a hex REDIS_PASSWORD in the deployment environment}", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - auth-email-redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  auth-email-redis:

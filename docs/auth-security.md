@@ -9,7 +9,7 @@
 - Access and rotating refresh tokens remain in HTTP-only, SameSite=Lax cookies. Refresh session records retain device user-agent, IP, last-use time, and expiry. Users can review and revoke sessions in Settings. Revoking a session also clears its cookies when it is the current device; an already-issued access token can remain valid for at most 15 minutes.
 - Login, registration, email actions, and token submissions have separate IP-based limits. The existing API-wide limiter is also active. The default express-rate-limit memory store is per server process; deployments with multiple API instances should configure a shared limiter store before scaling horizontally.
 - Auth links keep tokens in the URL fragment. Browsers do not send fragments in HTTP requests or referrers; the page removes the fragment before calling the API.
-- Mail delivery is started in the background so verification and recovery responses do not reveal whether an address has an account. Delivery failures are logged without addresses or SMTP responses; users can request another link. This process-local send is suitable for this single API service; add a durable queue before scaling to short-lived or multiple server instances.
+- Verification and recovery messages are added to a Redis-backed BullMQ queue. The API responds after Redis accepts the job; a separate worker sends it with bounded concurrency, a five-message-per-second limiter, and five exponential-backoff attempts. Queue payloads carry AES-GCM encrypted link tokens, while Redis is password-protected, private to the Compose network, and configured for append-only persistence. Failed-job logs contain job metadata only, not recipient addresses, SMTP responses, or link tokens. A worker crash after SMTP accepts a message but before Redis acknowledges it can produce a duplicate email; each link remains single-use.
 
 ## Mail configuration
 
@@ -19,13 +19,22 @@ Set these values in the server runtime environment (never commit real credential
 EMAIL_USER=your-sending-address@gmail.com
 EMAIL_PASS=your-new-google-app-password
 CLIENT_URL=https://irontrack-nu.vercel.app
+REDIS_URL=rediss://default:password@your-private-redis-host:6379/0
+AUTH_JWT_SECRET=your-existing-random-secret-of-at-least-32-bytes
+EMAIL_WORKER_CONCURRENCY=5
 ```
 
 For local development, set `CLIENT_URL=http://localhost:5173`. Gmail requires 2-Step Verification and an App Password for this SMTP setup. The sender address must match `EMAIL_USER`. `CLIENT_URL` must be HTTPS in production. Set it to the exact public origin used by the client. `server/.env.example` lists these keys.
 
 The app password shared during setup should be revoked and replaced because it was exposed in chat. Add the replacement only to the ignored local `server/.env` and the server host's secret environment settings. Add the sender address, replacement password, and production client URL to the deployment environment; no credential is stored in this repository.
 
-Gmail is suitable for initial testing and small-volume use, but Nodemailer advises against Gmail for production sending workloads. Moving to a dedicated mail service or domain SMTP relay requires choosing and configuring that service; no additional provider was added here.
+`REDIS_URL` and `AUTH_JWT_SECRET` are required for queueing and encrypting link tokens. Use a private Redis endpoint with persistence enabled; use `rediss://` when the provider requires TLS. The API service and at least one `node dist/workers/authEmail.worker.js` worker must share the same Redis database and environment. Set `EMAIL_WORKER_CONCURRENCY` from 1 to 20 to bound worker concurrency; each worker also limits sending to five messages per second.
+
+For a portable Docker setup, copy `server/.env.docker.example` to `server/.env.docker`, fill in secrets (generate a Redis password with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`), then run `docker compose --env-file server/.env.docker up --build -d` from the repository root. The root `compose.yaml` builds the API and worker from the same image, starts Redis privately with AOF persistence and a health check, and keeps Redis data in a named volume. Run `docker compose --env-file server/.env.docker logs -f api auth-email-worker` to inspect service logs. Keep `server/.env.docker` out of version control.
+
+For source-mode development instead, start Redis locally, set `REDIS_URL=redis://127.0.0.1:6379/0` in `server/.env`, and run `npm run dev:email-worker -w server` in a second terminal alongside the API and Vite processes.
+
+On a managed host such as Suga, configure a private/persistent Redis service, deploy the API and a separate worker process from this Docker image, and set the same `REDIS_URL`, `AUTH_JWT_SECRET`, and SMTP settings on both. A Git push can trigger the configured API deployment, but it cannot provision Redis or a worker on a host that has not been configured for those services. Gmail can be used for initial testing and small volumes; a dedicated SMTP provider is preferable for production-scale sending.
 
 ## Research basis
 

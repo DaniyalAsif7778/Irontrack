@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { User, toPublicUser, type PublicUser } from "../../models/auth/user.model.js";
 import { AuthChallenge, type AuthChallengePurpose } from "../../models/auth/authChallenge.model.js";
 import { AuthSession } from "../../models/auth/session.model.js";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./email.service.js";
+import { enqueueAuthEmail } from "./emailQueue.service.js";
 
 const BCRYPT_ROUNDS = 12;
 const DUMMY_PASSWORD_HASH = bcrypt.hash("irontrack-nonexistent-account", BCRYPT_ROUNDS);
@@ -41,7 +41,7 @@ export async function sendVerificationForEmail(email: string) {
   await User.updateOne({ _id: user._id, emailVerified: false }, { $set: { verificationExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } });
   const token = await issueChallenge(String(user._id), "verify_email");
   try {
-    await sendVerificationEmail(user.email, user.name, token);
+    await enqueueAuthEmail("verify_email", user.email, user.name, token);
   } catch (error) {
     await AuthChallenge.deleteMany({ userId: user._id, purpose: "verify_email", tokenHash: hashToken(token) });
     throw error;
@@ -61,7 +61,7 @@ export async function requestPasswordReset(email: string) {
   if (!user || !user.emailVerified) return;
   const token = await issueChallenge(String(user._id), "reset_password");
   try {
-    await sendPasswordResetEmail(user.email, user.name, token);
+    await enqueueAuthEmail("reset_password", user.email, user.name, token);
   } catch (error) {
     await AuthChallenge.deleteMany({ userId: user._id, purpose: "reset_password", tokenHash: hashToken(token) });
     throw error;

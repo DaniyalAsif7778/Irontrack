@@ -4,14 +4,17 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:email-worker": "tsx watch src/workers/authEmail.worker.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:email-worker": "node dist/workers/authEmail.worker.js",
     "load:smoke": "npm run build && node scripts/load-smoke.mjs",
     "load:db": "npm run build && node scripts/database-load.mjs",
     "test": "vitest run"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "bullmq": "^6.5.1",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -20,6 +23,7 @@
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.9.5",
     "morgan": "^1.12.1",
