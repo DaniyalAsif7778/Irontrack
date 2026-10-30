@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dumbbell, Eye, EyeOff } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { loginSchema, registerSchema, type AuthValues } from "../../schemas/auth";
+import { forgotPasswordSchema, loginSchema, registerSchema, type AuthValues } from "../../schemas/auth";
 import { api } from "../../lib/api/api";
 import type { AuthUser } from "../../types";
 
 const sessionKey = ["auth", "me"] as const;
 type AuthMode = "login" | "register" | "forgot" | "reset" | "verify" | "sent" | "verified";
+type SentPurpose = "registration" | "password-reset" | "";
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -18,15 +19,17 @@ export default function AuthPage() {
   const [visiblePassword, setVisiblePassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const [notice, setNotice] = useState("");
+  const [sentPurpose, setSentPurpose] = useState<SentPurpose>("");
+  const [sentEmail, setSentEmail] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isWorking, setIsWorking] = useState(false);
   const linkHandled = useRef(false);
   const queryClient = useQueryClient();
-  const schema = mode === "register" ? registerSchema : loginSchema;
+  const schema = mode === "register" ? registerSchema : mode === "forgot" ? forgotPasswordSchema : loginSchema;
   const { register, handleSubmit, reset, getValues, formState: { errors, isSubmitting } } = useForm<AuthValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as unknown as Resolver<AuthValues>,
     defaultValues: { name: "", email: "", password: "" },
   });
 
@@ -60,12 +63,16 @@ export default function AuthPage() {
       if (mode === "register") {
         const result = await api<{ message: string }>("/auth/register", { method: "POST", body: JSON.stringify({ name: values.name, email: values.email, password: values.password }) });
         setNotice(result.message);
+        setSentPurpose("registration");
+        setSentEmail(values.email);
         setMode("sent");
         return;
       }
       if (mode === "forgot") {
         const result = await api<{ message: string }>("/auth/password/forgot", { method: "POST", body: JSON.stringify({ email: values.email }) });
         setNotice(result.message);
+        setSentPurpose("password-reset");
+        setSentEmail(values.email);
         setMode("sent");
         return;
       }
@@ -81,13 +88,15 @@ export default function AuthPage() {
     setMode(next);
     setServerError("");
     setNotice("");
+    setSentPurpose("");
+    setSentEmail("");
     reset();
     if (next === "register") navigate("/signup", { replace: true });
     else navigate("/login", { replace: true });
   }
 
   async function resendVerification() {
-    const email = getValues("email");
+    const email = sentEmail || getValues("email");
     setServerError("");
     setNotice("");
     if (!email.trim()) { setServerError("Enter your email address first."); return; }
@@ -116,13 +125,13 @@ export default function AuthPage() {
   }
 
   const isForm = mode === "login" || mode === "register" || mode === "forgot";
-  const heading = mode === "register" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "reset" ? "Choose a new password" : mode === "verify" ? "Confirming your email" : mode === "verified" ? "You’re all set" : mode === "sent" ? "Check your inbox" : "Welcome back";
+  const heading = mode === "register" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "reset" ? "Choose a new password" : mode === "verify" ? "Confirming your email" : mode === "verified" ? "You’re all set" : mode === "sent" ? sentPurpose === "registration" ? "Verify your email" : "Check your inbox" : "Welcome back";
 
   return <main className="auth-screen">
     <section className="auth-card" aria-labelledby="auth-heading">
       <div className="auth-brand"><span><Dumbbell size={20} /></span><b>IronTrack</b></div>
       <h1 id="auth-heading">{heading}</h1>
-      <p>{mode === "register" ? "Your training history stays with your account. Verify your email before signing in." : mode === "login" ? "Sign in to continue your training." : mode === "forgot" ? "We’ll email a secure link if an account matches." : mode === "reset" ? "Choose a new password for your account." : mode === "verify" ? "Your email link is being checked." : mode === "sent" ? "Use the link in the email to continue. It expires in 30 minutes." : mode === "verified" ? notice || "Return to sign in to continue." : ""}</p>
+      <p>{mode === "register" ? "Your training history stays with your account. Verify your email before signing in." : mode === "login" ? "Sign in to continue your training." : mode === "forgot" ? "We’ll email a secure link if an account matches." : mode === "reset" ? "Choose a new password for your account." : mode === "verify" ? "Your email link is being checked." : mode === "sent" && sentPurpose === "registration" ? <>We sent a verification link to <strong>{sentEmail}</strong>. Verify your address before signing in. The link expires in 30 minutes.</> : mode === "sent" ? "If an account matches, a password reset link is on its way. It expires in 30 minutes." : mode === "verified" ? notice || "Return to sign in to continue." : ""}</p>
 
       {isForm && <>
         {mode !== "forgot" && <div className="auth-tabs" role="tablist" aria-label="Account access">
@@ -149,9 +158,17 @@ export default function AuthPage() {
         <button className="auth-submit" type="submit" disabled={isWorking || !resetToken}>{isWorking ? "Saving…" : "Update password"}</button>
         <button className="auth-text-button" type="button" onClick={() => changeMode("login")}>Back to sign in</button>
       </form>}
-      {(mode === "verified" || mode === "sent") && <>
+      {mode === "verified" && <>
         {serverError && <div className="auth-error" role="alert">{serverError}</div>}
         <button className="auth-submit" type="button" onClick={() => changeMode("login")}>Return to sign in</button>
+      </>}
+      {mode === "sent" && <>
+        {notice && <div className="auth-notice" role="status">{notice}</div>}
+        {serverError && <div className="auth-error" role="alert">{serverError}</div>}
+        {sentPurpose === "registration" ? <>
+          <button className="auth-submit" type="button" onClick={() => void resendVerification()} disabled={isWorking}>{isWorking ? "Sending…" : "Resend verification email"}</button>
+          <button className="auth-text-button" type="button" onClick={() => changeMode("register")}>Use a different email</button>
+        </> : <button className="auth-submit" type="button" onClick={() => changeMode("login")}>Return to sign in</button>}
       </>}
       {mode === "verify" && <>
         {serverError && <div className="auth-error" role="alert">{serverError}</div>}
