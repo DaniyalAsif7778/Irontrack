@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prayerTimesAreOrdered } from "../utils/routineTiming";
 
 export const settingsSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80, "Name must be 80 characters or fewer"),
@@ -11,7 +12,7 @@ export const settingsSchema = z.object({
     asr: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/, "Enter a valid time or leave it blank"),
     maghrib: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/, "Enter a valid time or leave it blank"),
     isha: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/, "Enter a valid time or leave it blank"),
-  }),
+  }).refine(prayerTimesAreOrdered, "Prayer times must be in Fajr-to-Isha order."),
 });
 
 export type SettingsValues = z.infer<typeof settingsSchema>;

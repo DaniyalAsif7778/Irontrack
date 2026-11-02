@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findOne: vi.fn(), updateOne: vi.fn(), challengeDeleteMany: vi.fn(), challengeCreate: vi.fn(),
-  enqueueAuthEmail: vi.fn(),
+  deliverAuthEmail: vi.fn(),
 }));
 
 vi.mock("../models/auth/user.model.js", () => ({ User: { findOne: mocks.findOne, updateOne: mocks.updateOne }, toPublicUser: vi.fn() }));
 vi.mock("../models/auth/authChallenge.model.js", () => ({ AuthChallenge: { deleteMany: mocks.challengeDeleteMany, create: mocks.challengeCreate } }));
 vi.mock("../models/auth/session.model.js", () => ({ AuthSession: { deleteMany: vi.fn() } }));
-vi.mock("../services/auth/emailQueue.service.js", () => ({ enqueueAuthEmail: mocks.enqueueAuthEmail }));
+vi.mock("../services/auth/email.service.js", () => ({ deliverAuthEmail: mocks.deliverAuthEmail }));
 
 import { sendVerificationForEmail } from "../services/auth/auth.service.js";
 
@@ -20,19 +20,19 @@ beforeEach(() => {
   mocks.updateOne.mockResolvedValue({ acknowledged: true });
   mocks.challengeDeleteMany.mockResolvedValue({ deletedCount: 1 });
   mocks.challengeCreate.mockResolvedValue({});
-  mocks.enqueueAuthEmail.mockResolvedValue("queue-job-1");
+  mocks.deliverAuthEmail.mockResolvedValue(undefined);
 });
 
 describe("email verification resend", () => {
   it("sends a fresh link before reporting the resend as complete", async () => {
     await sendVerificationForEmail(user.email);
     expect(mocks.challengeCreate).toHaveBeenCalledOnce();
-    expect(mocks.enqueueAuthEmail).toHaveBeenCalledWith("verify_email", user.email, user.name, expect.any(String));
+    expect(mocks.deliverAuthEmail).toHaveBeenCalledWith("verify_email", user.email, user.name, expect.any(String));
   });
 
   it("removes the unusable challenge and propagates SMTP failures", async () => {
     const deliveryError = new Error("SMTP unavailable");
-    mocks.enqueueAuthEmail.mockRejectedValue(deliveryError);
+    mocks.deliverAuthEmail.mockRejectedValue(deliveryError);
     await expect(sendVerificationForEmail(user.email)).rejects.toBe(deliveryError);
     expect(mocks.challengeDeleteMany).toHaveBeenLastCalledWith(expect.objectContaining({
       userId: user._id,
@@ -45,6 +45,6 @@ describe("email verification resend", () => {
     mocks.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...user, emailVerified: true });
     await sendVerificationForEmail(user.email);
     await sendVerificationForEmail(user.email);
-    expect(mocks.enqueueAuthEmail).not.toHaveBeenCalled();
+    expect(mocks.deliverAuthEmail).not.toHaveBeenCalled();
   });
 });

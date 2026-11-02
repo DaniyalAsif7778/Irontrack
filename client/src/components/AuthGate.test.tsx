@@ -12,35 +12,41 @@ function renderGate(path: string) {
   return render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={[path]}><AuthGate><p>Private app</p></AuthGate></MemoryRouter></QueryClientProvider>);
 }
 
-describe("AuthGate public entry", () => {
+describe("AuthGate sign-in entry", () => {
   beforeEach(() => api.mockReset());
 
-  it("shows the public product page at the root for a signed-out visitor", async () => {
+  it("shows sign-in at the root for a signed-out visitor", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/");
-    expect(await screen.findByRole("heading", { name: /make room for the work that matters/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /create your account/i })).toHaveAttribute("href", "/signup");
-    expect(screen.getByRole("list").querySelectorAll("li")).toHaveLength(5);
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });
 
-  it("keeps the loading state until the server confirms whether a visitor has a session", async () => {
+  it("keeps sign-in available while account lookup continues", async () => {
     let resolveSession!: (value: unknown) => void;
     api.mockReturnValueOnce(new Promise(resolve => { resolveSession = resolve; }));
     renderGate("/");
 
-    expect(screen.getByRole("status")).toHaveTextContent(/checking your account/i);
-    expect(screen.queryByRole("heading", { name: /make room for the work/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
 
     resolveSession({ user: { id: "user-1", name: "Amina", email: "amina@example.com", preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" } } } });
     expect(await screen.findByText("Private app")).toBeInTheDocument();
   });
 
-  it("sends signed-out visitors from a protected route to the public landing page", async () => {
+  it("keeps the sign-in form available with a generic session error", async () => {
+    api.mockResolvedValueOnce(undefined);
+    renderGate("/");
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again later.");
+  });
+
+  it("sends signed-out visitors from a protected route to sign-in", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/workout");
-    expect(await screen.findByRole("heading", { name: /make room for the work that matters/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });
 

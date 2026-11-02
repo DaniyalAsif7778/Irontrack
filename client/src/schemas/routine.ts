@@ -13,6 +13,7 @@ export const taskSchema = z.object({
   endTime: z.string().regex(/^$|^(?:[01]\d|2[0-3]):[0-5]\d$/, "Enter a valid end time."),
   subtasks: z.array(z.object({ title: z.string().trim().min(1, "Enter a subtask title."), completed: z.boolean() })),
 }).refine(value => Boolean(value.startTime) === Boolean(value.endTime), { message: "Set both start and end times, or leave both empty.", path: ["startTime"] })
-  .refine(value => !value.startTime || value.endTime > value.startTime, { message: "End time must be after start time.", path: ["endTime"] });
+  .refine(value => !value.startTime || value.endTime > value.startTime, { message: "End time must be after start time.", path: ["endTime"] })
+  .refine(value => !value.startTime || value.duration > 0, { message: "A scheduled task needs a duration of at least 1 minute.", path: ["duration"] });
 
 export type TaskFormValues = z.infer<typeof taskSchema>;

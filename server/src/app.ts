@@ -31,11 +31,12 @@ app.use(cors({
   },
 }));
 app.use(cookieParser() as unknown as RequestHandler);
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "1mb" }));
 app.use(mongoSanitize() as unknown as RequestHandler);
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
   stream: { write: message => logger.info(message.trim()) },
 }));
+app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 app.get("/api/health", (_req, res) => {
   const database = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
   const status = database === "connected" ? "ok" : "degraded";

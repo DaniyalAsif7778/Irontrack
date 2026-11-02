@@ -34,7 +34,7 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /save settings/i }));
 
     await waitFor(() => expect(useAppStore.getState().preferences).toEqual({ weightUnit: "lb", focusMinutes: 55, breakMinutes: 10, prayerTimes: { fajr: "", dhuhr: "12:30", asr: "", maghrib: "", isha: "" } }));
-    expect(screen.getByText(/local demo/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign in to manage your profile/i)).toBeInTheDocument();
   });
 
   it("requires the password and exact DELETE confirmation before sending a request", () => {

@@ -157,7 +157,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         {user ? <>
           <label className="settings-field">Display name<input {...register("name")} autoComplete="name" />{errors.name && <small role="alert">{errors.name.message}</small>}</label>
           <label className="settings-field">Email address<input value={user.email} readOnly disabled /><small>Email changes are not available yet.</small></label>
-        </> : <div className="settings-note"><strong>Local demo</strong><span>Preferences are saved on this device. Sign-in and profile settings are available when the API is connected.</span></div>}
+        </> : <div className="settings-note"><strong>Account unavailable</strong><span>Sign in to manage your profile and account preferences.</span></div>}
       </section>
 
       {user && <section className="settings-card settings-sessions">

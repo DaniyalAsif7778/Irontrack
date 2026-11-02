@@ -5,14 +5,16 @@ import {
   Sun,
   Moon,
   Clock3,
-  RotateCcw,
   Sunrise,
   Sunset,
   CloudSun,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAnalytics } from "../../hooks/useAnalytics";
-import type { Day, RoutineBlock, Task, TaskEditing } from "../../types";
+import { api } from "../../lib/api/api";
+import { queryKeys } from "../../hooks/queryKeys";
+import type { AnalyticsPeriod, Day, RoutineBlock, Task, TaskEditing } from "../../types";
 import TaskCard from "./components/TaskCard";
 
 type RoutinePageProps = {
@@ -32,24 +34,15 @@ type RoutinePageProps = {
   queueTask: (task: Task) => void;
   extendTask: (task: Task) => void;
   snoozeTask: (task: Task, minutes: number) => void;
-  eventStats:
-    | {
-        days: number;
-        counts: Record<string, { count: number; avgResponseMs: number | null }>;
-        completionRate: number;
-        totalEvents: number;
-        averageResponseMs: number | null;
-        recentEvents: Array<{
-          eventId: string;
-          date: string;
-          type: string;
-          occurredAt: string;
-          responseTimeMs: number | null;
-          pushStatus?: string;
-          taskId?: { title: string } | null;
-        }>;
-      }
-    | undefined;
+  analyticsPeriod: AnalyticsPeriod;
+  setAnalyticsPeriod: (period: AnalyticsPeriod) => void;
+};
+
+type RoutineEventStats = {
+  days: number; periodLabel: string; page: number; pageSize: number; totalPages: number; totalRecords: number;
+  counts: Record<string, { count: number; avgResponseMs: number | null }>;
+  completionRate: number; totalEvents: number; averageResponseMs: number | null;
+  recentEvents: Array<{ eventId: string; date: string; type: string; occurredAt: string; responseTimeMs: number | null; pushStatus?: string; taskId?: { title: string } | null }>;
 };
 
 export default function RoutinePage({
@@ -69,10 +62,21 @@ export default function RoutinePage({
   queueTask,
   extendTask,
   snoozeTask,
-  eventStats,
+  analyticsPeriod,
+  setAnalyticsPeriod,
 }: RoutinePageProps) {
   const [tab, setTab] = useState<"routine" | "analytics">("routine");
-  const analytics = useAnalytics(14);
+  const [activityPage, setActivityPage] = useState(1);
+  const analytics = useAnalytics(analyticsPeriod);
+  const eventQuery = useQuery({
+    queryKey: queryKeys.routineEvents(analyticsPeriod, activityPage),
+    queryFn: () => api<RoutineEventStats>(`/routine/events/analytics?period=${analyticsPeriod}&page=${activityPage}`),
+    enabled: tab === "analytics",
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    placeholderData: previous => previous,
+  });
+  const eventStats = eventQuery.data;
   const activity = analytics.data?.activity ?? [];
   const emptyBlocks: RoutineBlock[] = [
     { id: "fajr", label: "Fajr", tasks: [], completed: 0, total: 0 },
@@ -129,6 +133,7 @@ export default function RoutinePage({
       </nav>
       {tab === "analytics" ? (
         <>
+          <label className="routine-period-picker">Period<select aria-label="Routine analytics period" value={analyticsPeriod} onChange={event => { setActivityPage(1); setAnalyticsPeriod(event.target.value as AnalyticsPeriod); }}>{[["7d","Last 7 days"],["30d","Last 30 days"],["this-month","This month"],["previous-month","Previous month"],["3m","Last 3 months"],["6m","Last 6 months"],["1y","Last year"],["2y","Last 2 years"],["3y","Last 3 years"]].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
           <div className="dashboard routine-analytics-metrics">
             <article className="metric-card">
               <span>
@@ -137,14 +142,14 @@ export default function RoutinePage({
               <strong>
                 {activity.filter((item) => item.completed > 0).length}
               </strong>
-              <small>Active days · 14 days</small>
+              <small>Active days · {analytics.data?.periodLabel ?? "selected period"}</small>
             </article>
             <article className="metric-card">
               <span>
                 <Activity />
               </span>
               <strong>{analytics.data?.periodCompleted ?? 0}</strong>
-              <small>Tasks completed · 14 days</small>
+              <small>Tasks completed · {analytics.data?.periodLabel ?? "selected period"}</small>
             </article>
             <article className="metric-card">
               <span>
@@ -166,7 +171,7 @@ export default function RoutinePage({
                 <Clock3 />
               </span>
               <strong>{eventStats?.totalEvents ?? 0}</strong>
-              <small>Tracked actions · {eventStats?.days ?? 14} days</small>
+              <small>Tracked actions · {eventStats?.periodLabel ?? "selected period"}</small>
             </article>
           </div>
           <section className="chart-card habit-event-insights">
@@ -176,50 +181,51 @@ export default function RoutinePage({
             </div>
             <div className="habit-event-grid">
               <article>
-                <b>{eventStats?.completionRate ?? 0}%</b>
+                <b>{eventQuery.isError ? "—" : `${eventStats?.completionRate ?? 0}%`}</b>
                 <small>Task start-to-complete rate</small>
               </article>
               <article>
-                <b>{eventStats?.counts.task_started?.count ?? 0}</b>
+                <b>{eventQuery.isError ? "—" : eventStats?.counts.task_started?.count ?? 0}</b>
                 <small>Tasks started</small>
               </article>
               <article>
-                <b>{eventStats?.counts.task_extended?.count ?? 0}</b>
+                <b>{eventQuery.isError ? "—" : eventStats?.counts.task_extended?.count ?? 0}</b>
                 <small>15-minute extensions</small>
               </article>
               <article>
-                <b>{eventStats?.counts.task_snoozed?.count ?? 0}</b>
+                <b>{eventQuery.isError ? "—" : eventStats?.counts.task_snoozed?.count ?? 0}</b>
                 <small>Snoozes</small>
               </article>
               <article>
-                <b>{eventStats?.counts.reminder_ignored?.count ?? 0}</b>
+                <b>{eventQuery.isError ? "—" : eventStats?.counts.reminder_ignored?.count ?? 0}</b>
                 <small>Ignored reminders</small>
               </article>
               <article>
-                <b>{eventStats?.counts.task_deferred?.count ?? 0}</b>
+                <b>{eventQuery.isError ? "—" : eventStats?.counts.task_deferred?.count ?? 0}</b>
                 <small>Moved to final prayer card</small>
               </article>
               <article>
                 <b>
-                  {eventStats?.averageResponseMs == null
+                  {eventQuery.isError || eventStats?.averageResponseMs == null
                     ? "—"
                     : `${Math.round(eventStats.averageResponseMs / 60_000)}m`}
                 </b>
                 <small>Average response time</small>
               </article>
             </div>
-            {!eventStats?.totalEvents && (
+            {eventQuery.isError ? <div className="inline-error" role="alert"><span>Activity data could not be loaded.</span><button type="button" onClick={() => void eventQuery.refetch()}>Try again</button></div> : null}
+            {!eventQuery.isError && !eventStats?.totalEvents && !eventQuery.isPending && (
               <p className="chart-empty">
                 Task response insights will appear after you start using
                 reminders.
               </p>
             )}
           </section>
-          {Boolean(eventStats?.recentEvents.length) && (
+          {eventStats && eventStats.recentEvents.length > 0 && (
             <section className="chart-card">
               <div className="section-heading">
                 <h2>Recent routine activity</h2>
-                <span>Latest 20 actions</span>
+                <span>{eventStats.periodLabel} · page {eventStats.page} of {eventStats.totalPages}</span>
               </div>
               <ul className="routine-event-feed">
                 {eventStats?.recentEvents.map((event) => (
@@ -242,11 +248,13 @@ export default function RoutinePage({
                   </li>
                 ))}
               </ul>
+              <div className="routine-activity-pagination"><button type="button" disabled={activityPage <= 1 || eventQuery.isFetching} onClick={() => setActivityPage(value => Math.max(1, value - 1))}>Previous</button><span>Page {eventStats.page} of {Math.max(1, eventStats.totalPages)}</span><button type="button" disabled={activityPage >= eventStats.totalPages || eventQuery.isFetching} onClick={() => setActivityPage(value => value + 1)}>Next</button></div>
             </section>
           )}
+          {eventQuery.isPending && <p className="chart-empty" role="status">Loading routine activity…</p>}
           <section className="chart-card">
             <div className="section-heading">
-              <h2>Last 14 days</h2>
+              <h2>{analytics.data?.periodLabel ?? "Routine history"}</h2>
               <span>Completed tasks by day</span>
             </div>
             {analytics.isPending ? (
@@ -330,19 +338,6 @@ export default function RoutinePage({
                 {day?.progress.completed ?? 0}/{day?.progress.total ?? 0}
               </b>
             </div>
-            <button
-              type="button"
-              title={`Reset ${title} task completions`}
-              aria-label={`Reset ${title} task completions`}
-              onClick={() =>
-                day?.blocks
-                  .flatMap((block) => block.tasks)
-                  .filter((task) => task.completed)
-                  .forEach(complete)
-              }
-            >
-              <RotateCcw size={16} />
-            </button>
           </section>
           <div
             className="routine-type-lock"

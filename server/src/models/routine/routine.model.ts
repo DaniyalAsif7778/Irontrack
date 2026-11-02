@@ -17,6 +17,8 @@ export const RoutineTask = model("RoutineTask", new Schema({
   startTime: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$/ }, endTime: { type: String, default: "", match: /^(?:[01]\d|2[0-3]):[0-5]\d$/ },
   subtasks: { type: [subtaskSchema], default: [] }
 }, { timestamps: true }));
+RoutineTask.schema.index({ ownerId: 1, dayType: 1, block: 1, order: 1, createdAt: 1 }, { name: "routine_tasks_owner_schedule_order" });
+RoutineTask.schema.index({ ownerId: 1, dayType: 1, reminderTime: 1 }, { name: "routine_tasks_owner_reminder_lookup" });
 
 export const RoutineCompletion = model("RoutineCompletion", new Schema({
   taskId: { type: Schema.Types.ObjectId, ref: "RoutineTask", required: true, index: true },
@@ -44,6 +46,7 @@ export const RoutineTaskOccurrence = model("RoutineTaskOccurrence", new Schema({
 }, { timestamps: true }));
 RoutineTaskOccurrence.schema.index({ ownerId: 1, taskId: 1, date: 1 }, { unique: true });
 RoutineTaskOccurrence.schema.index({ ownerId: 1, date: 1, status: 1, startAt: 1 });
+RoutineTaskOccurrence.schema.index({ status: 1, endAt: 1, promptedForEndAt: 1 }, { name: "routine_occurrences_due_prompt_lookup" });
 RoutineTaskOccurrence.schema.index({ ownerId: 1 }, { unique: true, partialFilterExpression: { status: "active" }, name: "one_active_routine_task_per_owner" });
 RoutineTaskOccurrence.schema.index({ ownerId: 1 }, { unique: true, partialFilterExpression: { status: "queued" }, name: "one_queued_routine_task_per_owner" });
 
@@ -60,6 +63,7 @@ export const RoutineReminder = model("RoutineReminder", new Schema({
 }, { timestamps: true }));
 RoutineReminder.schema.index({ ownerId: 1, taskId: 1, date: 1 }, { unique: true });
 RoutineReminder.schema.index({ status: 1, sentAt: 1, followupSentAt: 1 });
+RoutineReminder.schema.index({ status: 1, followupSentAt: 1 }, { name: "routine_reminders_followup_lookup" });
 
 export const RoutineEvent = model("RoutineEvent", new Schema({
   ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },

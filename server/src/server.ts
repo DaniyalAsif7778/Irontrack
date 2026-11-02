@@ -3,10 +3,9 @@ import { app } from "./app.js";
 import { connectDatabase } from "./db/db.js";
 import { logger } from "./utils/logger.js";
 import { startNotificationScheduler } from "./services/notifications/push.service.js";
-import { closeAuthEmailQueue } from "./services/auth/emailQueue.service.js";
 import mongoose from "mongoose";
 
-const port = Number(process.env.PORT || 5000);
+const port = Number(process.env.PORT || 4000);
 const uri = process.env.MONGODB_URI;
 const authSecret = process.env.AUTH_JWT_SECRET;
 
@@ -31,7 +30,7 @@ async function shutdown(signal: string) {
   forcedExit.unref();
   httpServer.close(async error => {
     try {
-      await Promise.all([closeAuthEmailQueue(), mongoose.disconnect()]);
+      await mongoose.disconnect();
       if (error) logger.error({ errorName: error.name }, "HTTP server did not close cleanly");
       process.exit(error ? 1 : 0);
     } catch (shutdownError) {

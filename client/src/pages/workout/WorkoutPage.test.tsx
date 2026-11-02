@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WorkoutPage from "./WorkoutPage";
@@ -23,7 +23,7 @@ function renderWorkout() {
   return render(<QueryClientProvider client={queryClient}><MemoryRouter><WorkoutPage onError={vi.fn()} /></MemoryRouter></QueryClientProvider>);
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("WorkoutPage", () => {
   beforeEach(() => {
@@ -79,20 +79,21 @@ describe("WorkoutPage", () => {
 
   it("auto-advances to the next exercise after the rest timer ends", async () => {
     const nextExercise = { ...exercise, id: "press", name: "Dumbbell Press" };
-    const multiExercisePlan = { ...plan, exercises: [exercise, nextExercise] };
+    const multiExercisePlan = { ...plan, exercises: [{ ...exercise, rest: 2 }, nextExercise] };
     const defaultImplementation = api.getMockImplementation();
     api.mockImplementation(async (path: string, options?: RequestInit) => path === "/workout-plans" ? [multiExercisePlan] : defaultImplementation!(path, options));
 
     renderWorkout();
     fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
+    vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "Auto Off" }));
     expect(screen.getByRole("button", { name: "Auto On" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: /Done — Set 1 of 1/i }));
 
     expect(screen.getByRole("heading", { name: "Dumbbell Row", level: 3 })).toBeInTheDocument();
-    expect(await screen.findByText("Next exercise starts after rest")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Skip timer" }));
-    expect(await screen.findByRole("heading", { name: "Dumbbell Press", level: 3 })).toBeInTheDocument();
+    expect(screen.getByText("Next exercise starts after rest")).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(61_000); });
+    expect(screen.getByRole("heading", { name: "Dumbbell Press", level: 3 })).toBeInTheDocument();
   });
 
   it("lets a user skip remaining sets and save only the sets they completed", async () => {
@@ -132,14 +133,20 @@ describe("WorkoutPage", () => {
     expect(introduction.text).toBe("Dumbbell Row. Set 1.");
     introduction.onend?.();
     expect((speech.speak.mock.calls[1][0] as MockSpeechSynthesisUtterance).text).toBe("lower one");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(speech.cancel).toHaveBeenCalled();
   });
 
   it("edits inline and persists the complete workout once from the header", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
+    const dayStrip = screen.getByRole("group", { name: "Workout days" });
+    expect(dayStrip).toHaveClass("week-strip");
     fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
     fireEvent.click(screen.getByRole("button", { name: `Edit ${dayLabel} workout name` }));
-    fireEvent.change(screen.getByLabelText(`${dayLabel} workout name`), { target: { value: "Pull strength" } });
+    const workoutName = screen.getByLabelText(`${dayLabel} workout name`);
+    expect(workoutName).toHaveAttribute("autocomplete", "off");
+    fireEvent.change(workoutName, { target: { value: "Pull strength" } });
     fireEvent.click(screen.getByRole("button", { name: `Save ${dayLabel} workout name` }));
     fireEvent.click(screen.getByRole("button", { name: "Edit Dumbbell Row target reps" }));
     fireEvent.change(screen.getByLabelText("Dumbbell Row target reps"), { target: { value: "10" } });
@@ -157,6 +164,22 @@ describe("WorkoutPage", () => {
       exerciseLibrary: [{ id: "row", name: "Single arm row" }],
     });
     expect(await screen.findByRole("heading", { name: "Pull strength" })).toBeInTheDocument();
+  });
+
+  it("edits the overview title in place, closes the field, and persists its value", async () => {
+    renderWorkout();
+    await screen.findByRole("button", { name: "Start workout" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Workout name" }));
+    const titleInput = screen.getByRole("textbox", { name: "Workout name" });
+    fireEvent.change(titleInput, { target: { value: "Back day" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Workout name" }));
+    expect(screen.queryByRole("textbox", { name: "Workout name" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Back day" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-program", expect.objectContaining({ method: "PUT" })));
+    const saved = api.mock.calls.find(([path, options]) => path === "/workout-program" && options?.method === "PUT");
+    expect(JSON.parse(String(saved?.[1].body)).plans[0].name).toBe("Back day");
   });
 
   it("closes a workout-name input when focus moves elsewhere", async () => {

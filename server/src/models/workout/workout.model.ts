@@ -61,6 +61,7 @@ export const WorkoutLog = model("WorkoutLog", new Schema({
   completedAt: { type: Date, default: Date.now }
 }, { timestamps: true }));
 WorkoutLog.schema.index({ ownerId: 1, date: 1, dayType: 1 }, { unique: true });
+WorkoutLog.schema.index({ ownerId: 1, date: -1, completedAt: -1 }, { name: "workout_logs_owner_history_order" });
 WorkoutLog.schema.index({ ownerId: 1, actionId: 1 }, { unique: true, partialFilterExpression: { actionId: { $type: "string", $gt: "" } }, name: "workout_log_owner_action_unique" });
 
 export const WorkoutProgression = model("WorkoutProgression", new Schema({

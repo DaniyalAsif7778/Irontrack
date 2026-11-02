@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoutinePage from "./RoutinePage";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("../../hooks/useAnalytics", () => ({ useAnalytics: () => ({ data: { activity: [] }, error: null }) }));
 
@@ -9,13 +10,18 @@ describe("RoutinePage empty routine state", () => {
   const props = {
     date: "2026-10-20", title: "Tuesday, Oct 20", day: null, dayType: "weekday" as const,
     dayLoading: true, dayError: null, setDate: vi.fn(), complete: vi.fn(), edit, remove: vi.fn(),
-    saveSubtasks: vi.fn(), onError: vi.fn(), startTask: vi.fn(), queueTask: vi.fn(), extendTask: vi.fn(), snoozeTask: vi.fn(), eventStats: undefined,
+    saveSubtasks: vi.fn(), onError: vi.fn(), startTask: vi.fn(), queueTask: vi.fn(), extendTask: vi.fn(), snoozeTask: vi.fn(), analyticsPeriod: "7d" as const, setAnalyticsPeriod: vi.fn(),
   };
 
   beforeEach(() => edit.mockClear());
 
+  function renderPage(propsOverride = {}) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={client}><RoutinePage {...props} {...propsOverride} /></QueryClientProvider>);
+  }
+
   it("shows all five prayer anchors while data is loading and offers a first task", () => {
-    render(<RoutinePage {...props} />);
+    renderPage();
     for (const prayer of ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]) {
       expect(screen.getByRole("heading", { name: prayer })).toBeInTheDocument();
     }
@@ -25,7 +31,7 @@ describe("RoutinePage empty routine state", () => {
   });
 
   it("shows the prayer anchors and a recovery message when loading fails", () => {
-    render(<RoutinePage {...props} dayLoading={false} dayError="Network unavailable" />);
+    renderPage({ dayLoading: false, dayError: "Network unavailable" });
     expect(screen.getByRole("alert")).toHaveTextContent(/Network unavailable/);
     expect(screen.getAllByRole("heading").map(heading => heading.textContent?.trim())).toEqual(expect.arrayContaining(["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]));
   });

@@ -51,10 +51,16 @@ export type TaskEditing = { block: string; task?: Task };
 
 export type Weight = { _id: string; date: string; weight: number; unit: "kg" | "lb" };
 export type WellnessDay = { date: string; waterGlasses: number; movementBreaks: number };
+export type AnalyticsPeriod = "7d" | "30d" | "90d" | "this-month" | "previous-month" | "3m" | "6m" | "1y" | "2y" | "3y";
 export type PrayerTimes = Record<"fajr" | "dhuhr" | "asr" | "maghrib" | "isha", string>;
 export const DEFAULT_PRAYER_TIMES: PrayerTimes = { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" };
 
 export type AnalyticsData = {
+  period: AnalyticsPeriod;
+  periodLabel: string;
+  startDate: string;
+  endDate: string;
+  granularity: "day" | "month";
   days: number;
   totalCompleted: number;
   periodCompleted: number;

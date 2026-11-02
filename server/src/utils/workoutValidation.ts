@@ -1,5 +1,6 @@
 import { WORKOUT_WEEKDAYS, WORKOUT_WEEKDAY_LABELS } from "../models/workout/workout.model.js";
 import type { Exercise } from "../services/workout/workoutData.js";
+import { isValidDateKey } from "./dateValidation.js";
 
 const isPlanId = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(value);
@@ -108,9 +109,7 @@ export function workoutWeekPayload(input: any, ownedPlanIds: string[]) {
 
 export function workoutLogPayload(input: any) {
   const date = input?.date;
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("date must be YYYY-MM-DD");
-  const parsedDate = new Date(`${date}T00:00:00.000Z`);
-  if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) throw new Error("date must be a real calendar day");
+  if (!isValidDateKey(date)) throw new Error("date must be a real calendar day in YYYY-MM-DD format");
   if (!isPlanId(input.dayType)) throw new Error("invalid workout day");
   const dayName = typeof input.dayName === "string" ? input.dayName.trim() : "";
   if (dayName.length > 80) throw new Error("workout day name is too long");

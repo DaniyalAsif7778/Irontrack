@@ -2,6 +2,28 @@ import { BLOCKS, blockLabel } from "../../constant.js";
 import { RoutineCompletion, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
 import { listRoutineOccurrences } from "./routine-events.service.js";
 
+export class RoutineTaskTimeConflictError extends Error {
+  readonly statusCode = 409;
+
+  constructor() {
+    super("This time overlaps another task in the same prayer block.");
+  }
+}
+
+async function assertTaskTimeAvailable(ownerId: string, data: Record<string, unknown>, excludeId?: string) {
+  const { startTime, endTime, dayType, block } = data;
+  if (typeof startTime !== "string" || !startTime || typeof endTime !== "string" || !endTime) return;
+  const query = {
+    ownerId,
+    dayType,
+    block,
+    startTime: { $lt: endTime },
+    endTime: { $gt: startTime },
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  };
+  if (await RoutineTask.exists(query)) throw new RoutineTaskTimeConflictError();
+}
+
 export async function listSchedule(ownerId: string, dayType: string) {
   const tasks = await RoutineTask.find({ ownerId, dayType }).sort({ block: 1, order: 1, createdAt: 1 });
   return { dayType, blocks: BLOCKS.map(id => ({ id, label: blockLabel[id], tasks: tasks.filter(task => task.block === id) })) };
@@ -33,14 +55,22 @@ export async function getDay(ownerId: string, date: string, dayType: string, tim
 }
 
 export async function createTask(ownerId: string, data: Record<string, unknown>) {
+  await assertTaskTimeAvailable(ownerId, data);
   const order = await RoutineTask.countDocuments({ ownerId, dayType: data.dayType, block: data.block });
   return RoutineTask.create({ ...data, ownerId, order });
 }
 
 export async function updateTask(ownerId: string, id: string, data: Record<string, unknown>) {
+  const current = await RoutineTask.findOne({ _id: id, ownerId });
+  if (!current) return null;
+  await assertTaskTimeAvailable(ownerId, { ...current.toObject(), ...data }, id);
   const task = await RoutineTask.findOneAndUpdate({ _id: id, ownerId }, data, { new: true, runValidators: true });
   if (task) await RoutineTaskOccurrence.deleteMany({ ownerId, taskId: id, status: "planned" });
   return task;
+}
+
+export async function findTask(ownerId: string, id: string) {
+  return RoutineTask.findOne({ _id: id, ownerId }).lean();
 }
 
 export async function deleteTask(ownerId: string, id: string) {

@@ -14,6 +14,8 @@ This document is the handoff point for future implementation sessions. Read it w
 
 - Responsive workout/routine/wellness/settings flows and installed-PWA shell. Workout sessions support pause/resume, saved in-progress state, optional Auto progression after rest, and optional spoken exercise/set/tempo cues.
 - Routine's live clock is isolated from the task-list render path; the one-second timer only updates the clock and an active timed task card.
+- Scheduled routine tasks use prayer-bounded start times and a user-selected duration; the end is calculated, and client/server validation rejects prayer-window violations and overlaps. The selected routine date rolls over automatically at 1:00 AM local time without a manual reset.
+- Workout-day navigation scrolls horizontally, including in edit mode; workout-day names remain free-form.
 - Authenticated account deletion requires the current password and exact `DELETE` confirmation. The server awaits a transaction-backed cascade across account-owned collections, clears the current cookies, and rejects later requests made with access tokens from other devices.
 - Workout history saves only completed sets. A skipped exercise does not block finishing a session or cause its uncompleted sets to appear in history.
 - Workout log validation rejects impossible calendar dates and malformed history limits; a concurrent retry with an existing idempotency key returns the saved log.
@@ -24,7 +26,7 @@ This document is the handoff point for future implementation sessions. Read it w
 - The API prevents repeat delivery per user, device schedule, date, and task; completed tasks and workouts are skipped. Expired browser subscriptions are removed.
 - Wellness lets each browser/device opt in, test server push, change reminder preferences, or unsubscribe. The local foreground reminder loop remains as a fallback for devices without an active server subscription.
 - Local VAPID keys were created in ignored `server/.env`. Copy those variables to the production API environment only through the deployment provider's secret settings. Do not copy them into `.env.example` with actual values.
-- The repository does not include Docker/Compose packaging. Deploy the API and email worker from source and provision MongoDB and Redis separately.
+- The repository does not include Docker/Compose packaging. Deploy the API from source and provision MongoDB separately. Auth verification and recovery mail are sent directly through the API's SMTP transport; no Redis worker is required.
 - Frontend and backend production builds succeeded after the Web Push implementation. The API now stays listening and retries MongoDB connection every 30 seconds; `/api/health` reports `503 degraded` until the database reconnects. Atlas connectivity varied during this session, so confirm health before using server-backed features.
 
 ## Before production use
@@ -64,7 +66,8 @@ This document is the handoff point for future implementation sessions. Read it w
 
 ### Phase 4 — Routine and habit polish
 
-- Validate routine task ordering, subtasks, recurring/day-type rules, and 1 AM day boundary with real user workflows.
+- Validate routine task ordering, subtasks, recurring/day-type rules, and automatic 1 AM date rollover with real user workflows.
+- Confirm the deployed SMTP provider delivers registration verification messages; unit tests do not establish live email delivery.
 - Add optional reminder scheduling controls only if current per-task reminders and wellness schedule prove insufficient.
 - Improve analytics based on persisted data, with clear empty states and timezone-consistent date labels.
 
@@ -75,6 +78,12 @@ This document is the handoff point for future implementation sessions. Read it w
 - Add a deploy smoke test and monitor server errors without recording notification payloads or secrets.
 - Review bundle chunk sizes and continue lazy-loading chart/large optional views as new features land.
 - Review dependency audit findings before upgrades; do not use broad force-upgrades without checking breaking changes.
+
+### 2026-11-02 review update
+
+- Completed local security hardening, endpoint rate limits, stricter input handling, unused dependency cleanup, and named MongoDB indexes; confirmed the key indexes and a workout-history index scan in the connected database.
+- Full server/client tests, both builds, and dependency audit pass. See [the detailed quality and security review](quality-security-review-2026-11-02.md) for scores, standards references, and remaining work.
+- Live SMTP/push delivery, production hosting, shared rate limits for multiple instances, and manual cross-device accessibility testing are still outstanding.
 
 ## Handoff rules
 

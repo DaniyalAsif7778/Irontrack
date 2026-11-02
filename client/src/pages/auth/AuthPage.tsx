@@ -5,14 +5,20 @@ import { useForm, type Resolver } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { forgotPasswordSchema, loginSchema, registerSchema, type AuthValues } from "../../schemas/auth";
-import { api } from "../../lib/api/api";
+import { ApiError, api } from "../../lib/api/api";
 import type { AuthUser } from "../../types";
 
 const sessionKey = ["auth", "me"] as const;
 type AuthMode = "login" | "register" | "forgot" | "reset" | "verify" | "sent" | "verified";
 type SentPurpose = "registration" | "password-reset" | "";
 
-export default function AuthPage() {
+function authErrorMessage(reason: unknown, fallback: string) {
+  if (reason instanceof ApiError && (reason.status === 0 || reason.status >= 500)) return "Something went wrong. Please try again later.";
+  if (reason instanceof ApiError && reason.status === 429) return "Too many attempts. Please wait a few minutes and try again.";
+  return reason instanceof Error ? reason.message : fallback;
+}
+
+export default function AuthPage({ connectionError = "" }: { connectionError?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<AuthMode>(() => location.pathname === "/signup" ? "register" : location.pathname === "/reset-password" ? "reset" : location.pathname === "/verify-email" ? "verify" : "login");
@@ -52,7 +58,7 @@ export default function AuthPage() {
     setIsWorking(true);
     api<{ message: string }>("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) })
       .then(result => { setNotice(result.message); setMode("verified"); })
-      .catch(error => setServerError(error instanceof Error ? error.message : "This verification link is invalid or expired."))
+      .catch(error => setServerError(authErrorMessage(error, "This verification link is invalid or expired.")))
       .finally(() => setIsWorking(false));
   }, [location.pathname, location.hash, navigate]);
 
@@ -80,7 +86,7 @@ export default function AuthPage() {
       queryClient.setQueryData(sessionKey, payload.user);
       navigate("/", { replace: true });
     } catch (reason) {
-      setServerError(reason instanceof Error ? reason.message : "We could not complete that request. Try again.");
+      setServerError(authErrorMessage(reason, "Something went wrong. Please try again later."));
     }
   }
 
@@ -105,14 +111,15 @@ export default function AuthPage() {
       const result = await api<{ message: string }>("/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) });
       setNotice(result.message);
     } catch (reason) {
-      setServerError(reason instanceof Error ? reason.message : "Try again in a few minutes.");
+      setServerError(authErrorMessage(reason, "Something went wrong. Please try again later."));
     } finally { setIsWorking(false); }
   }
 
   async function saveNewPassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setServerError("");
-    if (newPassword.length < 12 || newPassword.length > 128) { setServerError("Use a password between 12 and 128 characters."); return; }
+    if (newPassword.length < 15 || newPassword.length > 128) { setServerError("Use a password between 15 and 128 characters."); return; }
+    if (new TextEncoder().encode(newPassword).length > 72) { setServerError("Password must fit within 72 UTF-8 bytes."); return; }
     if (newPassword !== confirmPassword) { setServerError("The passwords do not match."); return; }
     setIsWorking(true);
     try {
@@ -120,7 +127,7 @@ export default function AuthPage() {
       setNotice(result.message);
       setMode("verified");
     } catch (reason) {
-      setServerError(reason instanceof Error ? reason.message : "This reset link is invalid or expired.");
+      setServerError(authErrorMessage(reason, "Something went wrong. Please try again later."));
     } finally { setIsWorking(false); }
   }
 
@@ -139,21 +146,22 @@ export default function AuthPage() {
           <button type="button" role="tab" aria-selected={mode === "register"} className={mode === "register" ? "selected" : ""} onClick={() => changeMode("register")}>Create account</button>
         </div>}
         <form className="auth-form" onSubmit={handleSubmit(submit)} noValidate>
-          {mode === "register" && <label>Your name<input autoComplete="name" {...register("name")} placeholder="Name" />{errors.name && <small>{errors.name.message}</small>}</label>}
-          <label>Email<input autoComplete="email" inputMode="email" type="email" {...register("email")} placeholder="you@example.com" />{errors.email && <small>{errors.email.message}</small>}</label>
-          {mode !== "forgot" && <label>Password<span className="password-input"><input autoComplete={mode === "login" ? "current-password" : "new-password"} type={visiblePassword ? "text" : "password"} {...register("password")} placeholder="At least 12 characters" /><button type="button" aria-label={visiblePassword ? "Hide password" : "Show password"} onClick={() => setVisiblePassword(value => !value)}>{visiblePassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{errors.password && <small>{errors.password.message}</small>}</label>}
+          {connectionError && <div className="auth-error" role="alert">{connectionError}</div>}
+          {mode === "register" && <label>Your name<input autoComplete="name" aria-invalid={Boolean(errors.name)} {...register("name")} placeholder="Name" />{errors.name && <small role="alert">{errors.name.message}</small>}</label>}
+          <label>Email<input autoComplete="email" inputMode="email" type="email" aria-invalid={Boolean(errors.email)} {...register("email")} placeholder="you@example.com" />{errors.email && <small role="alert">{errors.email.message}</small>}</label>
+          {mode !== "forgot" && <label>Password<span className="password-input"><input autoComplete={mode === "login" ? "current-password" : "new-password"} type={visiblePassword ? "text" : "password"} aria-invalid={Boolean(errors.password)} {...register("password")} placeholder={mode === "login" ? "Password" : "At least 15 characters"} /><button type="button" aria-label={visiblePassword ? "Hide password" : "Show password"} onClick={() => setVisiblePassword(value => !value)}>{visiblePassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{errors.password && <small role="alert">{errors.password.message}</small>}</label>}
           {serverError && <div className="auth-error" role="alert">{serverError}</div>}
           {notice && <div className="auth-notice" role="status">{notice}</div>}
           <button className="auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Working…" : mode === "login" ? "Sign in" : mode === "register" ? "Create account" : "Send reset link"}</button>
         </form>
         {mode === "login" && <div className="auth-links"><button type="button" onClick={() => changeMode("forgot")}>Forgot password?</button><button type="button" onClick={() => void resendVerification()} disabled={isWorking}>Resend verification email</button></div>}
         {mode === "forgot" && <button className="auth-text-button" type="button" onClick={() => changeMode("login")}>Back to sign in</button>}
-        {mode === "register" && <small className="auth-note">Use 12 or more characters for your password.</small>}
+        {mode === "register" && <small className="auth-note">Use at least 15 characters. New passwords are limited to 72 UTF-8 bytes.</small>}
       </>}
 
       {mode === "reset" && <form className="auth-form" onSubmit={saveNewPassword}>
-        <label>New password<input type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={12} maxLength={128} required /></label>
-        <label>Confirm new password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={12} maxLength={128} required /></label>
+        <label>New password<input type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={15} maxLength={128} required /></label>
+        <label>Confirm new password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={15} maxLength={128} required /></label>
         {serverError && <div className="auth-error" role="alert">{serverError}</div>}
         <button className="auth-submit" type="submit" disabled={isWorking || !resetToken}>{isWorking ? "Saving…" : "Update password"}</button>
         <button className="auth-text-button" type="button" onClick={() => changeMode("login")}>Back to sign in</button>

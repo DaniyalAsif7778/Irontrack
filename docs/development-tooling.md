@@ -1,6 +1,6 @@
 # IronTrack tooling and package map
 
-This is a React/Vite PWA with a separate Express/MongoDB API. The package manifests separate browser/server runtime code from build and test tooling. shadcn/ui is a component code distribution workflow, so its CLI is a development dependency while the generated components and their primitives ship with the client.
+This is a React/Vite PWA with a separate Express/MongoDB API. The package manifests separate browser/server runtime code from build and test tooling. The current UI uses local components and Tailwind utilities; the shadcn CLI is not installed.
 
 ## Client workspace
 
@@ -10,22 +10,23 @@ This is a React/Vite PWA with a separate Express/MongoDB API. The package manife
 | --- | --- |
 | `react`, `react-dom` | App UI and browser rendering |
 | `react-router-dom` | Route-based pages; each page has a shareable URL |
-| `axios` | Shared HTTP client, timeout and API errors; local-storage demo remains available without `VITE_API_URL` |
+| `axios` | Shared HTTP client, timeout and API errors; development defaults to the local API when `VITE_API_URL` is unset |
 | `@tanstack/react-query` | Remote data cache, loading state and mutation refresh |
 | `zustand` | Small local UI state for selected date and analytics range |
 | `react-hook-form`, `zod`, `@hookform/resolvers` | Typed form state and field validation |
 | `clsx`, `tailwind-merge`, `class-variance-authority`, `@radix-ui/react-slot` | Theme-token utility styling and composable shadcn-style primitives |
 | `lucide-react`, `sonner` | Icons and toast notifications |
-| `@tanstack/react-table` | Headless table state for a later sortable/filterable history view; current weight history stays a simple responsive list |
 | `recharts` | Analytics charts, loaded only when the Analytics route is opened |
 | `date-fns` | Consistent date formatting in the routine and charts |
 | `gsap` | Reserved for deliberate, user-triggered motion when a feature needs a timeline; no ambient animation is currently used |
 
 ### Development dependencies
 
-`vite`, `@vitejs/plugin-react`, `typescript`, `tailwindcss`, `postcss`, and `autoprefixer` build the client and compile styles. `shadcn` is the component generator; `components.json` points it at the existing Tailwind 3 configuration and theme tokens. `@tanstack/react-query-devtools` is rendered in development only. `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`, `@testing-library/user-event`, and `@testing-library/jest-dom` are test-only. Run them with `npm run test -w irontrack-client`.
+`vite`, `@vitejs/plugin-react`, `typescript`, `tailwindcss`, `postcss`, and `autoprefixer` build the client and compile styles. `@tanstack/react-query-devtools` is rendered in development only. `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`, `@testing-library/user-event`, and `@testing-library/jest-dom` are test-only. Run them with `npm run test -w irontrack-client`.
 
 ## Server workspace
+
+The API defaults to port 4000; the Vite client defaults to port 5174 and calls `http://127.0.0.1:4000/api`. Set `PORT` and `VITE_API_URL` together when using different local ports.
 
 ### Runtime dependencies
 
@@ -35,11 +36,8 @@ This is a React/Vite PWA with a separate Express/MongoDB API. The package manife
 | `cors`, `helmet`, `express-rate-limit`, `express-mongo-sanitize`, `cookie-parser` | CORS allowlist, HTTP security headers, API request limiting, Mongo operator filtering, cookie parsing |
 | `morgan`, `pino` | Request logs and structured service/error logs |
 | `jsonwebtoken`, `bcrypt` | Signed account sessions, password hashing and private per-account data |
-| `multer`, `cloudinary` | Validated upload phase; no upload route is enabled yet |
-| `nodemailer` | Email notifications phase; no mail provider is configured yet |
-| `socket.io` | Real-time collaboration/updates phase; no socket server is started yet |
-| `stripe` | Payments phase; no checkout/webhook endpoints are enabled |
-| `swagger-ui-express` | API documentation phase; add only with a maintained OpenAPI document |
+| `nodemailer` | Verification and password-recovery messages; SMTP must be configured per environment |
+| `web-push` | Browser push notifications |
 
 `tsx` and `typescript` are development/build dependencies. `vitest`, `supertest`, and `@types/*` packages are development-only. Run backend tests with `npm run test -w irontrack-server`.
 

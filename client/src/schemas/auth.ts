@@ -9,7 +9,8 @@ export const forgotPasswordSchema = loginSchema.pick({ email: true });
 
 export const registerSchema = loginSchema.extend({
   name: z.string().trim().min(2, "Enter at least 2 characters").max(80),
-  password: z.string().min(12, "Password must be at least 12 characters").max(128),
+  password: z.string().min(15, "Use at least 15 characters").max(128)
+    .refine(value => new TextEncoder().encode(value).length <= 72, "Password must fit within 72 UTF-8 bytes."),
 });
 
 export type LoginValues = z.infer<typeof loginSchema>;

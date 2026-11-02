@@ -1,8 +1,10 @@
 import type { Request, RequestHandler } from "express";
 import { isDayType } from "../../constant.js";
 import { taskPayload } from "../../utils/validation.js";
+import { User } from "../../models/auth/user.model.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
+import { ANALYTICS_PERIODS, type AnalyticsPeriod } from "../../utils/analyticsPeriod.js";
 import * as routine from "../../services/routine/routine.service.js";
 import { completeRoutineOccurrence, extendRoutineTask, isValidRoutineDate, newActionId, queueRoutineTask, recordRoutineParentChange, RoutineActionError, routineEventAnalytics, snoozeRoutineTask, startRoutineTask } from "../../services/routine/routine-events.service.js";
 
@@ -28,17 +30,34 @@ export const getDay: RequestHandler = async (req, res) => {
   if (!validDate(date)) { fail(res, "date must be YYYY-MM-DD"); return; }
   const dayType = [0, 6].includes(new Date(`${date}T00:00:00`).getDay()) ? "weekend" : "weekday";
   const timezone = typeof req.query.timezone === "string" ? req.query.timezone : "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: timezone }); }
+  catch { fail(res, "timezone must be a valid IANA timezone"); return; }
   res.json(await routine.getDay(req.auth!.userId, date, dayType, timezone));
 };
 
 export const createTask: RequestHandler = async (req, res) => {
-  const task = await routine.createTask(req.auth!.userId, taskPayload(req.body));
+  const user = await User.findById(req.auth!.userId).select("preferences.prayerTimes").lean();
+  if (!user) { fail(res, "Account not found", 401); return; }
+  let payload: ReturnType<typeof taskPayload>;
+  try { payload = taskPayload(req.body, false, user.preferences?.prayerTimes); }
+  catch (error) { fail(res, error instanceof Error ? error.message : "Check the routine task", 400); return; }
+  const task = await routine.createTask(req.auth!.userId, payload);
   await recordRoutineParentChange(req.auth!.userId, String(task._id), newActionId(req.body?.actionId), "task_created", "Routine task added", `${task.title} was added to ${task.block}.`, { taskTitle: task.title, block: task.block });
   res.status(201).json(task);
 };
 
 export const updateTask: RequestHandler = async (req, res) => {
-  const task = await routine.updateTask(req.auth!.userId, routeParam(req.params.id), taskPayload(req.body, true));
+  const id = routeParam(req.params.id);
+  const current = await routine.findTask(req.auth!.userId, id);
+  if (!current) { fail(res, "Task not found", 404); return; }
+  const user = await User.findById(req.auth!.userId).select("preferences.prayerTimes").lean();
+  if (!user) { fail(res, "Account not found", 401); return; }
+  let payload: ReturnType<typeof taskPayload>;
+  try { payload = taskPayload({ ...req.body, dayType: req.body.dayType ?? current.dayType, block: req.body.block ?? current.block }, true, user.preferences?.prayerTimes); }
+  catch (error) { fail(res, error instanceof Error ? error.message : "Check the routine task", 400); return; }
+  if (req.body.dayType === undefined) delete payload.dayType;
+  if (req.body.block === undefined) delete payload.block;
+  const task = await routine.updateTask(req.auth!.userId, id, payload);
   if (!task) { fail(res, "Task not found", 404); return; }
   await recordRoutineParentChange(req.auth!.userId, String(task._id), newActionId(req.body?.actionId), "task_updated", "Routine task updated", `${task.title} was updated successfully.`, { taskTitle: task.title });
   res.json(task);
@@ -83,6 +102,9 @@ export const snoozeTask: RequestHandler = async (req, res) => {
   catch (error) { if (error instanceof RoutineActionError) { fail(res, error.message, error.status); return; } throw error; }
 };
 export const eventAnalytics: RequestHandler = async (req, res) => {
-  const days = Math.min(365, Math.max(1, Number(req.query.days) || 14));
-  res.json(await routineEventAnalytics(req.auth!.userId, days));
+  const period = String(req.query.period ?? "30d");
+  const page = Number(req.query.page ?? 1);
+  if (!ANALYTICS_PERIODS.includes(period as AnalyticsPeriod)) { fail(res, "Choose a supported activity period"); return; }
+  if (!Number.isInteger(page) || page < 1 || page > 10_000) { fail(res, "page must be a positive integer"); return; }
+  res.json(await routineEventAnalytics(req.auth!.userId, period as AnalyticsPeriod, page));
 };

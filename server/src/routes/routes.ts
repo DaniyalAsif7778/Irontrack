@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { read as readAnalytics } from "../controllers/analytics/analytics.controller.js";
 import * as routine from "../controllers/routine/routine.controller.js";
 import * as weights from "../controllers/weight/weight.controller.js";
@@ -8,11 +8,27 @@ import { asyncHandler } from "../middlewares/asyncHandler.js";
 import authRoutes from "./auth/auth.routes.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import * as notifications from "../controllers/notifications/notifications.controller.js";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
-router.use(requireAuth);
+export const authenticatedWriteLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 40,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: req => ["GET", "HEAD", "OPTIONS"].includes(req.method),
+  keyGenerator: req => req.auth?.userId ? `account:${req.auth.userId}` : ipKeyGenerator(req.ip ?? "unknown"),
+}) as unknown as RequestHandler;
+export const pushTestLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 3,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: req => req.auth?.userId ? `account:${req.auth.userId}` : ipKeyGenerator(req.ip ?? "unknown"),
+}) as unknown as RequestHandler;
+router.use(requireAuth, authenticatedWriteLimiter);
 
 
 router.get("/notifications/config", notifications.config);
@@ -20,7 +36,7 @@ router.get("/notifications/status", asyncHandler(notifications.status));
 router.post("/notifications/subscriptions", asyncHandler(notifications.subscribe));
 router.put("/notifications/preferences", asyncHandler(notifications.updatePreferences));
 router.delete("/notifications/subscriptions", asyncHandler(notifications.unsubscribe));
-router.post("/notifications/test", asyncHandler(notifications.test));
+router.post("/notifications/test", pushTestLimiter, asyncHandler(notifications.test));
 
 router.get("/routine/schedules/:dayType", asyncHandler(routine.getSchedule));
 router.post("/routine/schedules/copy", asyncHandler(routine.copySchedule));

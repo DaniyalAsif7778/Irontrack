@@ -27,10 +27,8 @@ export function clientUrl() {
 }
 
 export function isAuthEmailConfigured() {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || !process.env.REDIS_URL || !process.env.AUTH_JWT_SECRET) return false;
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return false;
   try {
-    const redisUrl = new URL(process.env.REDIS_URL);
-    if (!["redis:", "rediss:"].includes(redisUrl.protocol)) return false;
     clientUrl();
     return true;
   } catch { return false; }

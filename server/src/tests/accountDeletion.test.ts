@@ -66,7 +66,7 @@ vi.mock("../models/notifications/notification.model.js", () => ({
   PushDelivery: mocks.models.PushDelivery,
   PushSubscription: mocks.models.PushSubscription,
 }));
-vi.mock("../services/auth/emailQueue.service.js", () => ({ enqueueAuthEmail: vi.fn() }));
+vi.mock("../services/auth/email.service.js", () => ({ deliverAuthEmail: vi.fn() }));
 
 import { deleteAccount } from "../services/auth/auth.service.js";
 

@@ -1,20 +1,20 @@
 import { RoutineCompletion, RoutineTask } from "../../models/routine/routine.model.js";
 import { WeightLog } from "../../models/weight/weight.model.js";
 import { User } from "../../models/auth/user.model.js";
+import { analyticsPeriodLabel, analyticsRange, type AnalyticsPeriod } from "../../utils/analyticsPeriod.js";
 
-export async function getAnalytics(ownerId: string, days: number, today: string) {
-  const [year, month, dateOfMonth] = today.split("-").map(Number);
-  const end = new Date(Date.UTC(year, month - 1, dateOfMonth));
-  const dates = Array.from({ length: days }, (_, index) => {
-    const day = new Date(end);
-    day.setUTCDate(end.getUTCDate() - (days - index - 1));
+export async function getAnalytics(ownerId: string, period: AnalyticsPeriod, today: string) {
+  const range = analyticsRange(period, today);
+  const dates = Array.from({ length: range.days }, (_, index) => {
+    const day = new Date(`${range.startDate}T00:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + index);
     return day.toISOString().slice(0, 10);
   });
   const [weekdayTasks, weekendTasks, allTasks, weights, user] = await Promise.all([
     RoutineTask.find({ ownerId, dayType: "weekday" }).select("_id").lean(),
     RoutineTask.find({ ownerId, dayType: "weekend" }).select("_id").lean(),
     RoutineTask.find({ ownerId }).select("_id").lean(),
-    WeightLog.find({ ownerId, date: { $gte: dates[0] } }).sort({ date: 1 }).lean(),
+    WeightLog.find({ ownerId, date: { $gte: range.startDate, $lte: range.endDate } }).sort({ date: 1 }).lean(),
     User.findById(ownerId).select("preferences.weightUnit").lean(),
   ]);
   const taskIds = allTasks.map(task => task._id);
@@ -24,10 +24,16 @@ export async function getAnalytics(ownerId: string, days: number, today: string)
   ]);
   const completedByDate = new Map<string, number>();
   completions.forEach(item => completedByDate.set(item.date, (completedByDate.get(item.date) ?? 0) + 1));
-  const activity = dates.map(date => {
+  const dailyActivity = dates.map(date => {
     const total = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? weekendTasks.length : weekdayTasks.length;
     const completed = completedByDate.get(date) ?? 0;
     return { date, completed, total, rate: total ? Math.round(completed / total * 100) : 0 };
+  });
+  const activity = range.granularity === "day" ? dailyActivity : [...new Set(dates.map(date => date.slice(0, 7)))].map(month => {
+    const rows = dailyActivity.filter(day => day.date.startsWith(month));
+    const completed = rows.reduce((sum, day) => sum + day.completed, 0);
+    const total = rows.reduce((sum, day) => sum + day.total, 0);
+    return { date: `${month}-01`, completed, total, rate: total ? Math.round(completed / total * 100) : 0 };
   });
   const displayUnit = user?.preferences?.weightUnit === "lb" ? "lb" : "kg";
   const trendEntries = weights.map(weight => {
@@ -37,7 +43,8 @@ export async function getAnalytics(ownerId: string, days: number, today: string)
   const latestWeight = trendEntries.at(-1) ?? null;
   const firstWeight = trendEntries[0] ?? null;
   return {
-    days, activity, totalCompleted, periodCompleted: completions.length,
+    period, periodLabel: analyticsPeriodLabel(period), startDate: range.startDate, endDate: range.endDate,
+    days: range.days, granularity: range.granularity, activity, totalCompleted, periodCompleted: completions.length,
     weightTrend: {
       entries: trendEntries,
       latest: latestWeight,

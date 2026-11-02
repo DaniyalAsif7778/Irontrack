@@ -4,14 +4,15 @@
 
 - Registration creates an inactive account and emails a 256-bit, single-use verification link. Only its SHA-256 digest is stored. Verification links expire after 30 minutes, and registration does not create a session.
 - Unverified accounts expire after seven days without a resend; MongoDB TTL removes those pending account records automatically.
-- Passwords are stored with bcrypt (12 rounds). New passwords require 12–128 characters. Login failures share one generic response, including for unverified accounts.
+- Passwords are stored with bcrypt (12 rounds). New passwords require at least 15 characters and are limited to 72 UTF-8 bytes to avoid bcrypt's input truncation. Existing accounts can still sign in with their current passwords. Login failures share one generic response, including for unverified accounts.
 - Password recovery uses the same single-use, 30-minute hashed-token pattern. Requests use a generic response; a successful reset revokes all refresh sessions.
 - Access and rotating refresh tokens remain in HTTP-only, SameSite=Lax cookies. Refresh session records retain device user-agent, IP, last-use time, and expiry. Users can review and revoke sessions in Settings. Revoking a session also clears its cookies when it is the current device; an already-issued access token can remain valid for at most 15 minutes.
 - Account deletion is available only to an authenticated user and requires the current password plus the exact confirmation `DELETE`. The API deletes the account's routine tasks, task-linked completion records, routine events/reminders/occurrences, workout plans/program/exercise library/logs/progression, wellness and weight logs, push subscriptions/delivery records, auth challenges, and refresh sessions in one awaited MongoDB transaction. It commits before returning success and clears the current device's cookies. Protected requests also verify that the account still exists, so access tokens on other devices stop working immediately after deletion. A failed cascade aborts the transaction and leaves the account intact.
 - Multi-document transactions require a MongoDB replica set or sharded cluster. The client clears the deleted account's query cache, offline write queue, active workout/timer state, and locally stored preferences after server success. If browser storage is unavailable, the account is still signed out and deleted server-side, with a warning that local browser data may need manual clearing.
-- Login, registration, email actions, and token submissions have separate IP-based limits. The existing API-wide limiter is also active. The default express-rate-limit memory store is per server process; deployments with multiple API instances should configure a shared limiter store before scaling horizontally.
+- Login, registration, email actions, and token submissions have separate IP-based limits. Authenticated writes have an additional per-account limit of 40 requests per minute, and push-test sends are limited to three per 15 minutes. The API-wide IP limit also applies. These limits use in-process memory; deployments with multiple API instances must enforce shared limits at the gateway or add a compatible shared store before scaling horizontally.
+- API responses use `Cache-Control: no-store`. JSON bodies are limited to 1 MB, malformed payloads receive a 400, and oversized payloads receive a 413.
 - Auth links keep tokens in the URL fragment. Browsers do not send fragments in HTTP requests or referrers; the page removes the fragment before calling the API.
-- Verification and recovery messages are added to a Redis-backed BullMQ queue. The API responds after Redis accepts the job; a separate worker sends it with bounded concurrency, a five-message-per-second limiter, and five exponential-backoff attempts. Queue payloads carry AES-GCM encrypted link tokens, while Redis is password-protected, private to the Compose network, and configured for append-only persistence. Failed-job logs contain job metadata only, not recipient addresses, SMTP responses, or link tokens. A worker crash after SMTP accepts a message but before Redis acknowledges it can produce a duplicate email; each link remains single-use.
+- Verification and recovery messages are sent synchronously through SMTP from the API process. Link tokens are never logged, and mail failures return a generic retryable service error while removing the newly issued challenge. Configure SMTP and the public client URL before enabling registration or recovery. Direct delivery avoids Redis and a separate worker, but the request remains open until the SMTP provider responds.
 
 ## Mail configuration
 
@@ -21,20 +22,14 @@ Set these values in the server runtime environment (never commit real credential
 EMAIL_USER=your-sending-address@gmail.com
 EMAIL_PASS=your-new-google-app-password
 CLIENT_URL=https://irontrack-nu.vercel.app
-REDIS_URL=rediss://default:password@your-private-redis-host:6379/0
 AUTH_JWT_SECRET=your-existing-random-secret-of-at-least-32-bytes
-EMAIL_WORKER_CONCURRENCY=5
 ```
 
 For local development, set `CLIENT_URL=http://localhost:5173`. Gmail requires 2-Step Verification and an App Password for this SMTP setup. The sender address must match `EMAIL_USER`. `CLIENT_URL` must be HTTPS in production. Set it to the exact public origin used by the client. `server/.env.example` lists these keys.
 
 The app password shared during setup should be revoked and replaced because it was exposed in chat. Add the replacement only to the ignored local `server/.env` and the server host's secret environment settings. Add the sender address, replacement password, and production client URL to the deployment environment; no credential is stored in this repository.
 
-`REDIS_URL` and `AUTH_JWT_SECRET` are required for queueing and encrypting link tokens. Use a private Redis endpoint with persistence enabled; use `rediss://` when the provider requires TLS. The API service and at least one `node dist/workers/authEmail.worker.js` worker must share the same Redis database and environment. Set `EMAIL_WORKER_CONCURRENCY` from 1 to 20 to bound worker concurrency; each worker also limits sending to five messages per second.
-
-For local source-mode development, start MongoDB and Redis separately, configure their URLs in `server/.env`, and run `npm run dev`. Run `npm run dev:email-worker -w server` in a second terminal when testing account verification or recovery emails. The application repository does not include container orchestration or Redis provisioning.
-
-On a managed host, configure private/persistent MongoDB and Redis services, deploy the API with `npm run build` and `npm start -w server`, and run a separate worker with `npm run start:email-worker -w server`. Set the same `REDIS_URL`, `AUTH_JWT_SECRET`, and SMTP settings on both processes. A Git push can trigger a configured API deployment, but it cannot provision Redis or a worker on a host that has not been configured for those services. Gmail can be used for initial testing and small volumes; a dedicated SMTP provider is preferable for production-scale sending.
+For local source-mode development, configure MongoDB and SMTP in `server/.env` and run `npm run dev`. The API sends verification and recovery messages directly; no Redis service or email worker is needed. On a managed host, deploy the API with `npm run build` and `npm start -w server`, and configure the SMTP credentials and client URL in the host's private environment. Gmail can be used for initial testing and small volumes; a dedicated SMTP provider is preferable for production-scale sending.
 
 ## Research basis
 

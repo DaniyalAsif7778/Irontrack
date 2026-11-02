@@ -33,7 +33,19 @@ export const subscribe: RequestHandler = async (req, res) => {
   if (!parsed.success) { fail(res, parsed.error.issues[0]?.message ?? "Invalid push subscription"); return; }
   if (!pushConfiguration().enabled) { fail(res, "Background push is not configured on the server", 503); return; }
   const { endpoint, ...data } = parsed.data;
-  await PushSubscription.findOneAndUpdate({ endpoint }, { ...data, endpoint, ownerId: req.auth!.userId }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  try {
+    await PushSubscription.findOneAndUpdate(
+      { ownerId: req.auth!.userId, endpoint },
+      { ...data, endpoint, ownerId: req.auth!.userId },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
+      fail(res, "This browser notification subscription is already assigned to another account.", 409);
+      return;
+    }
+    throw error;
+  }
   res.json({ subscribed: true });
 };
 export const updatePreferences: RequestHandler = async (req, res) => {

@@ -74,12 +74,13 @@ server/src/
     weight/
     wellness/
     workout/
-  workers/                 # Background email/notification work
   tests/                   # Backend validation and service tests
   utils/                   # Request validation, import mapping, helpers
 ```
 
 This follows the EMS controller/model/routes/middleware/utils/db organization. Controllers validate requests and return responses; services own domain operations; models define persistence; the central router maps URLs to controllers. Keep each domain's controller, service, and model in its matching subfolder. Put cross-domain infrastructure in `middlewares/` or `utils/`.
+
+Authentication verification and recovery mail are sent directly through the API's Nodemailer SMTP transport. There is no Redis/BullMQ email queue or separate email worker.
 
 ## Growth conventions
 

@@ -55,11 +55,12 @@ type InlinePlanFieldProps = {
   multiline?: boolean;
   required?: boolean;
   compact?: boolean;
+  asHeading?: boolean;
 };
 
 function InlinePlanField({
   id, label, value, editingFieldKey, setEditingFieldKey, onSave, type = "text",
-  displayValue, min, max, step, maxLength, maxLines, maxLineLength, multiline = false, required = true, compact = false,
+  displayValue, min, max, step, maxLength, maxLines, maxLineLength, multiline = false, required = true, compact = false, asHeading = false,
 }: InlinePlanFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,7 +129,7 @@ function InlinePlanField({
   const fieldClassName = `inline-plan-field${compact ? " compact" : ""}${isEditing ? " editing" : ""}`;
   if (!isEditing) return <div ref={wrapperRef} className={fieldClassName}>
     <span className={compact ? "sr-only" : "inline-plan-label"}>{label}</span>
-    <strong className="inline-plan-value" title={displayValue ?? String(value)}>{displayValue ?? (String(value) || "—")}</strong>
+    {asHeading ? <h2 className="inline-plan-value" title={displayValue ?? String(value)}>{displayValue ?? (String(value) || "—")}</h2> : <strong className="inline-plan-value" title={displayValue ?? String(value)}>{displayValue ?? (String(value) || "—")}</strong>}
     <button type="button" className="inline-plan-icon" aria-label={`Edit ${label}`} onClick={() => { setDraft(String(value)); setError(""); setEditingFieldKey(id); }}><Pencil size={14} /></button>
   </div>;
 
@@ -137,7 +138,7 @@ function InlinePlanField({
       <span className={compact ? "sr-only" : "inline-plan-label"}>{label}</span>
       {multiline
         ? <textarea ref={textareaRef} aria-label={label} maxLength={maxLength} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Escape") setEditingFieldKey(null); else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commit(); } }} />
-        : <input ref={inputRef} aria-label={label} type={type} min={min} max={max} step={step} maxLength={maxLength} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Escape") setEditingFieldKey(null); else if (event.key === "Enter") { event.preventDefault(); commit(); } }} />}
+        : <input ref={inputRef} aria-label={label} type={type} autoComplete="off" min={min} max={max} step={step} maxLength={maxLength} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Escape") setEditingFieldKey(null); else if (event.key === "Enter") { event.preventDefault(); commit(); } }} />}
     </label>
     <div className="inline-plan-actions">
       <button type="button" className="inline-plan-icon save" aria-label={`Save ${label}`} onClick={() => commit()}><Check size={15} /></button>
@@ -499,7 +500,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
 
   return <>
     <header className="workout-page-header"><div><h1>Workout</h1><p>Build strength one controlled set at a time.</p></div><div className="workout-header-actions"><button type="button" className="workout-stats-link" onClick={() => navigate("/workout/stats")}><BarChart3 size={16} /> Stats</button><div className="workout-head-meta"><Dumbbell size={18} /><span>Dumbbells</span></div>{editingProgram ? <><button type="button" className="workout-cancel-edit" onClick={cancelProgramEdit}><X size={16} /><span>Cancel changes</span></button><button type="button" className="start-workout workout-save-top" disabled={!programIsDirty || saveProgramMutation.isPending} onClick={() => void saveProgram()}>{saveProgramMutation.isPending ? "Saving…" : "Save changes"}</button></> : <button type="button" className="start-workout" disabled={active !== null || !loaded} onClick={beginProgramEdit}>Edit plan</button>}</div></header>
-    <div className={`week-strip ${editingProgram ? "week-strip-editing" : ""}`} aria-label="Your weekly training plan">
+    <div className={`week-strip ${editingProgram ? "week-strip-editing" : ""}`} role="group" tabIndex={0} aria-label="Workout days">
       {visibleWeek.map(day => {
         const assignedPlan = visiblePlans.find(item => item.id === day.planId);
         const completedToday = day.planId && logs.some(log => log.date === ironToday() && log.dayType === day.planId);
@@ -516,18 +517,18 @@ export default function Workout({ onError, accountId }: { onError: (message: str
               maxLength={80}
               compact
             />
-            <button type="button" className="week-day-change" aria-expanded={assignmentDayKey === day.key} onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>Change</button>
-          </div> : <button type="button" className="week-day-assign" onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>＋ Assign workout</button>}
+            <button type="button" className="week-day-change" aria-label={`Change workout for ${day.label}`} aria-expanded={assignmentDayKey === day.key} onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>Change workout</button>
+          </div> : <button type="button" className="week-day-assign" aria-label={`Assign workout to ${day.label}`} onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>＋ Assign workout</button>}
         </div> : <button type="button" key={day.key} className={selectedKey === day.key ? "selected" : ""} onClick={() => setSelectedKey(day.key)}>
           <span>{day.label.slice(0, 3)}</span><b>{assignedPlan?.name ?? "Rest"}</b>{completedToday && <i aria-label="Completed" />}
         </button>;
       })}
     </div>
     {editingProgram && assignmentDayKey && <div className="week-assignment-panel" role="group" aria-label={`Choose a workout for ${visibleWeek.find(day => day.key === assignmentDayKey)?.label ?? "this day"}`}>
-      <span>{visibleWeek.find(day => day.key === assignmentDayKey)?.label}: choose a workout</span>
+      <span>{visibleWeek.find(day => day.key === assignmentDayKey)?.label}: assign a workout</span>
       <div>
-        <button type="button" onClick={() => { updateWeekAssignment(assignmentDayKey, null); setAssignmentDayKey(null); }}>Rest</button>
-        {visiblePlans.map(item => <button type="button" key={item.id} onClick={() => { updateWeekAssignment(assignmentDayKey, item.id); setSelectedKey(assignmentDayKey); setAssignmentDayKey(null); }}>{item.name}</button>)}
+        <button type="button" aria-pressed={!visibleWeek.find(day => day.key === assignmentDayKey)?.planId} onClick={() => { updateWeekAssignment(assignmentDayKey, null); setAssignmentDayKey(null); }}>Rest day</button>
+        {visiblePlans.map(item => <button type="button" key={item.id} aria-pressed={visibleWeek.find(day => day.key === assignmentDayKey)?.planId === item.id} onClick={() => { updateWeekAssignment(assignmentDayKey, item.id); setSelectedKey(assignmentDayKey); setAssignmentDayKey(null); }}>{item.name}</button>)}
         <button type="button" className="week-day-new" onClick={createPlanDraft}>＋ New workout</button>
       </div>
     </div>}
@@ -563,7 +564,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       </article> : null}
     </section> : <>
     {!loaded ? <section className="rest-day"><h2>Loading your training plan</h2></section> : !selected?.planId ? <section className="rest-day"><div className="rest-mark"><RotateCcw /></div><h2>{plans.length ? "Recovery day" : "Start with your own workout"}</h2><p>{plans.length ? "This day is set aside for rest. Assign a workout day here whenever your schedule changes." : "Create a workout day, add your exercises, then choose which days you want to train."}</p>{!plans.length && <button type="button" className="start-workout" onClick={() => { beginProgramEdit(); createPlanDraft(); }}>Create your first workout day</button>}</section> : !plan ? <section className="rest-day"><h2>Workout day unavailable</h2><p>This schedule entry no longer has a saved plan. Edit your weekly schedule to choose another workout or rest day.</p></section> : <>
-        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span><h2>{plan.name}</h2><p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p></div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && <button type="button" className="start-workout" disabled={!plan.exercises.length} onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
+        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span>{editingProgram ? <InlinePlanField id={`plan:${plan.id}:overview-name`} label="Workout name" value={plan.name} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanName(plan.id, value)} maxLength={80} asHeading /> : <h2>{plan.name}</h2>}<p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p></div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && <button type="button" className="start-workout" disabled={!plan.exercises.length} onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
         <div className="workout-section-title"><div><h2>Exercises in this workout</h2><p>Set targets are specific to this day. Exercise details are shared by ID.</p></div></div>
         {plan.exercises.length ? <div className="exercise-list">
           {plan.exercises.map((exercise, index) => {

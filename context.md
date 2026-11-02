@@ -1,42 +1,35 @@
-# IronTrack — Project Context
+# IronTrack project context
 
-Last updated: 2026-09-26
+Last updated: 2026-11-02
 
-## Current stage
+## Current state
 
-**MVP persistence is operational.** The React/Vite client calls the local Express API, which is connected to MongoDB Atlas. The supplied IronTrack backup has been imported.
+IronTrack is a responsive React/Vite PWA backed by a TypeScript Express API and MongoDB. User-owned routine, workout, weight, wellness, and reminder data require an authenticated account. The application repository does not include Docker/Compose packaging; production hosting must provide MongoDB separately. Auth email is delivered directly through the API's configured SMTP transport.
 
-## Completed
+## Current behavior
 
-- Prayer-anchored routine UI: fixed Fajr, Dhuhr, Asr, Maghrib, and Isha cards remain the product’s primary organizing idea.
-- Separate weekday/weekend task schedules, task CRUD, daily completion records, daily progress, and task metadata.
-- Body-weight log CRUD, current-weight card, local backup import, Home, and Analytics screens.
-- Dark token-based UI, Inter typography, responsive layout, and Lucide icons.
-- MongoDB collections: `RoutineTask`, `RoutineCompletion`, and `WeightLog`.
-- Backup import result: 6 routine tasks, 2 completion records, and 1 body-weight log.
+- Routine tasks are organized around Fajr, Dhuhr, Asr, Maghrib, and Isha prayer anchors. For a scheduled task, the user selects its start and duration; the end is calculated. Client and server validation enforce the selected prayer window and reject overlaps. Prayer anchors must be configured in chronological order.
+- Routine dates change at 1:00 AM local time. An open app checks for the boundary and advances only when the user has not selected a different date. There is no manual reset control.
+- Workout progression is opt-in and advances after the rest countdown; set logging remains deliberate. Optional speech announces exercise/set/tempo cues and stops when paused or resting.
+- Workout-day names are free-form text. The weekly day selector scrolls horizontally on narrow screens and while editing.
+- Registration requires email verification before a session is granted. Verification links are single-use, expire after 30 minutes, and are sent through SMTP by the API before the request completes.
+- The HTML entry point is only the app mount shell; `client/src/main.tsx` imports `client/src/styles.css` for the React interface. The rendered application, not the shell markup, is where UI styling should be audited.
 
-## Current technical choices
+## Architecture and safeguards
 
-- The normal `mongodb+srv` resolver is refused by Node DNS on this computer. `server/.env` therefore uses the equivalent Atlas multi-host URI, with TLS, replica-set, and authentication settings. The cluster/API connection is healthy.
-- `server/.env` and `client/.env` are ignored. No credentials are recorded in this file.
-- The client still has a local-storage adapter for offline/temporary development, but the configured app currently uses the API.
+- `client/`: TypeScript, React, Vite, React Router, TanStack Query, Zustand, and Zod.
+- `server/`: TypeScript, Express, MongoDB/Mongoose, cookie sessions, and Nodemailer SMTP delivery.
+- Sensitive auth and account writes are rate limited; authenticated mutations also have a per-account cap. API JSON is limited to 1 MB and API responses are marked `no-store`.
+- Auth verification and recovery tokens are hashed in MongoDB. Real mail delivery requires valid SMTP credentials and a public `CLIENT_URL`; direct SMTP delivery does not use Redis or a worker.
+- Local environment files contain private configuration and must remain ignored. Never copy secrets into docs, commits, client variables, or logs.
+- Supported offline writes are limited to routine completions and finished workout logs; other edits require the API.
 
-## Known gaps / pending work
+## Remaining verification
 
-1. Add a schedule-management screen to deliberately copy or customize weekday and weekend routines.
-2. Add a 7/14/30-day analytics endpoint and charts for completion consistency and weight trend.
-3. Add prayer-time data only after selecting a privacy policy, location input, calculation method, and notification preference.
-4. Add authentication before sharing the app or supporting more than one user.
-5. Add API integration tests against an isolated MongoDB database, error reporting, deployment configuration, and backups.
+- Unit tests can verify auth routes, direct SMTP invocation, and token handling, but they do not prove that the configured SMTP provider delivered a real message. Confirm email delivery on the deployed API with private runtime configuration.
+- Before production use, verify MongoDB health, HTTPS and cookie origin settings, CORS allow-listing, and a real account verification flow.
+- Run a rendered-browser responsive check when validating UI styling; source CSS inspection alone cannot prove the final computed appearance.
 
-## Product direction from research
+The 2026-11-02 quality/security review and signed-in UX follow-up passed the full local test suite (126 server and 70 client tests), both builds, npm audit, local API/Mongo health, and Mongo index-plan checks. Routine task editing now includes keyboard-accessible dialog behavior; analytics provides text/data-table alternatives and account-scoped weekly focus. The Vite demo runs at `http://127.0.0.1:5174/` with the API at `http://127.0.0.1:4000`. SMTP delivery, deployed cookie/CORS settings, live push, visual/browser accessibility, and production operations remain to be confirmed. See [the review](docs/quality-security-review-2026-11-02.md).
 
-- Keep the five prayer cards as stable daily anchors, then place tasks in the interval after each prayer. Current Muslim planning products use this exact “life around Salah” framing.
-- Make the next action exceptionally clear: one current prayer card, a small progress indicator, and one-tap completion. Avoid a generic calendar-first layout.
-- Keep body-weight logging fast and neutral; surface a rolling trend rather than reacting strongly to day-to-day changes. Research consistently links more frequent digital self-monitoring with better weight-management outcomes, while not proving a universal ideal frequency.
-- Later add an optional “after [prayer], I will [task]” plan field for high-priority habits, rather than adding gamification first. This supports cue-based planning without disrupting the prayer-card design.
-- Preserve a calm, privacy-first experience: no ads, no social feed, and no forced location collection.
-
-## Security note
-
-The database credential is only in ignored local configuration. Since it was sent in chat, rotate that MongoDB database-user password in Atlas after this setup, then replace the value in `server/.env`.
+See [the 2026-11-02 project analysis](docs/project-analysis-2026-11-02.md), [PROGRESS.md](PROGRESS.md), [docs/roadmap.md](docs/roadmap.md), and [docs/auth-security.md](docs/auth-security.md) for implementation and deployment details.

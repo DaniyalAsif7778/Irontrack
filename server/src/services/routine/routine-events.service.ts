@@ -4,6 +4,8 @@ import { BLOCKS } from "../../constant.js";
 import { User } from "../../models/auth/user.model.js";
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
 import { sendOwnerPush } from "../notifications/push.service.js";
+import { isValidDateKey } from "../../utils/dateValidation.js";
+import { analyticsPeriodLabel, analyticsRange, type AnalyticsPeriod } from "../../utils/analyticsPeriod.js";
 
 const BASE_WORK_MINUTES = 45;
 const EXTENSION_MINUTES = 15;
@@ -47,9 +49,7 @@ function validTimezone(timezone: string) {
 }
 
 export function isValidRoutineDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const parsed = new Date(`${date}T12:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+  return isValidDateKey(date);
 }
 
 async function ensureOccurrences(ownerId: string, date: string, timezone: string) {
@@ -304,20 +304,29 @@ export async function completeRoutineOccurrence(ownerId: string, taskId: string,
   return result;
 }
 
-export async function routineEventAnalytics(ownerId: string, days = 14) {
-  const since = new Date(Date.now() - Math.max(1, Math.min(365, days)) * 86_400_000);
+export async function routineEventAnalytics(ownerId: string, period: AnalyticsPeriod = "30d", page = 1, pageSize = 10) {
+  const today = new Date().toISOString().slice(0, 10);
+  const range = analyticsRange(period, today);
+  const since = new Date(`${range.startDate}T00:00:00.000Z`);
+  const before = new Date(`${range.endDate}T00:00:00.000Z`);
+  before.setUTCDate(before.getUTCDate() + 1);
+  const owner = new mongoose.Types.ObjectId(ownerId);
+  const filter = { ownerId: owner, occurredAt: { $gte: since, $lt: before } };
   const rows = await RoutineEvent.aggregate([
-    { $match: { ownerId: new mongoose.Types.ObjectId(ownerId), occurredAt: { $gte: since } } },
+    { $match: filter },
     { $group: { _id: "$type", count: { $sum: 1 }, responseCount: { $sum: { $cond: [{ $ne: ["$responseTimeMs", null] }, 1, 0] } }, avgResponseMs: { $avg: "$responseTimeMs" } } },
   ]);
   const counts = Object.fromEntries(rows.map(row => [row._id, { count: row.count, avgResponseMs: row.avgResponseMs === null ? null : Math.round(row.avgResponseMs) } ]));
   const completed = counts.task_completed?.count ?? 0;
   const started = counts.task_started?.count ?? 0;
-  const recentEvents = await RoutineEvent.find({ ownerId: new mongoose.Types.ObjectId(ownerId), occurredAt: { $gte: since } })
-    .sort({ occurredAt: -1 }).limit(20).select("eventId parentEventId taskId date type occurredAt responseTimeMs pushStatus metadata").populate("taskId", "title").lean();
+  const totalRecords = await RoutineEvent.countDocuments(filter);
+  const totalPages = Math.ceil(totalRecords / pageSize);
+  const currentPage = Math.min(page, Math.max(1, totalPages));
+  const recentEvents = await RoutineEvent.find(filter)
+    .sort({ occurredAt: -1, _id: -1 }).skip((currentPage - 1) * pageSize).limit(pageSize).select("eventId parentEventId taskId date type occurredAt responseTimeMs pushStatus metadata").populate("taskId", "title").lean();
   const responseValues = rows.filter(row => row.avgResponseMs !== null).map(row => ({ total: row.avgResponseMs * row.responseCount, count: row.responseCount }));
   const averageResponseMs = responseValues.length ? Math.round(responseValues.reduce((sum, item) => sum + item.total, 0) / responseValues.reduce((sum, item) => sum + item.count, 0)) : null;
-  return { days, counts, completionRate: started ? Math.round(completed / started * 100) : 0, totalEvents: rows.reduce((sum, row) => sum + row.count, 0), averageResponseMs, recentEvents };
+  return { period, periodLabel: analyticsPeriodLabel(period), days: range.days, page: currentPage, pageSize, totalPages, totalRecords, counts, completionRate: started ? Math.round(completed / started * 100) : 0, totalEvents: rows.reduce((sum, row) => sum + row.count, 0), averageResponseMs, recentEvents };
 }
 
 export function newActionId(value?: string) { return typeof value === "string" && value.length >= 8 && value.length <= 120 ? value : randomUUID(); }
