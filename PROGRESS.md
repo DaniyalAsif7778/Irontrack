@@ -9,7 +9,7 @@ For phase sequencing, production setup, and next-agent handoff, read [docs/roadm
 - Reworked the app shell for a fixed desktop sidebar and mobile bottom navigation with safe-area spacing.
 - Added an install manifest, app icon, production service-worker registration, and cached app shell/build assets.
 - Kept backup import reachable on both layouts and added an actionable API connection error.
-- The shell and assets load offline after a prior visit; data edits still require the API. Offline write queue and account sync remain future phases.
+- At this initial phase, only the cached shell was available offline. The later offline queue now covers routine completion and finished workout logs only; other changes still need the API.
 
 ### Phase 2 — Dumbbell workout tracking (complete)
 
@@ -70,7 +70,7 @@ Local API runs on port 4001 with MongoDB-backed account authentication. The curr
 
 ## 2026-10-18 — Reference audit and interaction pass
 
-- Kept the reference theme tokens and made the desktop shell slimmer; mobile now shows four primary destinations and a compact More menu for Weight, Schedules, and Settings.
+- Kept the reference theme tokens and made the desktop shell slimmer; mobile now shows four primary destinations and a Profile shortcut for Wellness, Settings, Body weight, and Schedules.
 - Added GSAP page transitions and ScrollTrigger reveals for top-level page sections. Motion is skipped when the OS requests reduced motion.
 - Active workouts now support pause/resume and an explicit End action with a discard confirmation. Pausing freezes workout and rest timers. Previous session reps and load prefill matching exercises to reduce repeated entry; saved duration excludes paused time.
 - Removed the user-facing backup import control and API route per the product direction. Data already imported into MongoDB is unchanged. Cloud sync and export/restore are intentionally excluded.
@@ -78,7 +78,7 @@ Local API runs on port 4001 with MongoDB-backed account authentication. The curr
 ### Reference coverage
 
 - **Implemented:** PPL plan and high-rep days, exercise plan editor, persisted workout sessions with pause/resume/end, set logging and rest timer, workout history, five workout analytics tabs, exercise history and estimated PRs, prayer-anchored tasks/subtasks and persistent timer, routine completion analytics, schedule management, body-weight logging/trend, water and movement check-ins, reminder settings and upcoming reminder center, account/preferences, responsive PWA shell, install guidance, and service-worker app-shell caching.
-- **Partial:** The PWA shell can load after a prior visit, but server-backed changes need a network connection; there is no offline write queue. Web Push/VAPID now sends server-scheduled reminders while the app is closed when the API is online and the device has an active subscription; actual delivery still depends on host uptime, HTTPS, browser support, and permission. The 1 AM routine day key now feeds routine analytics from the client; workout session dates remain workout calendar dates.
+- **Partial:** The PWA shell can load after a prior visit. Routine completions and finished workout logs queue per account while offline; weight, wellness, settings, schedule, and plan edits still need the API. Web Push/VAPID sends server-scheduled reminders while the app is closed when the API is online and the device has an active subscription; actual delivery still depends on host uptime, HTTPS, browser support, and permission. The 1 AM routine day key now feeds routine analytics from the client; workout session dates remain workout calendar dates.
 - **Intentionally excluded:** Cross-device cloud sync and backup export/restore. Backup import UI/API was removed from the user flow; previously imported MongoDB records remain intact.
 - **Removed from the user flow:** Backup import UI/API. The supplied workout records remain in MongoDB.
 
@@ -87,7 +87,7 @@ Local API runs on port 4001 with MongoDB-backed account authentication. The curr
 - Added an install prompt with browser install support and iOS Safari home-screen instructions.
 - Added phone-friendly Workout Stats tabs (Summary, Overview, Volume, History, PRs) and exercise detail pages with load charts, session sets, and estimated 1RM.
 - Added Routine and Analytics tabs with 14-day completion view, daily heatmap, and activity streak.
-- Added a reminder center to the mobile header; scheduled task reminders can be opened directly in the routine. Wellness and reminder controls remain available under More → Wellness.
+- Added a reminder center to the mobile header; scheduled task reminders can be opened directly in the routine. Wellness and reminder controls are available from Profile.
 - Analytics date ranges now use the client's IronTrack date key so the server doesn't interpret the 1 AM boundary in its own timezone.
 - The application has no automatic multi-device sync. To use it on a phone, deploy the frontend over HTTPS and point it at the deployed API; see [phone workflow and deployment](docs/phone-workflow.md).
 
@@ -95,5 +95,20 @@ Local API runs on port 4001 with MongoDB-backed account authentication. The curr
 
 1. Deploy the API and frontend, set private environment variables in the hosting dashboard, and verify the Atlas network allowlist.
 2. Replace the temporary allow-all CORS setting with the exact deployed frontend origin before serving real accounts.
-3. Add an offline write queue if edits must be saved without the API network connection.
-4. Configure the API host's VAPID environment variables and enable notifications from each installed phone/browser. Keep the VAPID private key secret.
+3. Configure the API host's VAPID environment variables and enable notifications from each installed phone/browser. Keep the VAPID private key secret.
+
+## 2026-11-02 — Workout session review
+
+- Added opt-in Auto progression: after logging the last set for an exercise, the next exercise becomes active when its rest countdown ends. Logging a set still requires a deliberate tap; the browser cannot detect repetitions.
+- Added optional spoken exercise/set announcements and repeating tempo counts. Voice stops while resting or paused and requires browser speech support.
+- Skipping an exercise now preserves completed sets and allows a partially completed session to be saved without logging skipped sets.
+- Hardened workout API validation for real calendar dates and history limits, and made duplicate concurrent log retries idempotent.
+- Prayer reminders now have timezone coverage for both summer and winter offsets, including dates that cross UTC midnight.
+- Updated the phone guide, architecture map, tooling notes, roadmap, and improvement priorities to match the shipped offline queue and workout behavior.
+
+## Account deletion readiness
+
+- Added a password-verified, exact-`DELETE` confirmation flow to Settings and an authenticated, rate-limited API endpoint.
+- The server removes account-owned data and task-linked routine completions in a single awaited MongoDB transaction. A failure aborts the transaction; success is not returned before the cascade commits.
+- Access tokens on other devices are rejected once the account record is gone. The client clears the account query cache, offline queue, active workout/timer state, and local preferences after deletion.
+- Transaction-backed features require a MongoDB replica set or sharded cluster; see [account authentication](docs/auth-security.md) and [the production checklist](docs/roadmap.md).

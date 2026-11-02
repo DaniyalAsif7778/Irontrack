@@ -42,6 +42,15 @@ describe("WellnessPage", () => {
     expect(api).not.toHaveBeenCalledWith("/notifications/preferences", expect.anything());
   });
 
+  it("allows prayer reminders to be enabled from the configured prayer times", async () => {
+    render(<WellnessPage onError={vi.fn()} />);
+    await screen.findByText("Waiting for server VAPID configuration");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Prayer-time reminders/ }));
+
+    expect(JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}"))
+      .toEqual({ ...defaultReminderPreferences, prayerTimes: true });
+  });
+
   it("reports failed wellness saves and keeps decrement controls disabled at zero", async () => {
     const onError = vi.fn();
     useWellness.mockReturnValue({

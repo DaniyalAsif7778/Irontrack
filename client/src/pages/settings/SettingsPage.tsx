@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bell, BellOff, CircleUserRound, Clock3, Scale, Save, ShieldCheck } from "lucide-react";
+import { Bell, BellOff, CircleUserRound, Clock3, Scale, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../../lib/api/api";
+import { clearOfflineQueue } from "../../lib/api/offlineQueue";
 import { settingsSchema, type SettingsValues } from "../../schemas/settings";
 import { useAppStore } from "../../stores/appStore";
 import { DEFAULT_PRAYER_TIMES } from "../../types";
@@ -24,6 +25,10 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
   const queryClient = useQueryClient();
   const localPreferences = useAppStore(state => state.preferences);
   const setPreferences = useAppStore(state => state.setPreferences);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(() =>
     typeof Notification === "undefined" ? "unsupported" : Notification.permission,
   );
@@ -76,7 +81,10 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
     try {
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
-      if (permission === "granted") toast.success("Focus timer notifications enabled");
+      if (permission === "granted") {
+        toast.success("Focus timer notifications enabled");
+        window.dispatchEvent(new Event("irontrack-reminders-updated"));
+      }
       else if (permission === "denied") toast.error("Notifications are blocked in browser settings");
     } catch {
       toast.error("Your browser could not request notification permission");
@@ -91,6 +99,45 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
       toast.success(session.current ? "This device has been signed out." : "Session signed out.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not sign out this session.");
+    }
+  }
+
+  async function deleteAccount() {
+    if (!user || deleteConfirmation !== "DELETE" || !deletePassword) return;
+    setDeleteError("");
+    setIsDeleting(true);
+    try {
+      await api("/auth/me", {
+        method: "DELETE",
+        body: JSON.stringify({ password: deletePassword, confirmation: deleteConfirmation }),
+      });
+      let cleanupFailed = false;
+      try {
+        clearOfflineQueue(user.id);
+        for (const key of Object.keys(localStorage)) {
+          if (key.startsWith("irontrack_notification_sent_")) localStorage.removeItem(key);
+        }
+        for (const key of [
+          "irontrack_active_workout_v1",
+          `irontrack_task_timer:${user.id}`,
+          "irontrack_reminder_preferences_v1",
+          "irontrack_push_subscribed_v1",
+          "irontrack_hydration_reminder_last",
+          "irontrack_movement_reminder_last",
+          "irontrack_weekly_focus_v1",
+        ]) localStorage.removeItem(key);
+        setPreferences({ weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: DEFAULT_PRAYER_TIMES });
+        localStorage.removeItem("irontrack_settings");
+      } catch {
+        cleanupFailed = true;
+      }
+      queryClient.clear();
+      queryClient.setQueryData(sessionKey, null);
+      if (cleanupFailed) toast.error("Your account was deleted, but this browser could not clear all local data.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not delete your account. Try again.";
+      setDeleteError(message);
+      setIsDeleting(false);
     }
   }
 
@@ -142,7 +189,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         <div className="settings-prayer-grid">
           {([["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]] as const).map(([key, label]) => <label className="settings-field" key={key}>{label}<input type="time" {...register(`prayerTimes.${key}`)} /></label>)}
         </div>
-        <p className="settings-hint">These are manual reference times; IronTrack does not calculate or change them. They do not overwrite a task’s saved start time. Leave a time blank to use a prayer task’s time as the fallback anchor.</p>
+        <p className="settings-hint">These are manual reference times; IronTrack does not calculate or change them. Prayer reminders use these times when enabled under Wellness → Reminders. Leave a time blank to skip that prayer reminder.</p>
       </section>
 
       <section className="settings-card">
@@ -153,5 +200,15 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
       {user && <section className="settings-security"><ShieldCheck size={17} /><span><b>Private account data</b> Your routines, weight logs, workouts, and analytics are tied to your account.</span></section>}
       <div className="settings-actions"><button className="settings-save" type="submit" disabled={isSubmitting || (!isDirty && Boolean(user))}><Save size={16} />{isSubmitting ? "Saving…" : "Save settings"}</button></div>
     </form>
+    {user && <section className="settings-layout"><section className="settings-delete">
+        <div><h2>Delete account and data</h2><p>This permanently deletes your account, workouts, routines, wellness and weight records, and signed-in sessions. This cannot be undone.</p></div>
+        <label className="settings-field">Current password<input type="password" autoComplete="current-password" value={deletePassword} onChange={event => setDeletePassword(event.target.value)} /></label>
+        <label className="settings-field">Type DELETE to confirm<input autoComplete="off" value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} aria-describedby="delete-account-hint" /></label>
+        <small id="delete-account-hint">Deletion starts immediately after the server verifies your password.</small>
+        {deleteError && <div className="auth-error" role="alert">{deleteError}</div>}
+        <button className="settings-delete-button" type="button" disabled={isDeleting || !deletePassword || deleteConfirmation !== "DELETE"} onClick={() => void deleteAccount()}>
+          <Trash2 size={16} />{isDeleting ? "Deleting account…" : "Permanently delete account"}
+        </button>
+      </section></section>}
   </>;
 }

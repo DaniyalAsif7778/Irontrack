@@ -5,6 +5,7 @@ const preferencesSchema = new Schema({
   workoutAtNine: { type: Boolean, default: true },
   hydration: { type: Boolean, default: false },
   movement: { type: Boolean, default: false },
+  prayerTimes: { type: Boolean, default: false },
 }, { _id: false });
 
 export const PushSubscription = model("PushSubscription", new Schema({

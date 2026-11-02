@@ -1,9 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api/api";
 import type { Day, WellnessDay } from "../types";
 import { ironToday } from "../utils/date";
 import { defaultReminderPreferences, reminderStorageKey, type ReminderPreferences } from "../pages/wellness/WellnessPage";
+import { useAppStore } from "../stores/appStore";
+import { prayersDueAt } from "../utils/prayers";
+import { queryKeys } from "../hooks/queryKeys";
 
 type WeekDay = { key: string; dayType: string | null };
 type Session = { date: string; dayType: string };
@@ -33,12 +36,30 @@ function markSent(date: string, id: string) {
 
 export default function NotificationScheduler() {
   const date = ironToday();
-  const routine = useQuery({ queryKey: ["notifications", "routine", date], queryFn: () => api<Day>(`/routine/days/${date}`), staleTime: 30_000, refetchInterval: 60_000 });
-  const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000 });
-  const logs = useQuery({ queryKey: ["notifications", "workouts"], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000 });
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const prayerTimes = useAppStore(state => state.preferences.prayerTimes);
+  const [localNotificationsEnabled, setLocalNotificationsEnabled] = useState(() =>
+    typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
+  );
+  const routine = useQuery({ queryKey: [...queryKeys.routine.day(date), timezone], queryFn: () => api<Day>(`/routine/days/${date}?timezone=${encodeURIComponent(timezone)}`), staleTime: 30_000, refetchInterval: 60_000, enabled: localNotificationsEnabled });
+  const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000, enabled: localNotificationsEnabled });
+  const logs = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000, enabled: localNotificationsEnabled });
 
   useEffect(() => {
     if (typeof Notification === "undefined") return;
+    const refreshNotificationMode = () => setLocalNotificationsEnabled(
+      Notification.permission === "granted" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
+    );
+    window.addEventListener("irontrack-reminders-updated", refreshNotificationMode);
+    window.addEventListener("storage", refreshNotificationMode);
+    return () => {
+      window.removeEventListener("irontrack-reminders-updated", refreshNotificationMode);
+      window.removeEventListener("storage", refreshNotificationMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined" || !localNotificationsEnabled) return;
     const check = async () => {
       if (Notification.permission !== "granted") return;
       const now = new Date();
@@ -65,6 +86,14 @@ export default function NotificationScheduler() {
           markSent(today, "workout");
         }
       }
+      if (!serverPushEnabled && prefs.prayerTimes) {
+        const calendarDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        for (const prayer of prayersDueAt(prayerTimes, time)) {
+          if (alreadySent(calendarDate, `prayer-${prayer.key}`)) continue;
+          try { await notify(`Time for ${prayer.label}`, `Your scheduled ${prayer.label} prayer time is here.`, `prayer-${prayer.key}`); markSent(calendarDate, `prayer-${prayer.key}`); }
+          catch { /* Retry while the app remains open if the browser cannot show this reminder. */ }
+        }
+      }
       for (const [key, title, message] of [["hydration", "Water check-in", "Take a moment for a glass of water."], ["movement", "Movement break", "Stand, stretch, and reset for a minute."]] as const) {
         if (serverPushEnabled) continue;
         if (!prefs[key]) continue;
@@ -79,7 +108,7 @@ export default function NotificationScheduler() {
     const timer = window.setInterval(() => void check(), 20_000);
     window.addEventListener("irontrack-reminders-updated", check);
     return () => { window.clearInterval(timer); window.removeEventListener("irontrack-reminders-updated", check); };
-  }, [routine.data, week.data, logs.data]);
+  }, [localNotificationsEnabled, prayerTimes, routine.data, week.data, logs.data]);
 
   return null;
 }

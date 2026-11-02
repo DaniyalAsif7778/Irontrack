@@ -2,10 +2,18 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import jwt from "jsonwebtoken";
 import request from "supertest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { requireAuth, signRefreshSession, SESSION_COOKIE, signSession } from "../middlewares/requireAuth.js";
+import { User } from "../models/auth/user.model.js";
 import apiRoutes from "../routes/routes.js";
-import { accountSettingsSchema, loginSchema, registerSchema } from "../utils/authValidation.js";
+import { deleteAccount } from "../services/auth/auth.service.js";
+import { accountSettingsSchema, deleteAccountSchema, loginSchema, registerSchema } from "../utils/authValidation.js";
+
+vi.mock("../models/auth/user.model.js", () => ({ User: { exists: vi.fn().mockResolvedValue(true) }, toPublicUser: vi.fn() }));
+vi.mock("../services/auth/auth.service.js", async () => {
+  const actual = await vi.importActual<typeof import("../services/auth/auth.service.js")>("../services/auth/auth.service.js");
+  return { ...actual, deleteAccount: vi.fn() };
+});
 
 beforeAll(() => {
   process.env.AUTH_JWT_SECRET = "test-secret-that-is-longer-than-thirty-two-bytes";
@@ -30,6 +38,13 @@ describe("account validation", () => {
     expect(accountSettingsSchema.safeParse({ preferences: { weightUnit: "lb", focusMinutes: 2, breakMinutes: 10 } }).success).toBe(false);
     expect(accountSettingsSchema.safeParse({ email: "other@example.com" }).success).toBe(false);
   });
+
+  it("requires a current password and the exact deletion confirmation", () => {
+    expect(deleteAccountSchema.safeParse({ password: "current-password", confirmation: "DELETE" }).success).toBe(true);
+    expect(deleteAccountSchema.safeParse({ password: "current-password", confirmation: "delete" }).success).toBe(false);
+    expect(deleteAccountSchema.safeParse({ password: "", confirmation: "DELETE" }).success).toBe(false);
+    expect(deleteAccountSchema.safeParse({ password: "current-password", confirmation: "DELETE", extra: true }).success).toBe(false);
+  });
 });
 
 describe("account session middleware", () => {
@@ -47,6 +62,13 @@ describe("account session middleware", () => {
     expect(response.body.userId).toBe("507f1f77bcf86cd799439011");
   });
 
+  it("immediately invalidates access tokens after the account is gone", async () => {
+    vi.mocked(User.exists).mockResolvedValueOnce(null);
+    const token = signSession("507f1f77bcf86cd799439011");
+    const response = await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=${token}`).expect(401);
+    expect(response.headers["set-cookie"]).toHaveLength(2);
+  });
+
   it("rejects malformed, expired, and refresh tokens as access cookies", async () => {
     await request(app).get("/protected").set("Cookie", `${SESSION_COOKIE}=not-a-jwt`).expect(401);
     const expired = jwt.sign({ tokenType: "access" }, process.env.AUTH_JWT_SECRET!, {
@@ -60,17 +82,46 @@ describe("account session middleware", () => {
 
 describe("API authentication boundary", () => {
   const app = express();
+  app.set("trust proxy", 1);
   app.use(cookieParser() as unknown as express.RequestHandler);
+  app.use(express.json());
   app.use("/api", apiRoutes);
 
   it("allows public auth endpoints but blocks private data routes", async () => {
     await request(app).get("/api/auth/me").expect(401);
     await request(app).patch("/api/auth/me").send({ name: "Updated" }).expect(401);
+    await request(app).delete("/api/auth/me").send({ password: "current-password", confirmation: "DELETE" }).expect(401);
     await request(app).get("/api/weight-logs").expect(401);
     await request(app).get("/api/workout-plans").expect(401);
   });
 
   it("returns a clean unauthorized response when the refresh cookie is missing", async () => {
     await request(app).post("/api/auth/refresh").expect(401);
+  });
+
+  it("requires authentication and deliberate confirmation, then clears cookies after deletion", async () => {
+    const cookie = `${SESSION_COOKIE}=${signSession("507f1f77bcf86cd799439011")}`;
+    vi.mocked(deleteAccount).mockResolvedValue("invalid_password");
+    await request(app).delete("/api/auth/me")
+      .set("Cookie", cookie)
+      .set("X-Forwarded-For", "203.0.113.1")
+      .send({ password: "current-password", confirmation: "delete" })
+      .expect(400);
+    expect(deleteAccount).not.toHaveBeenCalled();
+
+    await request(app).delete("/api/auth/me")
+      .set("Cookie", cookie)
+      .set("X-Forwarded-For", "203.0.113.1")
+      .send({ password: "wrong-password", confirmation: "DELETE" })
+      .expect(401);
+    expect(deleteAccount).toHaveBeenLastCalledWith("507f1f77bcf86cd799439011", "wrong-password");
+
+    vi.mocked(deleteAccount).mockResolvedValue("deleted");
+    const response = await request(app).delete("/api/auth/me")
+      .set("Cookie", cookie)
+      .set("X-Forwarded-For", "203.0.113.1")
+      .send({ password: "current-password", confirmation: "DELETE" })
+      .expect(204);
+    expect(response.headers["set-cookie"]).toHaveLength(2);
   });
 });

@@ -35,6 +35,12 @@ export function enqueueOfflineAction(input: Omit<OfflineAction, "createdAt" | "s
 
 export function getOfflineQueue(accountId: string) { return read(accountId); }
 
+export function clearOfflineQueue(accountId: string) {
+  if (!accountId) return;
+  localStorage.removeItem(queueKey(accountId));
+  announce(accountId);
+}
+
 export function retryOfflineAction(accountId: string, id: string) {
   const queue = read(accountId);
   const item = queue.find(candidate => candidate.id === id);

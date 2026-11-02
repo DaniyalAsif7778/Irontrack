@@ -6,25 +6,31 @@ IronTrack follows the Employee Management System project's folder structure. Fro
 
 ```text
 client/src/
-  App.tsx                 # App state and page selection
-  Layout.tsx              # Responsive desktop/mobile app shell
+  App.tsx                 # App-level data and authenticated routes
+  Layout.tsx              # Responsive desktop/mobile navigation
   components/
-    components.ts          # Shared UI exports
-    ui/                    # Shared metric, navigation, and timer components
+    components.ts          # Shared component exports
+    AuthGate.tsx           # Session gate and public/authenticated routing
+    NotificationScheduler.tsx
+    OfflineSyncStatus.tsx  # Account-scoped queue status and retry
+    ui/                    # Shared buttons, metrics, navigation, and timers
   pages/
-    analytics/             # Analytics page
-    home/                  # Dashboard page
-    routine/               # Routine page and its private components
+    analytics/             # Routine and activity analytics
+    auth/                  # Sign-in, sign-up, and account recovery
+    home/                  # Signed-in dashboard
+    profile/               # Mobile profile menu
+    public/                # Signed-out landing page
+    routine/               # Routine page and screen-only components
       components/
-    schedules/             # Schedule editor
+    schedules/             # Routine schedule editor
     settings/              # Account and training preferences
     weight/                # Weight tracking page
-    workout/               # Workout plans and logging page
-    pages.ts               # Page exports
-  import.ts                # Re-export UI and pages for app-level imports
-  hooks/                   # Reusable React hooks (add when needed)
+    workout/               # Workout editor, sessions, history, and stats
+  hooks/                   # Routine, weight, analytics, and query keys
+  stores/                  # Small client-side preference state
   lib/
-    api/                   # API client
+    api/                   # API client and account-scoped offline queue
+  schemas/                 # Form/input validation
   types.ts                 # Shared client types
   utils/                   # Date and other shared helpers
   styles.css               # Theme tokens and global styles
@@ -42,28 +48,34 @@ server/src/
   controllers/
     auth/
     analytics/
-    import/
+    notifications/
     routine/
     weight/
+    wellness/
     workout/
   db/
     db.ts                  # MongoDB connection
   middlewares/             # Async route wrapper and error handling
   models/
     auth/
+    notifications/
     routine/
     weight/
+    wellness/
     workout/
   routes/
-    routes.ts              # Central API endpoint definitions
+    auth/
+    routes.ts              # Auth and central API endpoint definitions
   services/
     auth/
     analytics/
-    import/
+    notifications/
     routine/
     weight/
+    wellness/
     workout/
-  tests/                   # Existing backend tests
+  workers/                 # Background email/notification work
+  tests/                   # Backend validation and service tests
   utils/                   # Request validation, import mapping, helpers
 ```
 

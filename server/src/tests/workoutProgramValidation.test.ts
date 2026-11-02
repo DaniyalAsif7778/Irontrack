@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workoutPlanDataPayload, workoutWeekPayload } from "../utils/workoutValidation.js";
+import { workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../utils/workoutValidation.js";
 
 const sevenDayWeek = [
   { key: "mon", label: "Monday", planId: "day-upper" },
@@ -25,5 +25,27 @@ describe("custom workout program validation", () => {
 
   it("rejects a plan without a usable display name", () => {
     expect(() => workoutPlanDataPayload({ name: "   ", exercises: [] })).toThrow(/name/i);
+  });
+
+  it("validates a whole-program update with shared exercise IDs and separate prescriptions", () => {
+    const result = workoutProgramPayload({
+      days: sevenDayWeek,
+      exerciseLibrary: [{ id: "exercise-row", name: "Dumbbell row", muscle: "Back", description: "Pull to hip", cues: [], steps: [], videoUrl: "" }],
+      plans: [
+        { id: "day-upper", name: "Upper A", exercises: [{ exerciseId: "exercise-row", sets: 3, reps: 8, rest: 90, tempo: "3-1-2", setList: [{ id: "set-1", reps: 8, weight: 12.5 }] }] },
+        { id: "day-lower", name: "Lower", exercises: [] },
+      ],
+    }, ["day-upper"], []);
+    expect(result.plans[0].exercises).toEqual([{ exerciseId: "exercise-row", sets: 3, reps: 8, rest: 90, tempo: "3-1-2", setList: [{ id: "set-1", reps: 8, weight: 12.5 }] }]);
+    expect(result.exerciseLibrary[0]).toMatchObject({ id: "exercise-row", name: "Dumbbell row" });
+    expect(result.days).toEqual(sevenDayWeek);
+  });
+
+  it("rejects references to exercise IDs outside the user's submitted or owned library", () => {
+    expect(() => workoutProgramPayload({
+      days: sevenDayWeek,
+      exerciseLibrary: [],
+      plans: [{ id: "day-upper", name: "Upper A", exercises: [{ exerciseId: "other-users-exercise", sets: 3, reps: 8, rest: 60, tempo: "3-1-2", setList: [] }] }],
+    }, ["day-upper"], [])).toThrow(/exercise.*belong to this account/i);
   });
 });

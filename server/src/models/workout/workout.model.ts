@@ -5,22 +5,32 @@ export const WORKOUT_WEEKDAY_LABELS: Record<typeof WORKOUT_WEEKDAYS[number], str
   mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday",
 };
 
-const exerciseSchema = new Schema({
-  id: { type: String, required: true }, name: { type: String, required: true, trim: true },
+const planExerciseSchema = new Schema({
+  exerciseId: { type: String, required: true, trim: true, maxlength: 80 },
   sets: { type: Number, required: true, min: 1, max: 20 }, reps: { type: Number, required: true, min: 1, max: 100 },
-  muscle: { type: String, required: true }, tempo: { type: String, default: "3-1-2" },
-  rest: { type: Number, default: 60, min: 0, max: 600 }, cues: { type: [String], default: [] },
-  description: { type: String, default: "", maxlength: 4000 },
+  tempo: { type: String, default: "3-1-2", maxlength: 40 },
+  rest: { type: Number, default: 60, min: 0, max: 600 },
   setList: { type: [new Schema({ id: { type: String, default: "" }, reps: { type: Number, min: 1, max: 1000 }, weight: { type: Number, min: 0, max: 10000 } }, { _id: false, id: false })], default: [] },
-  steps: { type: [String], default: [] }, videoUrl: { type: String, default: "", maxlength: 2048 }
 }, { _id: false });
+
+export const ExerciseLibrary = model("ExerciseLibrary", new Schema({
+  ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  exerciseId: { type: String, required: true, trim: true, maxlength: 80 },
+  name: { type: String, required: true, trim: true, maxlength: 120 },
+  muscle: { type: String, required: true, trim: true, maxlength: 80 },
+  description: { type: String, default: "", maxlength: 4000 },
+  cues: { type: [String], default: [] },
+  steps: { type: [String], default: [] },
+  videoUrl: { type: String, default: "", maxlength: 2048 },
+}, { timestamps: true }));
+ExerciseLibrary.schema.index({ ownerId: 1, exerciseId: 1 }, { unique: true });
 
 export const WorkoutPlan = model("WorkoutPlan", new Schema({
   ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
   // dayType is retained as the storage key so existing custom plans remain addressable.
   dayType: { type: String, required: true, trim: true, maxlength: 80 },
   name: { type: String, required: true, trim: true, maxlength: 80, default: "Workout day" },
-  exercises: { type: [exerciseSchema], default: [] }
+  exercises: { type: [planExerciseSchema], default: [] }
 }, { timestamps: true }));
 WorkoutPlan.schema.index({ ownerId: 1, dayType: 1 }, { unique: true });
 

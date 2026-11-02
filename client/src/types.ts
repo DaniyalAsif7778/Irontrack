@@ -66,7 +66,7 @@ export type AnalyticsData = {
   };
 };
 
-export type AppView = "home" | "workout" | "routine" | "analytics" | "weight" | "schedules" | "settings" | "wellness";
+export type AppView = "home" | "workout" | "routine" | "analytics" | "weight" | "schedules" | "settings" | "wellness" | "profile";
 export type AuthUser = {
   id: string;
   name: string;

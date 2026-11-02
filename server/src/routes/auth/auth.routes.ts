@@ -8,6 +8,7 @@ const signInLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 8, standardHeade
 const registrationLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 5, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
 const emailLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 5, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
 const tokenLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
+const accountDeletionLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 3, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
 
 router.post("/register", registrationLimiter, auth.register);
 router.post("/login", signInLimiter, auth.login);
@@ -19,6 +20,7 @@ router.post("/logout", auth.logout);
 router.post("/refresh", auth.refresh);
 router.get("/me", auth.requireAuth, auth.me);
 router.patch("/me", auth.requireAuth, auth.updateMe);
+router.delete("/me", accountDeletionLimiter, auth.requireAuth, auth.deleteMe);
 router.get("/sessions", auth.requireAuth, auth.sessions);
 router.delete("/sessions/:id", auth.requireAuth, auth.revokeSessionEntry);
 

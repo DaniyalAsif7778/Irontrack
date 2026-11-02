@@ -1,8 +1,14 @@
 import bcrypt from "bcrypt";
 import { createHash, randomBytes } from "node:crypto";
+import mongoose from "mongoose";
 import { User, toPublicUser, type PublicUser } from "../../models/auth/user.model.js";
 import { AuthChallenge, type AuthChallengePurpose } from "../../models/auth/authChallenge.model.js";
 import { AuthSession } from "../../models/auth/session.model.js";
+import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
+import { ExerciseLibrary, WorkoutLog, WorkoutPlan, WorkoutProgram, WorkoutProgression } from "../../models/workout/workout.model.js";
+import { WellnessLog } from "../../models/wellness/wellness.model.js";
+import { WeightLog } from "../../models/weight/weight.model.js";
+import { PushDelivery, PushSubscription } from "../../models/notifications/notification.model.js";
 import { enqueueAuthEmail } from "./emailQueue.service.js";
 
 const BCRYPT_ROUNDS = 12;
@@ -91,4 +97,43 @@ export async function updateAccount(userId: string, data: { name?: string; prefe
   if (data.preferences !== undefined) for (const [key, value] of Object.entries(data.preferences)) update[`preferences.${key}`] = value;
   const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
   return user ? toPublicUser(user) : null;
+}
+
+export async function deleteAccount(userId: string, password: string): Promise<"deleted" | "not_found" | "invalid_password"> {
+  const session = await mongoose.startSession();
+  try {
+    const outcome = await session.withTransaction(async () => {
+      const user = await User.findById(userId).select("+passwordHash").session(session);
+      if (!user) return "not_found" as const;
+      if (!await bcrypt.compare(password, user.passwordHash)) return "invalid_password" as const;
+
+      const tasks = await RoutineTask.find({ ownerId: user._id }).select("_id").session(session);
+      const taskIds = tasks.map(task => task._id);
+      if (taskIds.length) await RoutineCompletion.deleteMany({ taskId: { $in: taskIds } }, { session });
+
+      await RoutineTaskOccurrence.deleteMany({ ownerId: user._id }, { session });
+      await RoutineReminder.deleteMany({ ownerId: user._id }, { session });
+      await RoutineEvent.deleteMany({ ownerId: user._id }, { session });
+      await RoutineTask.deleteMany({ ownerId: user._id }, { session });
+      await WorkoutLog.deleteMany({ ownerId: user._id }, { session });
+      await WorkoutProgression.deleteMany({ ownerId: user._id }, { session });
+      await WorkoutProgram.deleteMany({ ownerId: user._id }, { session });
+      await WorkoutPlan.deleteMany({ ownerId: user._id }, { session });
+      await ExerciseLibrary.deleteMany({ ownerId: user._id }, { session });
+      await WellnessLog.deleteMany({ ownerId: user._id }, { session });
+      await WeightLog.deleteMany({ ownerId: user._id }, { session });
+      await PushDelivery.deleteMany({ ownerId: user._id }, { session });
+      await PushSubscription.deleteMany({ ownerId: user._id }, { session });
+      await AuthChallenge.deleteMany({ userId: user._id }, { session });
+      await AuthSession.deleteMany({ ownerId: user._id }, { session });
+
+      const result = await User.deleteOne({ _id: user._id }, { session });
+      if (result.deletedCount !== 1) throw new Error("Account deletion did not remove the account.");
+      return "deleted" as const;
+    });
+    if (!outcome) throw new Error("Account deletion transaction completed without a result.");
+    return outcome;
+  } finally {
+    await session.endSession();
+  }
 }

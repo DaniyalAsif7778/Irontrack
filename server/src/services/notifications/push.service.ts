@@ -3,6 +3,7 @@ import { PushDelivery, PushSubscription } from "../../models/notifications/notif
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
 import { WorkoutLog, WorkoutProgram } from "../../models/workout/workout.model.js";
 import { WellnessLog } from "../../models/wellness/wellness.model.js";
+import { User, type PrayerTimes } from "../../models/auth/user.model.js";
 import { logger } from "../../utils/logger.js";
 
 const publicKey = process.env.VAPID_PUBLIC_KEY ?? "";
@@ -13,15 +14,30 @@ if (configured) webpush.setVapidDetails(subject, publicKey, privateKey);
 
 export function pushConfiguration() { return { enabled: configured, publicKey: configured ? publicKey : null }; }
 
-function dayParts(date: Date, timezone: string) {
+export function localCalendarParts(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  let year = Number(values.year), month = Number(values.month), day = Number(values.day), hour = Number(values.hour);
+  const year = Number(values.year), month = Number(values.month), day = Number(values.day);
+  return {
+    dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    time: `${values.hour}:${values.minute}`,
+  };
+}
+
+function dayParts(date: Date, timezone: string) {
+  const local = localCalendarParts(date, timezone);
+  let [year, month, day] = local.dateKey.split("-").map(Number);
+  const hour = Number(local.time.slice(0, 2));
   // IronTrack's routine day changes at 1:00 AM local time.
   if (hour < 1) { const prior = new Date(Date.UTC(year, month - 1, day - 1)); year = prior.getUTCFullYear(); month = prior.getUTCMonth() + 1; day = prior.getUTCDate(); }
   const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const weekday = new Date(`${dateKey}T12:00:00Z`).getUTCDay();
-  return { dateKey, time: `${values.hour}:${values.minute}`, weekday, ironDayType: weekday === 0 || weekday === 6 ? "weekend" : "weekday" };
+  return { dateKey, time: local.time, weekday, ironDayType: weekday === 0 || weekday === 6 ? "weekend" : "weekday" };
+}
+
+const prayerLabels = [["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]] as const;
+export function prayersDueAt(prayerTimes: PrayerTimes | undefined, time: string) {
+  return prayerLabels.filter(([key]) => prayerTimes?.[key] === time).map(([key, label]) => ({ key, label }));
 }
 
 function addDateKey(dateKey: string, days: number) {
@@ -143,10 +159,26 @@ export async function dispatchDueNotifications(now = new Date()) {
   try {
     await dispatchRoutineBlockPrompts(now);
     const subscriptions = await PushSubscription.find();
+    const prayerOwnerIds = [...new Set(subscriptions.filter(subscription => subscription.preferences?.prayerTimes).map(subscription => String(subscription.ownerId)))];
+    const prayerUsers = prayerOwnerIds.length
+      ? await User.find({ _id: { $in: prayerOwnerIds } }).select("preferences.prayerTimes").lean()
+      : [];
+    const prayerTimesByOwner = new Map(prayerUsers.map(user => [String(user._id), user.preferences?.prayerTimes]));
     for (const subscription of subscriptions) {
       const { dateKey, time, weekday, ironDayType } = dayParts(now, subscription.timezone || "UTC");
       const prefs = subscription.preferences;
       const ownerId = String(subscription.ownerId);
+      if (prefs.prayerTimes) {
+        const prayerDate = localCalendarParts(now, subscription.timezone || "UTC").dateKey;
+        const prayerTimes = prayerTimesByOwner.get(ownerId);
+        for (const prayer of prayersDueAt(prayerTimes, time)) {
+          try {
+            await send(subscription, `prayer:${prayerDate}:${prayer.key}`, `Time for ${prayer.label}`, `Your scheduled ${prayer.label} prayer time is here.`, "/routine");
+          } catch (error) {
+            logger.warn({ err: error, ownerId, prayer: prayer.key }, "Prayer notification delivery failed");
+          }
+        }
+      }
       if (prefs.taskTimes) {
         const tasks = await RoutineTask.find({ ownerId, dayType: ironDayType, reminderTime: time }).lean();
         for (const task of tasks) {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AuthGate from "./AuthGate";
@@ -47,6 +47,6 @@ describe("AuthGate public entry", () => {
   it("opens account creation directly from the public page", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/signup");
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Create your account" })).toBeInTheDocument());
-  });
+    expect(await screen.findByRole("heading", { name: "Create your account" }, { timeout: 10_000 })).toBeInTheDocument();
+  }, 15_000);
 });

@@ -1,6 +1,6 @@
 import type { RequestHandler } from "express";
-import { accountSettingsSchema, emailSchema, loginSchema, registerSchema, resetPasswordSchema, tokenSchema } from "../../utils/authValidation.js";
-import { authenticateAccount, getAccount, registerAccount, requestPasswordReset, resetPassword, sendVerificationForEmail, updateAccount, verifyEmail } from "../../services/auth/auth.service.js";
+import { accountSettingsSchema, deleteAccountSchema, emailSchema, loginSchema, registerSchema, resetPasswordSchema, tokenSchema } from "../../utils/authValidation.js";
+import { authenticateAccount, deleteAccount as removeAccount, getAccount, registerAccount, requestPasswordReset, resetPassword, sendVerificationForEmail, updateAccount, verifyEmail } from "../../services/auth/auth.service.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { requireAuth, REFRESH_COOKIE, refreshCookieOptions, SESSION_COOKIE, sessionCookieOptions } from "../../middlewares/requireAuth.js";
 import { asyncHandler } from "../../middlewares/asyncHandler.js";
@@ -13,8 +13,10 @@ function setSessionCookies(res: Parameters<RequestHandler>[1], tokens: Awaited<R
 }
 
 function clearSessionCookies(res: Parameters<RequestHandler>[1]) {
-  res.clearCookie(SESSION_COOKIE, sessionCookieOptions);
-  res.clearCookie(REFRESH_COOKIE, refreshCookieOptions);
+  const { maxAge: _sessionMaxAge, ...sessionOptions } = sessionCookieOptions;
+  const { maxAge: _refreshMaxAge, ...refreshOptions } = refreshCookieOptions;
+  res.clearCookie(SESSION_COOKIE, sessionOptions);
+  res.clearCookie(REFRESH_COOKIE, refreshOptions);
 }
 
 export const register: RequestHandler = asyncHandler(async (req, res) => {
@@ -109,6 +111,16 @@ export const updateMe: RequestHandler = asyncHandler(async (req, res) => {
   const user = await updateAccount(req.auth!.userId, parsed.data);
   if (!user) { fail(res, "Account not found", 404); return; }
   res.json({ user });
+});
+
+export const deleteMe: RequestHandler = asyncHandler(async (req, res) => {
+  const parsed = deleteAccountSchema.safeParse(req.body);
+  if (!parsed.success) { fail(res, "Enter your current password and type DELETE to confirm"); return; }
+  const result = await removeAccount(req.auth!.userId, parsed.data.password);
+  if (result === "not_found") { clearSessionCookies(res); fail(res, "Account not found", 404); return; }
+  if (result === "invalid_password") { fail(res, "The current password is incorrect", 401); return; }
+  clearSessionCookies(res);
+  res.status(204).end();
 });
 
 export const sessions: RequestHandler = asyncHandler(async (req, res) => {

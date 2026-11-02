@@ -50,7 +50,7 @@ Every data route requires a verified account session, and routine, weight, worko
 1. **Core tracking:** responsive PWA, routines, weight history, workout plans/logs, analytics, timer, and validated API.
 2. **Accounts and privacy:** verified email accounts, rotating HttpOnly sessions, and per-account data in every server environment.
 3. **Settings and personalization:** account profile, default weight unit, timer lengths, and browser notification permission.
-4. **Next work:** design and implement offline reads/writes with an explicit conflict policy, then add sync status and cross-device recovery. Current data entry requires a live API connection.
+4. **Resilient use:** the client queues idempotent routine completions and finished workout logs per account. Weight, wellness, settings, schedule, and plan edits still require a live API connection; cross-device sync is not implemented.
 5. **Optional services:** enable uploads, mail, realtime or billing only when matching product behavior is scoped, configured, and tested. Add OpenAPI documentation against actual route contracts.
 
 ## Free deployment recommendation

@@ -1,5 +1,7 @@
 import type { RequestHandler } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
+import { User } from "../models/auth/user.model.js";
+import { asyncHandler } from "./asyncHandler.js";
 import { fail } from "./errorHandler.js";
 
 export const SESSION_COOKIE = "irontrack_session";
@@ -9,6 +11,13 @@ export const SESSION_AUDIENCE = "irontrack-client";
 export const REFRESH_AUDIENCE = "irontrack-refresh";
 export const SESSION_MAX_AGE = 15 * 60 * 1000;
 export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+function clearSessionCookies(res: Parameters<RequestHandler>[1]) {
+  const { maxAge: _sessionMaxAge, ...sessionOptions } = sessionCookieOptions;
+  const { maxAge: _refreshMaxAge, ...refreshOptions } = refreshCookieOptions;
+  res.clearCookie(SESSION_COOKIE, sessionOptions);
+  res.clearCookie(REFRESH_COOKIE, refreshOptions);
+}
 
 export function signSession(userId: string) {
   return jwt.sign({ tokenType: "access" }, sessionSecret(), {
@@ -53,18 +62,25 @@ export const refreshCookieOptions = {
   maxAge: REFRESH_MAX_AGE,
 };
 
-export const requireAuth: RequestHandler = (req, res, next) => {
+export const requireAuth: RequestHandler = asyncHandler(async (req, res, next) => {
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) { fail(res, "Sign in to continue", 401); return; }
+  let payload: JwtPayload;
   try {
-    const payload = jwt.verify(token, sessionSecret(), { issuer: SESSION_ISSUER, audience: SESSION_AUDIENCE }) as JwtPayload;
-    if (payload.tokenType !== "access" || !payload.sub) { fail(res, "Sign in to continue", 401); return; }
-    req.auth = { userId: payload.sub };
-    next();
+    payload = jwt.verify(token, sessionSecret(), { issuer: SESSION_ISSUER, audience: SESSION_AUDIENCE }) as JwtPayload;
   } catch {
     fail(res, "Your session has expired. Sign in again.", 401);
+    return;
   }
-};
+  if (payload.tokenType !== "access" || !payload.sub) { fail(res, "Sign in to continue", 401); return; }
+  if (!await User.exists({ _id: payload.sub })) {
+    clearSessionCookies(res);
+    fail(res, "Your account is no longer available. Sign in again.", 401);
+    return;
+  }
+  req.auth = { userId: payload.sub };
+  next();
+});
 
 function sessionSecret() {
   const secret = process.env.AUTH_JWT_SECRET;

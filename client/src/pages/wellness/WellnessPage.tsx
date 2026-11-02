@@ -5,9 +5,9 @@ import { ironToday } from "../../utils/date";
 import type { WellnessDay } from "../../types";
 import { api } from "../../lib/api/api";
 
-export type ReminderPreferences = { taskTimes: boolean; workoutAtNine: boolean; hydration: boolean; movement: boolean };
+export type ReminderPreferences = { taskTimes: boolean; workoutAtNine: boolean; hydration: boolean; movement: boolean; prayerTimes: boolean };
 export const reminderStorageKey = "irontrack_reminder_preferences_v1";
-export const defaultReminderPreferences: ReminderPreferences = { taskTimes: true, workoutAtNine: true, hydration: false, movement: false };
+export const defaultReminderPreferences: ReminderPreferences = { taskTimes: true, workoutAtNine: true, hydration: false, movement: false, prayerTimes: false };
 const pushSubscribedKey = "irontrack_push_subscribed_v1";
 type PushConfig = { enabled: boolean; publicKey: string | null };
 type PushStatus = { configured: boolean; subscribed: boolean; preferences: ReminderPreferences | null };
@@ -48,8 +48,9 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
       setPushSubscribed(subscribedOnDevice);
       localStorage.setItem(pushSubscribedKey, String(subscribedOnDevice));
       if (status.preferences) {
-        setPreferences(status.preferences);
-        localStorage.setItem(reminderStorageKey, JSON.stringify(status.preferences));
+        const savedPreferences = { ...defaultReminderPreferences, ...status.preferences };
+        setPreferences(savedPreferences);
+        localStorage.setItem(reminderStorageKey, JSON.stringify(savedPreferences));
         window.dispatchEvent(new Event("irontrack-reminders-updated"));
       }
     })().catch(() => { if (active) setPushConfig({ enabled: false, publicKey: null }); });
@@ -63,6 +64,7 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
   }
 
   async function updatePreference(key: keyof ReminderPreferences) {
+    const previous = preferences;
     const next = { ...preferences, [key]: !preferences[key] };
     setPreferences(next);
     localStorage.setItem(reminderStorageKey, JSON.stringify(next));
@@ -74,7 +76,12 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
         if (!subscription) throw new Error("This device’s push subscription is missing. Re-enable background notifications.");
         await api("/notifications/preferences", { method: "PUT", body: JSON.stringify({ endpoint: subscription.endpoint, preferences: next, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }) });
       }
-      catch (error) { onError(error instanceof Error ? error.message : "Could not sync reminder preferences with the server."); }
+      catch (error) {
+        setPreferences(previous);
+        localStorage.setItem(reminderStorageKey, JSON.stringify(previous));
+        window.dispatchEvent(new Event("irontrack-reminders-updated"));
+        onError(error instanceof Error ? error.message : "Could not sync reminder preferences with the server.");
+      }
     }
   }
 
@@ -93,6 +100,7 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
       await api("/notifications/subscriptions", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint, keys: pushKeys, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", preferences }) });
       setPushSubscribed(true);
       localStorage.setItem(pushSubscribedKey, "true");
+      window.dispatchEvent(new Event("irontrack-reminders-updated"));
     } catch (error) { onError(error instanceof Error ? error.message : "Could not enable background notifications on this device."); }
     finally { setPushBusy(false); }
   }
@@ -108,6 +116,7 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
       }
       setPushSubscribed(false);
       localStorage.setItem(pushSubscribedKey, "false");
+      window.dispatchEvent(new Event("irontrack-reminders-updated"));
     } catch (error) { onError(error instanceof Error ? error.message : "Could not disable push notifications."); }
     finally { setPushBusy(false); }
   }
@@ -142,8 +151,9 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
         ["workoutAtNine", "Workout reminder", "A morning reminder on training days when a session is still due."],
         ["hydration", "Water check-in", "A gentle reminder at 10 AM, 2 PM, and 6 PM if you are below your daily goal."],
         ["movement", "Movement check-in", "A gentle reminder at 10 AM, 2 PM, and 6 PM if you are below your daily goal."],
+        ["prayerTimes", "Prayer-time reminders", "Notify at the prayer times configured in Settings → Prayer anchors."],
       ] as const).map(([key, title, description]) => <label key={key}><span><b>{title}</b><small>{description}</small></span><input type="checkbox" checked={preferences[key]} onChange={() => updatePreference(key)} /></label>)}</div>
-      <p className="notification-limit"><Check size={14} /> {pushSubscribed ? "Task, workout, water, and movement reminders are scheduled by your server, including while this app is closed." : "Push uses the browser's free push service. Your server must be online at reminder time, and this device needs notification permission."}</p>
+      <p className="notification-limit"><Check size={14} /> {pushSubscribed ? "Enabled reminders are scheduled by your server, including while this app is closed. Prayer reminders use the times saved in Settings." : "With notification permission, reminders run while this app is open. Background reminders need server push enabled and the server online."}</p>
     </section>
   </>;
 }

@@ -12,8 +12,13 @@ This document is the handoff point for future implementation sessions. Read it w
 
 ## Completed in the current build
 
-- Responsive workout/routine/wellness/settings flows and installed-PWA shell.
+- Responsive workout/routine/wellness/settings flows and installed-PWA shell. Workout sessions support pause/resume, saved in-progress state, optional Auto progression after rest, and optional spoken exercise/set/tempo cues.
+- Authenticated account deletion requires the current password and exact `DELETE` confirmation. The server awaits a transaction-backed cascade across account-owned collections, clears the current cookies, and rejects later requests made with access tokens from other devices.
+- Workout history saves only completed sets. A skipped exercise does not block finishing a session or cause its uncompleted sets to appear in history.
+- Workout log validation rejects impossible calendar dates and malformed history limits; a concurrent retry with an existing idempotency key returns the saved log.
+- Routine completions and finished workout logs can queue locally for the signed-in account and replay when connectivity returns. Other writes still require the API.
 - Routine task and workout reminders can be saved as device push subscriptions in MongoDB.
+- Prayer reminders use each device's saved prayer times and IANA timezone, including daylight-saving changes and local calendar dates.
 - Server-generated VAPID/Web Push sends task-time and 9 AM workout reminders, plus optional water/movement reminders at 10 AM, 2 PM, and 6 PM when daily goals remain unmet.
 - The API prevents repeat delivery per user, device schedule, date, and task; completed tasks and workouts are skipped. Expired browser subscriptions are removed.
 - Wellness lets each browser/device opt in, test server push, change reminder preferences, or unsubscribe. The local foreground reminder loop remains as a fallback for devices without an active server subscription.
@@ -24,10 +29,11 @@ This document is the handoff point for future implementation sessions. Read it w
 
 1. Deploy the frontend and API on HTTPS. For cookie authentication, prefer one site origin with the API proxied under `/api`, or carefully configure cross-site cookies and CORS.
 2. Set `MONGODB_URI`, `AUTH_JWT_SECRET`, `AUTH_REFRESH_SECRET`, `EMAIL_USER`, `EMAIL_PASS`, `CLIENT_URL`, `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` in the API host's private environment. Set the deployed client/API origins and proxy settings.
-3. Replace the temporary reflect-all credentialed CORS configuration in `server/src/app.ts` with the exact trusted site origin(s) before exposing a real account.
-4. Ensure the free API host's sleep behavior is acceptable. Web Push can wait in the browser push service, but scheduled reminders are evaluated only while the Express process is awake. A sleeping free instance may miss its schedule until it wakes; use an always-on host if punctual reminders matter.
-5. Open Wellness on every phone/browser, grant notification permission, enable background notifications, and press **Send server test**. Android and desktop need HTTPS (localhost is exempt). iPhone/iPad push requires a compatible installed web app and current OS/browser support; verify on the target device.
-6. Verify backend/API health, login, routine completion, a test push, task reminder timing, timezone behavior, and notification click navigation on the deployed URL. Keep real secrets out of screenshots and logs.
+3. Use a MongoDB replica set or sharded cluster; transactions protect workout-program updates and account-data deletion from partial writes.
+4. Verify that `CLIENT_ORIGIN` contains only the deployed client origins and confirm `TRUST_PROXY`, HTTPS, health checks, and production startup.
+5. Ensure the free API host's sleep behavior is acceptable. Web Push can wait in the browser push service, but scheduled reminders are evaluated only while the Express process is awake. A sleeping free instance may miss its schedule until it wakes; use an always-on host if punctual reminders matter.
+6. Open Wellness on every phone/browser, grant notification permission, enable background notifications, and press **Send server test**. Android and desktop need HTTPS (localhost is exempt). iPhone/iPad push requires a compatible installed web app and current OS/browser support; verify on the target device.
+7. Verify backend/API health, login, routine completion, a test push, task reminder timing, timezone behavior, and notification click navigation on the deployed URL. Keep real secrets out of screenshots and logs.
 
 ## Next phases, in order
 
@@ -39,10 +45,10 @@ This document is the handoff point for future implementation sessions. Read it w
 - Add an operational runbook for redeploy, MongoDB failure, VAPID rotation, and restoring service.
 - Validate push from the actual phone. Browser and OS delivery cannot be fully confirmed by a build alone.
 
-### Phase 2 — Data safety and resilient use
+### Phase 2 — Extend data safety and resilient use
 
-- Implement an offline write queue with explicit retry/conflict behavior for routine completion, workout logging, weight, and wellness edits.
-- Add visible pending/synced/error states and avoid silently losing edits after refresh.
+- Consider offline support for weight and wellness edits only after defining conflict behavior; schedule and plan replacement should remain online unless a safe merge policy exists.
+- Keep visible pending/error states for the supported routine-completion and workout-log queue. Do not silently report other offline writes as saved.
 - Add rate-limited, authenticated data backup/export and restore only if the product owner re-approves it. Export/restore and cloud sync were previously excluded from the requested feature scope.
 - Define retention and cleanup for push-delivery dedupe records, logs, and inactive device subscriptions.
 
@@ -50,7 +56,8 @@ This document is the handoff point for future implementation sessions. Read it w
 
 - Review the imported/default dumbbell plans and exercise guidance for completeness and safe, clear progression.
 - Improve progression insights from workout history (volume, reps, personal bests, consistency) and offer configurable rest guidance without blocking the workout flow.
-- Consider workout templates/history editing and exercise substitutions after validating the base workout workflow on mobile.
+- Add owner-scoped correction/deletion for mistaken history entries, then consider one-session exercise substitutions/reordering when equipment is occupied.
+- Support per-set rest/tempo prescriptions and explain the assumptions behind personal-best estimates.
 - Keep wellness and notification behavior tied to user preferences and avoid noisy reminders.
 
 ### Phase 4 — Routine and habit polish
@@ -64,7 +71,7 @@ This document is the handoff point for future implementation sessions. Read it w
 - Add focused integration tests for auth-scoped APIs, push subscription upsert/unsubscribe, task completion suppression, timezone day boundaries, duplicate suppression, and expired subscription cleanup.
 - Add frontend tests for enabling/disabling push, denied permission, unsupported browser, and server-config-missing states.
 - Add a deploy smoke test and monitor server errors without recording notification payloads or secrets.
-- Review bundle chunk sizes and lazy-load chart/large optional views; current client build reports a bundle-size warning.
+- Review bundle chunk sizes and continue lazy-loading chart/large optional views as new features land.
 - Review dependency audit findings before upgrades; do not use broad force-upgrades without checking breaking changes.
 
 ## Handoff rules

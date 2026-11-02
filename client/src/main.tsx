@@ -36,5 +36,5 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((error: unknown) => {
       console.error("IronTrack could not register its service worker.", error);
     });
-  });
+  }, { once: true });
 }

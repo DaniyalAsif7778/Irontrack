@@ -4,11 +4,21 @@ import { PushSubscription } from "../../models/notifications/notification.model.
 import { fail } from "../../middlewares/errorHandler.js";
 import { pushConfiguration, sendTestPush } from "../../services/notifications/push.service.js";
 
-const prefsSchema = z.object({ taskTimes: z.boolean(), workoutAtNine: z.boolean(), hydration: z.boolean(), movement: z.boolean() }).strict();
+const prefsSchema = z.object({
+  taskTimes: z.boolean(),
+  workoutAtNine: z.boolean(),
+  hydration: z.boolean(),
+  movement: z.boolean(),
+  prayerTimes: z.boolean().default(false),
+}).strict();
+const timezoneSchema = z.string().min(1).max(100).refine(value => {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: value }); return true; }
+  catch { return false; }
+}, "Invalid time zone");
 const subscriptionSchema = z.object({
   endpoint: z.string().url().max(2048),
   keys: z.object({ p256dh: z.string().min(16).max(256), auth: z.string().min(8).max(256) }).strict(),
-  timezone: z.string().min(1).max(100),
+  timezone: timezoneSchema,
   preferences: prefsSchema,
 }).strict();
 
@@ -27,7 +37,7 @@ export const subscribe: RequestHandler = async (req, res) => {
   res.json({ subscribed: true });
 };
 export const updatePreferences: RequestHandler = async (req, res) => {
-  const parsed = z.object({ endpoint: z.string().url().max(2048), preferences: prefsSchema, timezone: z.string().min(1).max(100) }).strict().safeParse(req.body);
+  const parsed = z.object({ endpoint: z.string().url().max(2048), preferences: prefsSchema, timezone: timezoneSchema }).strict().safeParse(req.body);
   if (!parsed.success) { fail(res, parsed.error.issues[0]?.message ?? "Invalid reminder preferences"); return; }
   const result = await PushSubscription.updateOne({ ownerId: req.auth!.userId, endpoint: parsed.data.endpoint }, { $set: { preferences: parsed.data.preferences, timezone: parsed.data.timezone } });
   res.json({ updated: result.modifiedCount, matched: result.matchedCount });

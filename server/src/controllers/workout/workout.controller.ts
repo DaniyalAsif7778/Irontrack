@@ -1,10 +1,25 @@
 import type { RequestHandler } from "express";
-import { workoutLogPayload, workoutPlanDataPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
+import { workoutLogLimit, workoutLogPayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as workout from "../../services/workout/workout.service.js";
 
 export const listPlans: RequestHandler = async (req, res) => { res.json(await workout.listPlans(req.auth!.userId)); };
+export const listExerciseLibrary: RequestHandler = async (req, res) => { res.json(await workout.listExerciseLibrary(req.auth!.userId)); };
+export const saveProgram: RequestHandler = async (req, res) => {
+  const ownerId = req.auth!.userId;
+  const [plans, exerciseLibrary] = await Promise.all([workout.listPlans(ownerId), workout.listExerciseLibrary(ownerId)]);
+  let data: ReturnType<typeof workoutProgramPayload>;
+  try {
+    data = workoutProgramPayload(req.body, plans.map(plan => plan.id), exerciseLibrary.map(exercise => exercise.id));
+  } catch (error) {
+    fail(res, error instanceof Error ? error.message : "Check your workout plan");
+    return;
+  }
+  await workout.saveWorkoutProgram(ownerId, data);
+  const [savedPlans, days, savedLibrary] = await Promise.all([workout.listPlans(ownerId), workout.listWeek(ownerId), workout.listExerciseLibrary(ownerId)]);
+  res.json({ plans: savedPlans, days, exerciseLibrary: savedLibrary });
+};
 export const savePlan: RequestHandler = async (req, res) => {
   const planId = routeParam(req.params.dayType);
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(planId)) { fail(res, "Invalid workout day ID"); return; }
@@ -24,14 +39,21 @@ export const getWeek: RequestHandler = async (req, res) => { res.json(await work
 export const putWeek: RequestHandler = async (req, res) => {
   const ownerId = req.auth!.userId;
   const plans = await workout.listPlans(ownerId);
+  let days: ReturnType<typeof workoutWeekPayload>["days"];
   try {
-    const { days } = workoutWeekPayload(req.body, plans.map(plan => plan.id));
-    res.json(await workout.saveWeek(ownerId, days));
+    days = workoutWeekPayload(req.body, plans.map(plan => plan.id)).days;
   } catch (error) {
     fail(res, error instanceof Error ? error.message : "Check the weekly schedule");
+    return;
   }
+  res.json(await workout.saveWeek(ownerId, days));
 };
-export const listLogs: RequestHandler = async (req, res) => { res.json(await workout.listLogs(req.auth!.userId, req.query.limit)); };
+export const listLogs: RequestHandler = async (req, res) => {
+  let limit: number;
+  try { limit = workoutLogLimit(req.query.limit); }
+  catch (error) { fail(res, error instanceof Error ? error.message : "Check the workout history limit"); return; }
+  res.json(await workout.listLogs(req.auth!.userId, limit));
+};
 export const saveLog: RequestHandler = async (req, res) => {
   let data: ReturnType<typeof workoutLogPayload>;
   try { data = workoutLogPayload(req.body); }

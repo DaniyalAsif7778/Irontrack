@@ -11,6 +11,11 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(128),
 }).strict();
 
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1).max(128),
+  confirmation: z.literal("DELETE"),
+}).strict();
+
 export const emailSchema = z.object({
   email: z.string().trim().email().max(254).transform(value => value.toLowerCase()),
 }).strict();

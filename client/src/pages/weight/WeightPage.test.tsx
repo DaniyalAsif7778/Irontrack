@@ -27,5 +27,22 @@ describe("WeightPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(remove).toHaveBeenCalledWith("w1");
+    expect(screen.getByText("Add one more weigh-in to see your trend.")).toBeInTheDocument();
+  });
+
+  it("shows loading state before presenting an empty chart and history", () => {
+    render(<WeightPage latest={undefined} weights={[]} save={vi.fn()} remove={vi.fn()} loading />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading weight history…");
+    expect(screen.queryByText("No weight logs yet.")).not.toBeInTheDocument();
+  });
+
+  it("renders a chart when at least two weigh-ins are available", () => {
+    render(<WeightPage latest={{ _id: "w2", date: "2026-04-02", weight: 180, unit: "lb" }} weights={[
+      { _id: "w2", date: "2026-04-02", weight: 180, unit: "lb" },
+      { _id: "w1", date: "2026-04-01", weight: 80, unit: "kg" },
+    ]} save={vi.fn()} remove={vi.fn()} defaultUnit="kg" />);
+
+    expect(screen.getByRole("img", { name: /weight history from april 1, 2026 to april 2, 2026, in kg/i })).toBeInTheDocument();
   });
 });

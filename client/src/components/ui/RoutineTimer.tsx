@@ -95,7 +95,7 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
           tag: "irontrack-routine-timer",
         });
       }
-    }, 500);
+    }, 1000);
     return () => window.clearInterval(interval);
   }, [timer]);
 

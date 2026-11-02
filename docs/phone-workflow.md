@@ -2,8 +2,11 @@
 
 ## What is ready
 
-- Phone layout with a bottom navigation bar, safe-area spacing, and a compact More menu.
-- Workout sessions can be paused, resumed, ended, and continued after a refresh. Set entries and the active timer are stored on the device until the session is finished.
+- Phone layout with four bottom destinations (Home, Train, Routine, and Stats), safe-area spacing, and a Profile shortcut in the top bar. Profile contains Wellness & reminders, Settings, Body weight, and Schedules.
+- Workout sessions can be paused, resumed, ended, and continued after a refresh. Set entries and the active timer are stored on the device until the session is finished. Auto progression moves to the next exercise after its rest timer; completed sets still need a tap to log.
+- Voice coach can announce the exercise and set, then count the configured tempo while the set is active. It pauses during rest or when the session is paused, and requires browser speech support and audible device volume.
+- Skipping an exercise preserves any sets already logged and lets the session finish; only completed sets are included in workout history.
+- Edit workout-day names directly in the day tile. Use **Cancel changes** (the X button) to exit and confirm discarding an unsaved plan, or **Save changes** to keep it.
 - Workout stats include Summary, Overview, Volume, History, and PRs. Selecting an exercise opens its load chart and set history.
 - Routine has Routine and Analytics views. Wellness tracks water and movement. The header reminder center lists today's upcoming task reminders.
 - The PWA manifest and service worker are configured. The app shell can reopen after a visit, and the home screen install prompt shows browser-specific instructions.
@@ -34,11 +37,11 @@ The app uses a React/Vite frontend, an Express API, and MongoDB Atlas. One low-c
 
 ## Notifications and connectivity
 
-Browser notifications need HTTPS (except localhost) and permission from the user. From **Wellness → Reminders**, enable background notifications on each phone/browser and use **Send server test** to confirm delivery. The Express server stores each device subscription in MongoDB and checks routine task times, the workout plan at 9 AM, and optional water/movement reminders at 10 AM, 2 PM, and 6 PM in that device's timezone. Completed routine tasks, completed workouts, and reached wellness goals are skipped. Notification taps open the related IronTrack page.
+Browser notifications need HTTPS (except localhost) and permission from the user. Open **Profile → Wellness & reminders → Reminders** to enable background notifications on each phone/browser, then use **Send server test** to confirm delivery. The Express server stores each device subscription in MongoDB and checks routine task times, the workout plan at 9 AM, and optional water/movement reminders at 10 AM, 2 PM, and 6 PM in that device's timezone. Completed routine tasks, completed workouts, and reached wellness goals are skipped. Notification taps open the related IronTrack page.
 
 Web Push uses browser platform push services and the open-source `web-push` library; IronTrack does not use a paid notification provider. Add `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` to the API host's environment. Generate a key pair with `npx web-push generate-vapid-keys` and keep the private key only in the API host's secret environment settings or ignored `server/.env`; never add it to Vite `VITE_*` variables or commit it. Your local development pair is in `server/.env`. The frontend receives only the public key through the authenticated API. If you rotate the pair, users must re-enable notifications on their devices. The API host must be awake when a reminder is due; a sleeping free host can delay a reminder until it wakes. A browser/OS may also suppress notifications if site permission is disabled or the device is in a restricted mode.
 
-The service worker caches the app shell and static build assets. Routine, workout, weight, wellness, and settings writes still need the API connection. The app does not currently queue server changes while offline. It also does not synchronize records between devices; use the same deployed account and API to access the MongoDB-backed records.
+The service worker caches the app shell and static build assets. Routine completions and finished workout saves can queue on the device while offline and sync when the connection returns; queued actions are scoped to the signed-in account and can be retried if the server rejects them. Weight, wellness, settings, schedule, and plan edits still need the API connection. The queue is not cross-device sync; use the same deployed account and API to access MongoDB-backed records.
 
 ## Before sharing the deployment
 

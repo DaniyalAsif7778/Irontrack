@@ -36,6 +36,55 @@ export function workoutPlanDataPayload(input: any) {
   return { name: input.name.trim(), exercises: workoutPlanPayload(input) };
 }
 
+type ExerciseLibraryPayload = { id: string; name: string; muscle: string; description: string; cues: string[]; steps: string[]; videoUrl: string };
+type WorkoutProgramPayload = { plans: { id: string; name: string; exercises: { exerciseId: string; sets: number; reps: number; rest: number; tempo: string; setList: { id: string; reps: number; weight: number }[] }[] }[]; days: { key: string; label: string; planId: string | null }[]; exerciseLibrary: ExerciseLibraryPayload[] };
+
+function exerciseDefinitionPayload(input: any): ExerciseLibraryPayload {
+  if (!input || !isPlanId(input.id) || typeof input.name !== "string" || !input.name.trim() || input.name.trim().length > 120) throw new Error("exercise library entries need a valid ID and name");
+  if (typeof input.muscle !== "string" || !input.muscle.trim() || input.muscle.trim().length > 80) throw new Error("exercise muscle group is required");
+  const description = input.description ?? "", videoUrl = input.videoUrl ?? "";
+  const cues = input.cues ?? [], steps = input.steps ?? [];
+  if (typeof description !== "string" || description.length > 4000) throw new Error("exercise description must be under 4000 characters");
+  if (!Array.isArray(cues) || cues.length > 40 || cues.some((cue: unknown) => typeof cue !== "string" || cue.length > 300)) throw new Error("exercise cues must be a list of short text");
+  if (!Array.isArray(steps) || steps.length > 40 || steps.some((step: unknown) => typeof step !== "string" || step.length > 500)) throw new Error("exercise steps must be a list of text");
+  if (typeof videoUrl !== "string" || videoUrl.length > 2048) throw new Error("video URL must be under 2048 characters");
+  if (videoUrl) { let parsed: URL; try { parsed = new URL(videoUrl); } catch { throw new Error("video URL must be a valid URL"); } if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("video URL must use HTTP or HTTPS"); }
+  return { id: input.id.trim(), name: input.name.trim(), muscle: input.muscle.trim(), description, cues: cues.map((cue: string) => cue.trim()).filter(Boolean), steps: steps.map((step: string) => step.trim()).filter(Boolean), videoUrl: videoUrl.trim() };
+}
+
+export function workoutProgramPayload(input: any, _ownedPlanIds: string[], ownedExerciseIds: string[]): WorkoutProgramPayload {
+  if (!Array.isArray(input?.plans) || input.plans.length > 20) throw new Error("workout program must contain up to 20 workout days");
+  if (!Array.isArray(input?.exerciseLibrary) || input.exerciseLibrary.length > 500) throw new Error("exercise library must contain up to 500 exercises");
+  const plans = input.plans.map((plan: any) => {
+    if (!plan || !isPlanId(plan.id)) throw new Error("workout day ID is invalid");
+    if (typeof plan.name !== "string" || !plan.name.trim() || plan.name.trim().length > 80) throw new Error("workout day name must contain 1 to 80 characters");
+    if (!Array.isArray(plan.exercises) || plan.exercises.length > 40) throw new Error("each workout day can contain up to 40 exercises");
+    const exerciseIds = new Set<string>();
+    const exercises = plan.exercises.map((exercise: any) => {
+      if (!exercise || !isPlanId(exercise.exerciseId)) throw new Error("workout exercises must reference a valid exercise ID");
+      if (exerciseIds.has(exercise.exerciseId)) throw new Error("exercise IDs must be unique within a workout day");
+      exerciseIds.add(exercise.exerciseId);
+      if (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 20) throw new Error("sets must be from 1 to 20");
+      if (!Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 100) throw new Error("reps must be from 1 to 100");
+      if (!Number.isFinite(exercise.rest) || exercise.rest < 0 || exercise.rest > 600) throw new Error("rest must be from 0 to 600 seconds");
+      if (typeof exercise.tempo !== "string" || exercise.tempo.length > 40) throw new Error("tempo must be text under 40 characters");
+      const setList = exercise.setList ?? [];
+      if (!Array.isArray(setList) || setList.length > 20 || setList.some((set: any) => !Number.isInteger(set?.reps) || set.reps < 1 || set.reps > 1000 || !Number.isFinite(set?.weight) || set.weight < 0 || set.weight > 10000)) throw new Error("set list must contain valid reps and weight");
+      return { exerciseId: exercise.exerciseId, sets: exercise.sets, reps: exercise.reps, rest: exercise.rest, tempo: exercise.tempo.trim(), setList: setList.map((set: any, index: number) => ({ id: typeof set.id === "string" && set.id.trim() ? set.id.trim() : `set-${index + 1}`, reps: set.reps, weight: set.weight })) };
+    });
+    return { id: plan.id, name: plan.name.trim(), exercises };
+  });
+  if (new Set(plans.map((plan: { id: string }) => plan.id)).size !== plans.length) throw new Error("workout day IDs must be unique");
+  const exerciseLibrary = input.exerciseLibrary.map(exerciseDefinitionPayload);
+  if (new Set(exerciseLibrary.map((exercise: { id: string }) => exercise.id)).size !== exerciseLibrary.length) throw new Error("exercise library IDs must be unique");
+  const availableExercises = new Set([...ownedExerciseIds, ...exerciseLibrary.map((exercise: { id: string }) => exercise.id)]);
+  for (const plan of plans) for (const exercise of plan.exercises) {
+    if (!availableExercises.has(exercise.exerciseId)) throw new Error("exercise must belong to this account's exercise library");
+  }
+  const days = workoutWeekPayload({ days: input.days }, plans.map((plan: { id: string }) => plan.id)).days;
+  return { plans, days, exerciseLibrary };
+}
+
 export function workoutWeekPayload(input: any, ownedPlanIds: string[]) {
   if (!Array.isArray(input?.days) || input.days.length !== WORKOUT_WEEKDAYS.length) {
     throw new Error("weekly schedule must contain exactly seven days");
@@ -58,7 +107,10 @@ export function workoutWeekPayload(input: any, ownedPlanIds: string[]) {
 }
 
 export function workoutLogPayload(input: any) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input?.date ?? "")) throw new Error("date must be YYYY-MM-DD");
+  const date = input?.date;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("date must be YYYY-MM-DD");
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) throw new Error("date must be a real calendar day");
   if (!isPlanId(input.dayType)) throw new Error("invalid workout day");
   const dayName = typeof input.dayName === "string" ? input.dayName.trim() : "";
   if (dayName.length > 80) throw new Error("workout day name is too long");
@@ -76,5 +128,13 @@ export function workoutLogPayload(input: any) {
   const totalSets = exercises.reduce((total: number, exercise: { sets: unknown[] }) => total + exercise.sets.length, 0);
   const totalVolume = exercises.reduce((total: number, exercise: { sets: { reps: number; weight: number }[] }) => total + exercise.sets.reduce((sum, set) => sum + set.reps * set.weight, 0), 0);
   const actionId = typeof input.actionId === "string" && input.actionId.length <= 120 ? input.actionId : "";
-  return { date: input.date, dayType: input.dayType, dayName, exercises, totalSets, totalVolume, duration: Math.round(input.duration), actionId };
+  return { date, dayType: input.dayType, dayName, exercises, totalSets, totalVolume, duration: Math.round(input.duration), actionId };
+}
+
+export function workoutLogLimit(input: unknown) {
+  if (input === undefined || input === null) return 30;
+  if (typeof input !== "string" || !input.trim()) throw new Error("limit must be a whole number");
+  const parsed = Number(input);
+  if (!Number.isSafeInteger(parsed)) throw new Error("limit must be a whole number");
+  return Math.min(Math.max(parsed, 1), 200);
 }

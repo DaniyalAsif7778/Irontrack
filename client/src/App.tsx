@@ -14,6 +14,7 @@ import { useAppStore } from "./stores/appStore";
 import { useSession } from "./components/AuthGate";
 import NotificationScheduler from "./components/NotificationScheduler";
 import WellnessPage from "./pages/wellness/WellnessPage";
+import ProfilePage from "./pages/profile/ProfilePage";
 import OfflineSyncStatus from "./components/OfflineSyncStatus";
 
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
@@ -117,10 +118,11 @@ export default function App() {
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
     { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} startTask={startRoutineTask} queueTask={queueRoutineTask} extendTask={extendRoutineTask} snoozeTask={snoozeRoutineTask} eventStats={eventStatsQuery.data} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} onRange={setAnalyticsDays} /></Suspense> },
-    { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} /> },
+    { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} loading={weightsQuery.isPending} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} prayerTimes={preferences.prayerTimes} /> },
     { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },
+    { path: "/profile", element: <ProfilePage user={user} onNavigate={setView} onSignOut={signOut} /> },
     { path: "*", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
   ]);
   return <AppShell view={view} setView={setView} user={user} signOut={signOut} focusMinutes={preferences.focusMinutes} breakMinutes={preferences.breakMinutes}>
