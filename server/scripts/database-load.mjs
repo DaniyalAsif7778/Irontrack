@@ -18,7 +18,7 @@ const [{ app }, { User }, { WorkoutLog, WorkoutPlan, WorkoutProgram }, { AuthSes
 ]);
 
 const mongoUri = process.env.LOAD_MONGO_URI;
-if (!mongoUri) throw new Error("Set LOAD_MONGO_URI to the temporary local MongoDB container URI.");
+if (!mongoUri) throw new Error("Set LOAD_MONGO_URI to a temporary MongoDB database URI.");
 const password = "LoadTest-Only-Password-NotReal-2026!";
 const levels = (process.env.LOAD_USERS ?? "5,20,50,100").split(",").map(Number).filter(value => Number.isInteger(value) && value > 0);
 const date = new Date().toISOString().slice(0, 10);

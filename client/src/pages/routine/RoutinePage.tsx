@@ -72,7 +72,6 @@ export default function RoutinePage({
   eventStats,
 }: RoutinePageProps) {
   const [tab, setTab] = useState<"routine" | "analytics">("routine");
-  const [now, setNow] = useState(() => new Date());
   const analytics = useAnalytics(14);
   const activity = analytics.data?.activity ?? [];
   const emptyBlocks: RoutineBlock[] = [
@@ -87,10 +86,6 @@ export default function RoutinePage({
     blocks
       .flatMap((block) => block.tasks)
       .find((task) => task.occurrence?.status === "active")?._id ?? null;
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
   useEffect(() => {
     if (analytics.error) onError(analytics.error.message);
   }, [analytics.error, onError]);
@@ -327,14 +322,7 @@ export default function RoutinePage({
           <section className="routine-live-head">
             <div>
               <small>{title.toUpperCase()}</small>
-              <strong>
-                <Clock3 size={16} />
-                {now.toLocaleTimeString("en-US", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </strong>
+              <RoutineClock />
             </div>
             <div className="routine-live-progress">
               <small>Progress</small>
@@ -452,7 +440,6 @@ export default function RoutinePage({
                         remove={remove}
                         saveSubtasks={saveSubtasks}
                         activeTaskId={activeTaskId}
-                        now={now}
                         startTask={startTask}
                         queueTask={queueTask}
                         extendTask={extendTask}
@@ -474,4 +461,17 @@ export default function RoutinePage({
       )}
     </>
   );
+}
+
+function RoutineClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <strong><Clock3 size={16} />{now.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}</strong>;
 }

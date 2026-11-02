@@ -104,6 +104,8 @@ Local API runs on port 4001 with MongoDB-backed account authentication. The curr
 - Skipping an exercise now preserves completed sets and allows a partially completed session to be saved without logging skipped sets.
 - Hardened workout API validation for real calendar dates and history limits, and made duplicate concurrent log retries idempotent.
 - Prayer reminders now have timezone coverage for both summer and winter offsets, including dates that cross UTC midnight.
+- Isolated the routine's one-second clock from the task-list render path; only the active timed task card runs a separate interval, with cleanup on deactivation/unmount.
+- Audited React-owned timers, browser listeners, and GSAP context cleanup. Removed the repository's Docker/Compose packaging; source-mode API and worker deployment still require externally provisioned MongoDB and Redis.
 - Updated the phone guide, architecture map, tooling notes, roadmap, and improvement priorities to match the shipped offline queue and workout behavior.
 
 ## Account deletion readiness

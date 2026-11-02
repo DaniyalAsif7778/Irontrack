@@ -36,7 +36,6 @@ type TaskCardProps = {
     subtasks: Task["subtasks"],
   ) => void;
   activeTaskId: string | null;
-  now: Date;
   startTask: (task: Task) => void;
   queueTask: (task: Task) => void;
   extendTask: (task: Task) => void;
@@ -81,7 +80,6 @@ export default function TaskCard({
   remove,
   saveSubtasks,
   activeTaskId,
-  now,
   startTask,
   queueTask,
   extendTask,
@@ -91,6 +89,7 @@ export default function TaskCard({
   const [activeTimer, setActiveTimer] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const [activeNow, setActiveNow] = useState(() => new Date());
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +99,7 @@ export default function TaskCard({
   const isPrayer = task.type.toLowerCase() === "prayer";
   const isActive = occurrence?.status === "active";
   const isQueued = occurrence?.status === "queued";
+  const now = isActive ? activeNow : new Date();
 
   const todayKey = getLocalDateKey(now);
   const todayDate = formatDisplayDate(todayKey);
@@ -119,6 +119,13 @@ export default function TaskCard({
     isActive && occurrence?.endAt
       ? now.getTime() >= new Date(occurrence.endAt).getTime()
       : false;
+
+  useEffect(() => {
+    if (!isActive || !occurrence?.endAt) return;
+    setActiveNow(new Date());
+    const timer = window.setInterval(() => setActiveNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isActive, occurrence?.endAt]);
 
   /* ========================================
      TIMER EVENTS

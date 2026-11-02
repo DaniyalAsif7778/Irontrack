@@ -13,6 +13,7 @@ This document is the handoff point for future implementation sessions. Read it w
 ## Completed in the current build
 
 - Responsive workout/routine/wellness/settings flows and installed-PWA shell. Workout sessions support pause/resume, saved in-progress state, optional Auto progression after rest, and optional spoken exercise/set/tempo cues.
+- Routine's live clock is isolated from the task-list render path; the one-second timer only updates the clock and an active timed task card.
 - Authenticated account deletion requires the current password and exact `DELETE` confirmation. The server awaits a transaction-backed cascade across account-owned collections, clears the current cookies, and rejects later requests made with access tokens from other devices.
 - Workout history saves only completed sets. A skipped exercise does not block finishing a session or cause its uncompleted sets to appear in history.
 - Workout log validation rejects impossible calendar dates and malformed history limits; a concurrent retry with an existing idempotency key returns the saved log.
@@ -23,6 +24,7 @@ This document is the handoff point for future implementation sessions. Read it w
 - The API prevents repeat delivery per user, device schedule, date, and task; completed tasks and workouts are skipped. Expired browser subscriptions are removed.
 - Wellness lets each browser/device opt in, test server push, change reminder preferences, or unsubscribe. The local foreground reminder loop remains as a fallback for devices without an active server subscription.
 - Local VAPID keys were created in ignored `server/.env`. Copy those variables to the production API environment only through the deployment provider's secret settings. Do not copy them into `.env.example` with actual values.
+- The repository does not include Docker/Compose packaging. Deploy the API and email worker from source and provision MongoDB and Redis separately.
 - Frontend and backend production builds succeeded after the Web Push implementation. The API now stays listening and retries MongoDB connection every 30 seconds; `/api/health` reports `503 degraded` until the database reconnects. Atlas connectivity varied during this session, so confirm health before using server-backed features.
 
 ## Before production use
