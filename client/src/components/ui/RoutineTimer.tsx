@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { playNotificationSound } from "../../utils/notificationSound";
 import { Coffee, Pause, Play, RotateCcw, Timer, X } from "lucide-react";
 
 type Phase = "focus" | "break";
@@ -84,7 +85,7 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
       if (remaining(timer, tick) > 0) return;
       if (timer.taskBlock && timer.phase === "focus") {
         setTimer({ ...timer, remainingMs: 0, startedAt: null });
-        if ("Notification" in window && Notification.permission === "granted") new Notification("Focus block complete", { body: `${timer.taskTitle} needs a finish or 15-minute extension.`, tag: `irontrack-task-${timer.taskId}` });
+        if ("Notification" in window && Notification.permission === "granted") { new Notification("Focus block complete", { body: `${timer.taskTitle} needs a finish or 15-minute extension.`, tag: `irontrack-task-${timer.taskId}`, silent: false }); void playNotificationSound(); }
         return;
       }
       const phase: Phase = timer.phase === "focus" ? "break" : "focus";
@@ -93,7 +94,9 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
         new Notification(phase === "break" ? "Focus session complete" : "Break finished", {
           body: phase === "break" ? `Take a ${Math.round(timer.breakLengthMs / 60_000)} minute break.` : "Ready for another focus session?",
           tag: "irontrack-routine-timer",
+          silent: false,
         });
+        void playNotificationSound();
       }
     }, 1000);
     return () => window.clearInterval(interval);

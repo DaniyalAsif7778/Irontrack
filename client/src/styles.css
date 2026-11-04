@@ -759,6 +759,7 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .permission-row small, .reminder-options small { color: var(--quiet); font-size: 10px; line-height: 1.5; }
 .permission-row button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border: 0; border-radius: 7px; font-size: 11px; font-weight: 600; }
 .permission-row button.notification-test { color: var(--ink); background: hsl(var(--secondary)); border: 1px solid var(--line); }
+.reminder-options > button.notification-sound-test { display: inline-flex; width: max-content; min-height: 36px; align-items: center; gap: 7px; margin: 9px 0 4px; padding: 0 11px; color: var(--ink); background: hsl(var(--secondary)); border: 1px solid var(--line); border-radius: 7px; font-size: 11px; }
 .reminder-options { display: grid; }
 .reminder-options label { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 2px; border-bottom: 1px solid hsl(var(--border) / .5); cursor: pointer; }
 .reminder-options label > span { display: grid; gap: 3px; }

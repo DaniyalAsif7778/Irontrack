@@ -4,6 +4,7 @@ import { enqueueOfflineAction } from "../lib/api/offlineQueue";
 import type { TaskFormValues } from "../schemas/routine";
 import type { Day, Schedule, Task, TaskEditing } from "../types";
 import { queryKeys } from "./queryKeys";
+import { ironToday } from "../utils/date";
 
 export function useRoutineDay(date: string) {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -89,5 +90,6 @@ export function useCopySchedule() {
 
 export function useRoutineEventAnalytics(days = 14) {
   const period = days <= 7 ? "7d" : days <= 30 ? "30d" : days <= 90 ? "90d" : "3m";
-  return useQuery({ queryKey: queryKeys.routineEvents(period), queryFn: () => api<{ days: number; counts: Record<string, { count: number; avgResponseMs: number | null }>; completionRate: number; totalEvents: number; averageResponseMs: number | null; recentEvents: Array<{ eventId: string; date: string; type: string; occurredAt: string; responseTimeMs: number | null; pushStatus?: string; taskId?: { title: string } | null }> }>(`/routine/events/analytics?period=${period}&page=1`) });
+  const today = ironToday();
+  return useQuery({ queryKey: queryKeys.routineEvents(period, 1, today), queryFn: () => api<{ days: number; counts: Record<string, { count: number; avgResponseMs: number | null }>; completionRate: number; totalEvents: number; averageResponseMs: number | null; recentEvents: Array<{ eventId: string; date: string; type: string; occurredAt: string; responseTimeMs: number | null; pushStatus?: string; taskId?: { title: string } | null }> }>(`/routine/events/analytics?period=${period}&page=1&today=${today}`) });
 }

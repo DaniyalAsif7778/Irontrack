@@ -104,7 +104,9 @@ export const snoozeTask: RequestHandler = async (req, res) => {
 export const eventAnalytics: RequestHandler = async (req, res) => {
   const period = String(req.query.period ?? "30d");
   const page = Number(req.query.page ?? 1);
+  const today = String(req.query.today ?? new Date().toISOString().slice(0, 10));
   if (!ANALYTICS_PERIODS.includes(period as AnalyticsPeriod)) { fail(res, "Choose a supported activity period"); return; }
   if (!Number.isInteger(page) || page < 1 || page > 10_000) { fail(res, "page must be a positive integer"); return; }
-  res.json(await routineEventAnalytics(req.auth!.userId, period as AnalyticsPeriod, page));
+  if (!isValidRoutineDate(today)) { fail(res, "today must be a valid YYYY-MM-DD date"); return; }
+  res.json(await routineEventAnalytics(req.auth!.userId, period as AnalyticsPeriod, page, 10, today));
 };

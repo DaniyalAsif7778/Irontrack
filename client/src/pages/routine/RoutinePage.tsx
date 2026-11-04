@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAnalytics } from "../../hooks/useAnalytics";
 import { api } from "../../lib/api/api";
 import { queryKeys } from "../../hooks/queryKeys";
+import { ironToday } from "../../utils/date";
 import type { AnalyticsPeriod, Day, RoutineBlock, Task, TaskEditing } from "../../types";
 import TaskCard from "./components/TaskCard";
 
@@ -67,10 +68,11 @@ export default function RoutinePage({
 }: RoutinePageProps) {
   const [tab, setTab] = useState<"routine" | "analytics">("routine");
   const [activityPage, setActivityPage] = useState(1);
+  const activityToday = ironToday();
   const analytics = useAnalytics(analyticsPeriod);
   const eventQuery = useQuery({
-    queryKey: queryKeys.routineEvents(analyticsPeriod, activityPage),
-    queryFn: () => api<RoutineEventStats>(`/routine/events/analytics?period=${analyticsPeriod}&page=${activityPage}`),
+    queryKey: queryKeys.routineEvents(analyticsPeriod, activityPage, activityToday),
+    queryFn: () => api<RoutineEventStats>(`/routine/events/analytics?period=${analyticsPeriod}&page=${activityPage}&today=${activityToday}`),
     enabled: tab === "analytics",
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,

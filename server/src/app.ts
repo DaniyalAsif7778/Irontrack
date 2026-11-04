@@ -9,6 +9,7 @@ import apiRoutes from "./routes/routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { logger } from "./utils/logger.js";
 import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
 
 export const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : false);
@@ -23,8 +24,13 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 app.use(helmet());
+app.use((_req, res, next) => {
+  res.setHeader("X-Request-Id", randomUUID());
+  next();
+});
 app.use(cors({
   credentials: true,
+  exposedHeaders: ["X-Request-Id"],
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) callback(null, true);
     else callback(new Error("Origin is not allowed by CORS"));
@@ -33,7 +39,10 @@ app.use(cors({
 app.use(cookieParser() as unknown as RequestHandler);
 app.use(express.json({ limit: "1mb" }));
 app.use(mongoSanitize() as unknown as RequestHandler);
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
+morgan.token("request-id", (_req, res) => String(res.getHeader("X-Request-Id") ?? "-"));
+morgan.token("safe-path", req => (req.url ?? "/").split("?", 1)[0]);
+const requestLogFormat = ":method :safe-path :status :response-time ms requestId=:request-id";
+app.use(morgan(requestLogFormat, {
   stream: { write: message => logger.info(message.trim()) },
 }));
 app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -42,5 +51,11 @@ app.get("/api/health", (_req, res) => {
   const status = database === "connected" ? "ok" : "degraded";
   res.status(status === "ok" ? 200 : 503).json({ status, database });
 });
-app.use("/api", apiLimiter, apiRoutes);
+app.use("/api", apiLimiter, (_req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    res.status(503).json({ error: "Something went wrong. Please try again later." });
+    return;
+  }
+  next();
+}, apiRoutes);
 app.use(errorHandler);

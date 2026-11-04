@@ -53,11 +53,14 @@ self.addEventListener("push", event => {
   let payload = {};
   try { payload = event.data?.json() ?? {}; }
   catch { payload = { body: event.data?.text() ?? "You have an IronTrack reminder." }; }
-  event.waitUntil(self.registration.showNotification(payload.title || "IronTrack reminder", {
+  event.waitUntil(Promise.all([self.registration.showNotification(payload.title || "IronTrack reminder", {
     body: payload.body || "You have a reminder waiting.",
     icon: payload.icon || "/icon.svg",
     badge: "/icon.svg",
+    silent: false,
     tag: payload.tag || `irontrack-${Date.now()}`,
     data: { url: payload.url || "/wellness" },
-  }));
+  }), self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+    for (const client of clients) client.postMessage({ type: "irontrack:push-received" });
+  })]));
 });

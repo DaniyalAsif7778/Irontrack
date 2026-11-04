@@ -115,7 +115,7 @@ async function send(subscription: any, deliveryKey: string, title: string, body:
   } catch (error: any) {
     await PushDelivery.deleteOne({ ownerId: subscription.ownerId, deliveryKey: deviceDeliveryKey });
     if (error?.statusCode === 404 || error?.statusCode === 410) await PushSubscription.deleteOne({ _id: subscription._id });
-    else logger.warn({ err: error, ownerId: String(subscription.ownerId) }, "Push notification delivery failed");
+    else logger.warn({ errorName: error?.name ?? "PushError", statusCode: error?.statusCode, errorCode: error?.code }, "Push notification delivery failed");
     throw error;
   }
 }
@@ -158,7 +158,7 @@ export async function dispatchDueNotifications(now = new Date()) {
   checking = true;
   try {
     await dispatchRoutineBlockPrompts(now);
-    const subscriptions = await PushSubscription.find();
+    const subscriptions = await PushSubscription.find().select("ownerId timezone preferences endpoint keys").lean();
     const prayerOwnerIds = [...new Set(subscriptions.filter(subscription => subscription.preferences?.prayerTimes).map(subscription => String(subscription.ownerId)))];
     const prayerUsers = prayerOwnerIds.length
       ? await User.find({ _id: { $in: prayerOwnerIds } }).select("preferences.prayerTimes").lean()
@@ -190,12 +190,14 @@ export async function dispatchDueNotifications(now = new Date()) {
               try { reminder = await RoutineReminder.create({ ownerId: subscription.ownerId, taskId: task._id, date: dateKey, timezone: subscription.timezone || "UTC", status: "scheduled", sentAt: null }); }
               catch (error: any) { if (error?.code === 11000) reminder = await RoutineReminder.findOne({ ownerId: subscription.ownerId, taskId: task._id, date: dateKey }); else throw error; }
             }
-            if (reminder && reminder.status === "scheduled") {
+            if (reminder && (reminder.status === "scheduled" || reminder.status === "sent")) {
               try {
                 await send(subscription, `task:${dateKey}:${task._id}`, "Routine reminder", task.title, "/routine");
                 const marked = await RoutineReminder.updateOne({ _id: reminder._id, status: "scheduled" }, { $set: { status: "sent", sentAt: now, timezone: subscription.timezone || "UTC" } });
                 if (marked.modifiedCount) await recordReminderEvent(subscription.ownerId, task._id, dateKey, "push_sent", `reminder-sent:${dateKey}:${String(task._id)}`, { taskTitle: task.title, reminderTime: time });
-              } catch { /* Retry from the scheduler on the next minute while the delivery key remains unclaimed. */ }
+              } catch (error) {
+                logger.warn({ event: "routine_reminder_delivery_failed", errorName: error instanceof Error ? error.name : "UnknownError", errorCode: typeof error === "object" && error !== null && "code" in error ? error.code : undefined }, "Routine reminder delivery failed");
+              }
             }
           }
         }
@@ -215,7 +217,9 @@ export async function dispatchDueNotifications(now = new Date()) {
       }
     }
     await dispatchReminderFollowups(now);
-  } catch (error) { logger.warn({ err: error }, "Background notification schedule check failed"); }
+  } catch (error) {
+    logger.warn({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Unknown scheduler error", errorCode: typeof error === "object" && error !== null && "code" in error ? error.code : undefined }, "Background notification schedule check failed");
+  }
   finally { checking = false; }
 }
 

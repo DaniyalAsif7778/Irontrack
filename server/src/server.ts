@@ -21,6 +21,14 @@ if (!authSecret || Buffer.byteLength(authSecret) < 32) {
 
 const httpServer = app.listen(port, () => logger.info({ port }, "IronTrack API listening"));
 
+mongoose.connection.on("disconnected", () => logger.warn({ databaseState: mongoose.connection.readyState }, "MongoDB connection lost"));
+mongoose.connection.on("connected", () => logger.info("MongoDB connection established"));
+mongoose.connection.on("error", error => logger.error({
+  errorName: error.name,
+  errorCode: "code" in error ? error.code : undefined,
+  errorMessage: error.message.slice(0, 500),
+}, "MongoDB connection error"));
+
 let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;
@@ -43,15 +51,29 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 async function connectWhenAvailable() {
+  let attempt = 0;
   while (!shuttingDown) {
     try {
+      const connectStartedAt = Date.now();
       await connectDatabase(uri!);
+      attempt = 0;
       startNotificationScheduler();
-      logger.info("MongoDB connected; scheduled notifications are active");
+      logger.info({ connectDurationMs: Date.now() - connectStartedAt }, "MongoDB connected; scheduled notifications are active");
       return;
     } catch (error) {
-      logger.error({ err: error }, "MongoDB connection failed; retrying in 30 seconds");
-      await new Promise(resolve => setTimeout(resolve, 30_000));
+      attempt += 1;
+      const backoff = Math.min(120_000, 5_000 * 2 ** Math.min(attempt - 1, 5));
+      const retryInMs = backoff + Math.floor(Math.random() * Math.min(backoff / 5, 5_000));
+      logger.error({
+        attempt,
+        retryInMs,
+        databaseState: mongoose.connection.readyState,
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Unknown database connection error",
+        errorCode: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+      }, "MongoDB connection failed; retry scheduled");
+      await mongoose.disconnect().catch(() => undefined);
+      await new Promise(resolve => setTimeout(resolve, retryInMs));
     }
   }
 }

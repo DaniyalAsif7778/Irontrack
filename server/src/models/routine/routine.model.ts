@@ -79,5 +79,5 @@ export const RoutineEvent = model("RoutineEvent", new Schema({
   metadata: { type: Schema.Types.Mixed, default: () => ({}) },
 }, { timestamps: true }));
 RoutineEvent.schema.index({ ownerId: 1, idempotencyKey: 1 }, { unique: true });
-RoutineEvent.schema.index({ ownerId: 1, occurredAt: -1 });
+RoutineEvent.schema.index({ ownerId: 1, occurredAt: -1, _id: -1 }, { name: "routine_events_owner_timeline" });
 RoutineEvent.schema.index({ occurredAt: 1 }, { expireAfterSeconds: 31_536_000, name: "routine_events_one_year_retention" });

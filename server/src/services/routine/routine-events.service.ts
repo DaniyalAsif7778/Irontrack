@@ -304,8 +304,7 @@ export async function completeRoutineOccurrence(ownerId: string, taskId: string,
   return result;
 }
 
-export async function routineEventAnalytics(ownerId: string, period: AnalyticsPeriod = "30d", page = 1, pageSize = 10) {
-  const today = new Date().toISOString().slice(0, 10);
+export async function routineEventAnalytics(ownerId: string, period: AnalyticsPeriod = "30d", page = 1, pageSize = 10, today = new Date().toISOString().slice(0, 10)) {
   const range = analyticsRange(period, today);
   const since = new Date(`${range.startDate}T00:00:00.000Z`);
   const before = new Date(`${range.endDate}T00:00:00.000Z`);

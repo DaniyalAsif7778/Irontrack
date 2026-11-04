@@ -7,6 +7,7 @@ import { defaultReminderPreferences, reminderStorageKey, type ReminderPreference
 import { useAppStore } from "../stores/appStore";
 import { prayersDueAt } from "../utils/prayers";
 import { queryKeys } from "../hooks/queryKeys";
+import { playNotificationSound } from "../utils/notificationSound";
 
 type WeekDay = { key: string; dayType: string | null };
 type Session = { date: string; dayType: string };
@@ -20,8 +21,9 @@ function readPreferences(): ReminderPreferences {
 async function notify(title: string, body: string, tag: string) {
   const options = { body, tag, icon: "/icon.svg", data: { url: "/wellness" } };
   const registration = await navigator.serviceWorker?.getRegistration();
-  if (registration) await registration.showNotification(title, options);
-  else new Notification(title, options);
+  if (registration) await registration.showNotification(title, { ...options, silent: false });
+  else new Notification(title, { ...options, silent: false });
+  void playNotificationSound();
 }
 
 function alreadySent(date: string, id: string) {
@@ -44,6 +46,15 @@ export default function NotificationScheduler() {
   const routine = useQuery({ queryKey: [...queryKeys.routine.day(date), timezone], queryFn: () => api<Day>(`/routine/days/${date}?timezone=${encodeURIComponent(timezone)}`), staleTime: 30_000, refetchInterval: 60_000, enabled: localNotificationsEnabled });
   const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000, enabled: localNotificationsEnabled });
   const logs = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000, enabled: localNotificationsEnabled });
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "irontrack:push-received") void playNotificationSound();
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     if (typeof Notification === "undefined") return;

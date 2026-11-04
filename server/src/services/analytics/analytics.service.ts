@@ -10,14 +10,14 @@ export async function getAnalytics(ownerId: string, period: AnalyticsPeriod, tod
     day.setUTCDate(day.getUTCDate() + index);
     return day.toISOString().slice(0, 10);
   });
-  const [weekdayTasks, weekendTasks, allTasks, weights, user] = await Promise.all([
-    RoutineTask.find({ ownerId, dayType: "weekday" }).select("_id").lean(),
-    RoutineTask.find({ ownerId, dayType: "weekend" }).select("_id").lean(),
-    RoutineTask.find({ ownerId }).select("_id").lean(),
+  const [tasks, weights, user] = await Promise.all([
+    RoutineTask.find({ ownerId }).select("_id dayType").lean(),
     WeightLog.find({ ownerId, date: { $gte: range.startDate, $lte: range.endDate } }).sort({ date: 1 }).lean(),
     User.findById(ownerId).select("preferences.weightUnit").lean(),
   ]);
-  const taskIds = allTasks.map(task => task._id);
+  const weekdayTaskCount = tasks.filter(task => task.dayType === "weekday").length;
+  const weekendTaskCount = tasks.filter(task => task.dayType === "weekend").length;
+  const taskIds = tasks.map(task => task._id);
   const [completions, totalCompleted] = await Promise.all([
     RoutineCompletion.find({ taskId: { $in: taskIds }, date: { $in: dates }, completed: true }).select("date taskId").lean(),
     RoutineCompletion.countDocuments({ taskId: { $in: taskIds }, completed: true }),
@@ -25,7 +25,7 @@ export async function getAnalytics(ownerId: string, period: AnalyticsPeriod, tod
   const completedByDate = new Map<string, number>();
   completions.forEach(item => completedByDate.set(item.date, (completedByDate.get(item.date) ?? 0) + 1));
   const dailyActivity = dates.map(date => {
-    const total = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? weekendTasks.length : weekdayTasks.length;
+    const total = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? weekendTaskCount : weekdayTaskCount;
     const completed = completedByDate.get(date) ?? 0;
     return { date, completed, total, rate: total ? Math.round(completed / total * 100) : 0 };
   });

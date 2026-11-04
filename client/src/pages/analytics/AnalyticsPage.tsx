@@ -26,7 +26,7 @@ export default function AnalyticsPage({ data, period, onRange, accountId }: { da
   const chartColor = "hsl(var(--accent))";
   const axisColor = "hsl(var(--muted-foreground))";
   const workouts = useQuery({ queryKey: ["weekly-review", "workouts"], queryFn: () => api<WorkoutReviewLog[]>("/workout-logs?limit=200") });
-  const events = useQuery({ queryKey: ["weekly-review", "events", "7d", ironToday()], queryFn: () => api<EventReview>(`/routine/events/analytics?period=7d&page=1`) });
+  const events = useQuery({ queryKey: ["weekly-review", "events", "7d", ironToday()], queryFn: () => api<EventReview>(`/routine/events/analytics?period=7d&page=1&today=${ironToday()}`) });
   const wellness = useQuery({ queryKey: ["weekly-review", "wellness"], queryFn: () => api<Array<{ date: string; waterGlasses: number; movementBreaks: number }>>(`/wellness?days=7&through=${ironToday()}`) });
   const weeklyRoutine = useQuery({ queryKey: [...queryKeys.analytics, "7d", ironToday()], queryFn: () => api<AnalyticsData>(`/analytics?period=7d&today=${ironToday()}`), staleTime: 5 * 60_000, gcTime: 30 * 60_000 });
   const focusKey = `irontrack_weekly_focus_v1:${accountId ?? "local"}`;

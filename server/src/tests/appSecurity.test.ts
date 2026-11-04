@@ -4,6 +4,7 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { errorHandler } from "../middlewares/errorHandler.js";
 import { authenticatedWriteLimiter, pushTestLimiter } from "../routes/routes.js";
+import { app } from "../app.js";
 
 function limitedApp(limiter: RequestHandler) {
   const app = express();
@@ -12,6 +13,17 @@ function limitedApp(limiter: RequestHandler) {
 }
 
 describe("API abuse and error controls", () => {
+  it("returns a fast generic 503 for API requests while MongoDB is disconnected", async () => {
+    const started = performance.now();
+    const [health, api] = await Promise.all([
+      request(app).get("/api/health").expect(503),
+      request(app).get("/api/notifications/config").expect(503),
+    ]);
+    expect(health.body).toEqual({ status: "degraded", database: "disconnected" });
+    expect(api.body).toEqual({ error: "Something went wrong. Please try again later." });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it("limits authenticated writes per account", async () => {
     const app = limitedApp(authenticatedWriteLimiter as unknown as RequestHandler);
     const results = await Promise.all(Array.from({ length: 41 }, () => request(app).post("/limited")));
