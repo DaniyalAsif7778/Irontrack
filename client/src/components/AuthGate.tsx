@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError, api, isRemoteApi } from "../lib/api/api";
 import type { AuthUser } from "../types";
@@ -18,6 +18,7 @@ export function useSession() {
 export default function AuthGate({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const signInHome = location.pathname === "/";
   const authAction = ["/login", "/signup", "/verify-email", "/reset-password"].includes(location.pathname);
   const session = useQuery({
@@ -82,6 +83,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       await api("/auth/logout", { method: "POST" });
       queryClient.clear();
       queryClient.setQueryData(sessionKey, null);
+      navigate("/login", { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not sign out.");
     }
