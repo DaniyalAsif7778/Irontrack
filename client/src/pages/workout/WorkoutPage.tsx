@@ -20,20 +20,19 @@ type ActiveWorkout = { date: string; dayType: DayType; dayName: string; startedA
 const activeKey = "irontrack_active_workout_v1";
 const legacyDayLabels: Record<string, string> = { push: "Push", pull: "Pull", legs: "Legs", push_high: "Push · high rep", pull_high: "Pull · high rep", legs_high: "Legs · high rep" };
 const readActive = (): ActiveWorkout | null => {
-  try { const value = localStorage.getItem(activeKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: parsed.autoAdvance ?? false, voiceCoach: parsed.voiceCoach ?? false, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
+  try { const value = localStorage.getItem(activeKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; const coachEnabled = Boolean(parsed.autoAdvance || parsed.voiceCoach); return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: coachEnabled, voiceCoach: coachEnabled, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
 };
 const todayWeekKey = () => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${ironToday()}T12:00:00`).getDay()];
 const elapsedText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const numberWords = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-function tempoCountCues(tempo: string) {
-  const phases = tempo.split("-").map(Number);
-  if (phases.length !== 3 || phases.some(phase => !Number.isInteger(phase) || phase < 0 || phase > 10) || phases.every(phase => phase === 0)) return numberWords.slice(0, 6);
-  const [lower, hold, lift] = phases;
-  return [
-    ...Array.from({ length: lower }, (_, index) => `lower ${numberWords[index] ?? index + 1}`),
-    ...Array.from({ length: hold }, (_, index) => index === 0 ? "hold" : `hold ${numberWords[index] ?? index + 1}`),
-    ...Array.from({ length: lift }, (_, index) => `lift ${numberWords[index] ?? index + 1}`),
-  ];
+function voiceCue(exercise: Exercise, setIndex: number) {
+  const [lower, hold, lift] = exercise.tempo.split("-").map(Number);
+  const phases = [lower, hold, lift];
+  const labels = ["lower", "pause", "lift"];
+  const tempo = phases.length === 3 && phases.every(value => Number.isInteger(value) && value >= 0 && value <= 10) && phases.some(Boolean)
+    ? phases.map((seconds, index) => seconds > 0 ? `${labels[index]} for ${seconds} ${seconds === 1 ? "second" : "seconds"}` : "").filter(Boolean).join(". ")
+    : "Move with control";
+  return `${exercise.name}. Set ${numberWords[setIndex] ?? setIndex + 1}. ${tempo}.`;
 }
 
 type InlineFieldType = "text" | "number" | "url";
@@ -158,6 +157,8 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const [planDrafts, setPlanDrafts] = useState<Plan[]>([]);
   const [exerciseLibraryDraft, setExerciseLibraryDraft] = useState<LibraryExercise[]>([]);
   const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [assignmentDayKey, setAssignmentDayKey] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const plansQuery = useQuery({ queryKey: ["workout", "plans"], queryFn: () => api<Plan[]>("/workout-plans") });
@@ -191,12 +192,39 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       queryClient.setQueryData(["workout", "exercise-library"], result.exerciseLibrary);
     },
   });
+  const saveExerciseMutation = useMutation({
+    mutationFn: ({ planId, exercise }: { planId: string; exercise: Exercise }) => api<Exercise>(`/workout-plans/${encodeURIComponent(planId)}/exercises/${encodeURIComponent(exercise.id)}`, { method: "PUT", body: JSON.stringify(exercise) }),
+    onSuccess: (saved, variables) => {
+      const updatePlanExercises = (items: Plan[]) => items.map(item => {
+        const hasExercise = item.exercises.some(exercise => exercise.id === saved.id);
+        const exercises = item.exercises.map(exercise => exercise.id !== saved.id ? exercise : {
+          ...exercise, name: saved.name, muscle: saved.muscle, description: saved.description, cues: saved.cues, steps: saved.steps, videoUrl: saved.videoUrl,
+          ...(item.id === variables.planId ? { sets: saved.sets, reps: saved.reps, rest: saved.rest, tempo: saved.tempo, setList: saved.setList } : {}),
+        });
+        if (item.id === variables.planId && !hasExercise) exercises.push(saved);
+        return { ...item, exercises };
+      });
+      queryClient.setQueryData<Plan[]>(["workout", "plans"], current => current ? updatePlanExercises(current) : current);
+      queryClient.setQueryData<LibraryExercise[]>(["workout", "exercise-library"], current => {
+        const definition: LibraryExercise = { id: saved.id, name: saved.name, muscle: saved.muscle, description: saved.description ?? "", cues: saved.cues ?? [], steps: saved.steps ?? [], videoUrl: saved.videoUrl ?? "" };
+        return current?.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? definition : item) : [...(current ?? []), definition];
+      });
+      setPlanDrafts(current => updatePlanExercises(current));
+      setExerciseLibraryDraft(current => {
+        const definition: LibraryExercise = { id: saved.id, name: saved.name, muscle: saved.muscle, description: saved.description ?? "", cues: saved.cues ?? [], steps: saved.steps ?? [], videoUrl: saved.videoUrl ?? "" };
+        return current.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? definition : item) : [...current, definition];
+      });
+      setEditingExercise(null);
+      toast.success("Exercise saved");
+    },
+  });
   useEffect(() => {
     const error = plansQuery.error ?? weekQuery.error ?? libraryQuery.error ?? logsQuery.error;
     if (error) onError(error.message);
   }, [plansQuery.error, weekQuery.error, libraryQuery.error, logsQuery.error, onError]);
   useEffect(() => { if (!active) return; const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, [active]);
   useEffect(() => { if (active) localStorage.setItem(activeKey, JSON.stringify(active)); else localStorage.removeItem(activeKey); }, [active]);
+  useEffect(() => { setEditingExercise(null); setAddExerciseOpen(false); }, [selectedKey]);
   useEffect(() => {
     if (!active?.autoAdvance || active.pausedAt || active.pendingExerciseIndex == null) return;
     if (active.restUntil && active.restUntil > now) return;
@@ -241,34 +269,20 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const sessionProgressSets = completedSets + skippedSetCount;
   const sessionDone = Boolean(active && completedSets > 0 && sessionProgressSets >= sessionTotalSets);
   useEffect(() => {
-    if (!active?.voiceCoach || active.pausedAt || restSeconds > 0 || !currentExercise || activeSetIndex < 0 || !voiceAvailable) return;
+    if (!(active?.voiceCoach || active?.autoAdvance) || active.pausedAt || restSeconds > 0 || !currentExercise || activeSetIndex < 0 || !voiceAvailable) return;
     const synthesis = window.speechSynthesis;
-    let cancelled = false;
-    let countTimer: number | undefined;
-    let countIndex = 0;
-    const cues = tempoCountCues(currentExercise.tempo);
-    const sayCount = () => {
-      if (cancelled) return;
-      const utterance = new SpeechSynthesisUtterance(cues[countIndex]);
-      utterance.lang = navigator.language;
-      utterance.rate = 1.15;
-      utterance.onend = () => {
-        countIndex = (countIndex + 1) % cues.length;
-        countTimer = window.setTimeout(sayCount, 200);
-      };
-      synthesis.speak(utterance);
-    };
-    const introduction = new SpeechSynthesisUtterance(`${currentExercise.name}. Set ${activeSetIndex + 1}.`);
-    introduction.lang = navigator.language;
-    introduction.onend = sayCount;
+    const utterance = new SpeechSynthesisUtterance(voiceCue(currentExercise, activeSetIndex));
+    utterance.lang = navigator.language;
+    utterance.rate = 0.9;
+    const language = navigator.language.toLowerCase();
+    const voices = synthesis.getVoices?.() ?? [];
+    const matchingVoice = voices.find(voice => voice.lang.toLowerCase() === language)
+      ?? voices.find(voice => voice.default && voice.lang.split("-")[0].toLowerCase() === language.split("-")[0]);
+    if (matchingVoice) utterance.voice = matchingVoice;
     synthesis.cancel();
-    synthesis.speak(introduction);
-    return () => {
-      cancelled = true;
-      if (countTimer !== undefined) window.clearTimeout(countTimer);
-      synthesis.cancel();
-    };
-  }, [active?.voiceCoach, active?.pausedAt, active?.startedAt, currentExercise?.id, currentExercise?.name, currentExercise?.tempo, activeSetIndex, restSeconds > 0, voiceAvailable]);
+    synthesis.speak(utterance);
+    return () => synthesis.cancel();
+  }, [active?.voiceCoach, active?.autoAdvance, active?.pausedAt, active?.startedAt, currentExercise?.id, currentExercise?.name, currentExercise?.tempo, activeSetIndex, restSeconds > 0, voiceAvailable]);
   const programIsDirty = editingProgram && (JSON.stringify(weekDraft) !== JSON.stringify(week) || JSON.stringify(planDrafts) !== JSON.stringify(plans) || JSON.stringify(exerciseLibraryDraft) !== JSON.stringify(exerciseLibrary));
 
   function startWorkout() {
@@ -340,15 +354,10 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   function toggleAutoAdvance() {
     setActive(current => {
       if (!current) return null;
-      if (current.autoAdvance && current.pendingExerciseIndex != null) {
-        return { ...current, autoAdvance: false, currentExerciseIndex: current.pendingExerciseIndex, pendingExerciseIndex: null, exerciseStartedAt: Date.now() };
-      }
-      return { ...current, autoAdvance: !current.autoAdvance };
+      const enabled = !(current.autoAdvance || current.voiceCoach);
+      if (!enabled && current.pendingExerciseIndex != null) return { ...current, autoAdvance: false, voiceCoach: false, currentExerciseIndex: current.pendingExerciseIndex, pendingExerciseIndex: null, exerciseStartedAt: Date.now() };
+      return { ...current, autoAdvance: enabled, voiceCoach: enabled };
     });
-  }
-
-  function toggleVoiceCoach() {
-    setActive(current => current ? { ...current, voiceCoach: !current.voiceCoach } : null);
   }
 
   function resumeSkippedExercise(exerciseId: string, exerciseIndex: number) {
@@ -416,16 +425,51 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     setPlanDrafts(current => current.map(item => item.id === planId ? { ...item, name } : item));
   }
 
-  function updateLibraryExercise(exerciseId: string, patch: Partial<LibraryExercise>) {
-    setExerciseLibraryDraft(current => current.map(item => item.id === exerciseId ? { ...item, ...patch } : item));
+  function beginExerciseEdit(exercise: Exercise) {
+    setEditingExercise({ ...structuredClone(exercise), setList: structuredClone(exercise.setList?.length ? exercise.setList : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }))) });
   }
 
-  function updatePlanExercise(exerciseId: string, patch: Partial<Exercise>) {
-    if (!plan) return;
-    setPlanDrafts(current => current.map(item => item.id === plan.id ? {
-      ...item,
-      exercises: item.exercises.map(exercise => exercise.id === exerciseId ? { ...exercise, ...patch } : exercise),
-    } : item));
+  function updateExerciseDraft(patch: Partial<Exercise>) {
+    setEditingExercise(current => current ? { ...current, ...patch } : current);
+  }
+
+  function updateDraftSet(setIndex: number, field: "reps" | "weight", value: number) {
+    setEditingExercise(current => current ? { ...current, setList: (current.setList ?? []).map((set, index) => index === setIndex ? { ...set, [field]: value } : set) } : current);
+  }
+
+  function updateDraftSetCount(count: number) {
+    setEditingExercise(current => {
+      if (!current) return current;
+      const setList = [...(current.setList ?? [])].slice(0, count);
+      while (setList.length < count) setList.push({ id: `set-${crypto.randomUUID()}`, reps: current.reps, weight: 0 });
+      return { ...current, sets: count, setList };
+    });
+  }
+
+  async function saveExerciseDraft(exercise = editingExercise) {
+    if (!plan || !exercise) return;
+    if (!exercise.name.trim() || exercise.name.length > 120) { toast.error("Enter an exercise name up to 120 characters."); return; }
+    if (!exercise.muscle.trim() || exercise.muscle.length > 80) { toast.error("Enter a muscle group up to 80 characters."); return; }
+    if (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 20 || !Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 100 || !Number.isFinite(exercise.rest) || exercise.rest < 0 || exercise.rest > 600) { toast.error("Check the set, rep, and rest targets."); return; }
+    if (exercise.tempo.length > 40 || (exercise.setList?.length ?? 0) !== exercise.sets || exercise.setList?.some(set => !Number.isInteger(set.reps) || set.reps < 1 || set.reps > 1000 || !Number.isFinite(set.weight) || set.weight < 0 || set.weight > 10000)) { toast.error("Check the tempo and set details."); return; }
+    if ((exercise.description?.length ?? 0) > 4000 || (exercise.cues?.length ?? 0) > 40 || exercise.cues?.some(cue => cue.length > 300) || (exercise.steps?.length ?? 0) > 40 || exercise.steps?.some(step => step.length > 500)) { toast.error("Exercise details exceed the allowed length."); return; }
+    if ((exercise.videoUrl?.length ?? 0) > 2048) { toast.error("The demo video link is too long."); return; }
+    if (exercise.videoUrl) {
+      try { if (!["http:", "https:"].includes(new URL(exercise.videoUrl).protocol)) throw new Error(); }
+      catch { toast.error("Use a valid HTTP or HTTPS demo link."); return; }
+    }
+    const persistedPlan = plans.some(item => item.id === plan.id);
+    if (!persistedPlan) {
+      setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: item.exercises.map(row => row.id === exercise.id ? exercise : row) } : item));
+      setExerciseLibraryDraft(current => current.some(item => item.id === exercise.id)
+        ? current.map(item => item.id === exercise.id ? { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: exercise.description ?? "", cues: exercise.cues ?? [], steps: exercise.steps ?? [], videoUrl: exercise.videoUrl ?? "" } : item)
+        : [...current, { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: exercise.description ?? "", cues: exercise.cues ?? [], steps: exercise.steps ?? [], videoUrl: exercise.videoUrl ?? "" }]);
+      setEditingExercise(null);
+      toast.success("Exercise saved. Save workout changes to publish this new workout day.");
+      return;
+    }
+    try { await saveExerciseMutation.mutateAsync({ planId: plan.id, exercise }); }
+    catch (reason) { onError((reason as Error).message); }
   }
 
   function updateWeekAssignment(dayKey: string, planId: string | null) {
@@ -451,15 +495,23 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   function addNewExercise() {
     if (!plan) return;
     const exerciseId = `exercise-${crypto.randomUUID()}`;
-    setExerciseLibraryDraft(current => [...current, { id: exerciseId, name: "New exercise", muscle: "General", description: "", cues: [], steps: [], videoUrl: "" }]);
-    setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, { id: exerciseId, name: "New exercise", muscle: "General", sets: 3, reps: 10, rest: 60, tempo: "3-1-2", cues: [], description: "", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }], steps: [], videoUrl: "" }] } : item));
+    const exercise: Exercise = { id: exerciseId, name: "New exercise", muscle: "General", sets: 3, reps: 10, rest: 60, tempo: "3-1-2", cues: [], description: "", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }], steps: [], videoUrl: "" };
+    setAddExerciseOpen(false);
+    if (plans.some(item => item.id === plan.id)) void saveExerciseDraft(exercise);
+    else {
+      setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, exercise] } : item));
+      setExerciseLibraryDraft(current => [...current, { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: "", cues: [], steps: [], videoUrl: "" }]);
+    }
   }
 
   function addLibraryExercise(exerciseId: string) {
     if (!plan) return;
-    const definition = exerciseLibraryDraft.find(item => item.id === exerciseId);
+    const definition = visibleLibrary.find(item => item.id === exerciseId);
     if (!definition || plan.exercises.some(exercise => exercise.id === definition.id)) return;
-    setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, { ...definition, sets: 3, reps: 10, rest: 60, tempo: "3-1-2", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }] }] } : item));
+    const exercise: Exercise = { ...definition, sets: 3, reps: 10, rest: 60, tempo: "3-1-2", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }] };
+    setAddExerciseOpen(false);
+    if (plans.some(item => item.id === plan.id)) void saveExerciseDraft(exercise);
+    else setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, exercise] } : item));
   }
 
   function deleteExercise(exerciseId: string) {
@@ -467,39 +519,24 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: item.exercises.filter(exercise => exercise.id !== exerciseId) } : item));
   }
 
-  function addExerciseSet(exercise: Exercise) {
-    const currentSets = exercise.setList?.length ? exercise.setList : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }));
-    if (currentSets.length >= 20) {
-      toast.error("A workout exercise can have up to 20 sets.");
-      return;
-    }
-    const nextSets = [...currentSets, { id: `set-${crypto.randomUUID()}`, reps: exercise.reps, weight: 0 }];
-    updatePlanExercise(exercise.id, { setList: nextSets, sets: nextSets.length });
+  function addDraftSet() {
+    setEditingExercise(current => {
+      if (!current || (current.setList?.length ?? 0) >= 20) { toast.error("An exercise can have up to 20 sets."); return current; }
+      const setList = [...(current.setList ?? []), { id: `set-${crypto.randomUUID()}`, reps: current.reps, weight: 0 }];
+      return { ...current, sets: setList.length, setList };
+    });
   }
 
-  function removeExerciseSet(exercise: Exercise, setIndex: number) {
-    const current = exercise.setList?.length ? exercise.setList : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }));
-    const nextSets = current.filter((_, index) => index !== setIndex);
-    if (!nextSets.length) return;
-    updatePlanExercise(exercise.id, { setList: nextSets, sets: nextSets.length });
-  }
-
-  function updateExerciseSet(exercise: Exercise, setIndex: number, field: "reps" | "weight", value: number) {
-    const sets = exercise.setList?.length ? exercise.setList : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }));
-    updatePlanExercise(exercise.id, { setList: sets.map((set, index) => index === setIndex ? { ...set, [field]: value } : set) });
-  }
-
-  function updateExerciseSetCount(exercise: Exercise, count: number) {
-    const currentSets: NonNullable<Exercise["setList"]> = exercise.setList?.length
-      ? [...exercise.setList]
-      : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }));
-    const setList = currentSets.slice(0, count);
-    while (setList.length < count) setList.push({ id: `set-${crypto.randomUUID()}`, reps: exercise.reps, weight: 0 });
-    updatePlanExercise(exercise.id, { sets: count, setList });
+  function removeDraftSet(setIndex: number) {
+    setEditingExercise(current => {
+      if (!current || (current.setList?.length ?? 0) <= 1) return current;
+      const setList = current.setList!.filter((_, index) => index !== setIndex);
+      return { ...current, sets: setList.length, setList };
+    });
   }
 
   return <>
-    <header className="workout-page-header"><div><h1>Workout</h1><p>Build strength one controlled set at a time.</p></div><div className="workout-header-actions"><button type="button" className="workout-stats-link" onClick={() => navigate("/workout/stats")}><BarChart3 size={16} /> Stats</button><div className="workout-head-meta"><Dumbbell size={18} /><span>Dumbbells</span></div>{editingProgram ? <><button type="button" className="workout-cancel-edit" onClick={cancelProgramEdit}><X size={16} /><span>Cancel changes</span></button><button type="button" className="start-workout workout-save-top" disabled={!programIsDirty || saveProgramMutation.isPending} onClick={() => void saveProgram()}>{saveProgramMutation.isPending ? "Saving…" : "Save changes"}</button></> : <button type="button" className="start-workout" disabled={active !== null || !loaded} onClick={beginProgramEdit}>Edit plan</button>}</div></header>
+    <header className="workout-page-header"><div><h1>Workout</h1><p>Build strength one controlled set at a time.</p></div><div className="workout-header-actions"><button type="button" className="workout-stats-link" onClick={() => navigate("/workout/stats")}><BarChart3 size={16} /> Stats</button><div className="workout-head-meta"><Dumbbell size={18} /><span>Dumbbells</span></div>{editingProgram ? <><button type="button" className="workout-cancel-edit" onClick={cancelProgramEdit}><X size={16} /><span>Cancel changes</span></button><button type="button" className="start-workout workout-save-top" disabled={!programIsDirty || saveProgramMutation.isPending} onClick={() => void saveProgram()}>{saveProgramMutation.isPending ? "Saving…" : "Save changes"}</button></> : <button type="button" className="start-workout" disabled={active !== null || !loaded} onClick={beginProgramEdit}>Edit schedule</button>}</div></header>
     <div className={`week-strip ${editingProgram ? "week-strip-editing" : ""}`} role="group" tabIndex={0} aria-label="Workout days">
       {visibleWeek.map(day => {
         const assignedPlan = visiblePlans.find(item => item.id === day.planId);
@@ -536,8 +573,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     {active ? <section className="active-workout">
       <div className="active-workout-top"><div><span className={`live-dot ${active.pausedAt ? "paused" : ""}`} /> {active.pausedAt ? "Paused" : "In progress"}</div><strong><Clock3 size={16} /> {elapsedText(elapsed)}</strong><div className="workout-session-controls"><button type="button" className="session-control" onClick={togglePause}>{active.pausedAt ? <Play size={15} /> : <Pause size={15} />}{active.pausedAt ? "Resume" : "Pause"}</button><button type="button" className="session-control session-stop" onClick={stopWorkout}><X size={15} /> End</button></div></div>
       <div className="workout-mode-controls" aria-label="Workout coaching options">
-        <button type="button" className={`session-control ${active.autoAdvance ? "mode-active" : ""}`} aria-pressed={Boolean(active.autoAdvance)} onClick={toggleAutoAdvance}><Zap size={15} />Auto {active.autoAdvance ? "On" : "Off"}</button>
-        <button type="button" className={`session-control ${active.voiceCoach ? "mode-active" : ""}`} aria-pressed={Boolean(active.voiceCoach)} aria-label={voiceAvailable ? `Voice coach ${active.voiceCoach ? "on" : "off"}` : "Voice coach unavailable in this browser"} disabled={!voiceAvailable} onClick={toggleVoiceCoach}><AudioLines size={15} />{voiceAvailable ? `Voice ${active.voiceCoach ? "On" : "Off"}` : "Voice unavailable"}</button>
+        <button type="button" className={`session-control ${active.autoAdvance || active.voiceCoach ? "mode-active" : ""}`} aria-pressed={Boolean(active.autoAdvance || active.voiceCoach)} aria-label={`Auto coach ${active.autoAdvance || active.voiceCoach ? "on" : "off"}`} onClick={toggleAutoAdvance}><Zap size={15} /><AudioLines size={15} />Auto coach {active.autoAdvance || active.voiceCoach ? "On" : "Off"}{!voiceAvailable && (active.autoAdvance || active.voiceCoach) ? " · Voice unavailable" : ""}</button>
       </div>
       <h2>{active.dayName}</h2>
       <p>{completedSets} sets logged.{skippedExerciseCount > 0 ? ` ${skippedExerciseCount} exercise${skippedExerciseCount === 1 ? "" : "s"} ha${skippedExerciseCount === 1 ? "s" : "ve"} skipped sets.` : ""} Record each set as you go.</p>
@@ -564,68 +600,56 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       </article> : null}
     </section> : <>
     {!loaded ? <section className="rest-day"><h2>Loading your training plan</h2></section> : !selected?.planId ? <section className="rest-day"><div className="rest-mark"><RotateCcw /></div><h2>{plans.length ? "Recovery day" : "Start with your own workout"}</h2><p>{plans.length ? "This day is set aside for rest. Assign a workout day here whenever your schedule changes." : "Create a workout day, add your exercises, then choose which days you want to train."}</p>{!plans.length && <button type="button" className="start-workout" onClick={() => { beginProgramEdit(); createPlanDraft(); }}>Create your first workout day</button>}</section> : !plan ? <section className="rest-day"><h2>Workout day unavailable</h2><p>This schedule entry no longer has a saved plan. Edit your weekly schedule to choose another workout or rest day.</p></section> : <>
-        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span>{editingProgram ? <InlinePlanField id={`plan:${plan.id}:overview-name`} label="Workout name" value={plan.name} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanName(plan.id, value)} maxLength={80} asHeading /> : <h2>{plan.name}</h2>}<p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p></div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && <button type="button" className="start-workout" disabled={!plan.exercises.length} onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
-        <div className="workout-section-title"><div><h2>Exercises in this workout</h2><p>Set targets are specific to this day. Exercise details are shared by ID.</p></div></div>
+        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span>{editingProgram ? <InlinePlanField id={`plan:${plan.id}:overview-name`} label="Workout name" value={plan.name} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanName(plan.id, value)} maxLength={80} asHeading /> : <h2>{plan.name}</h2>}{plan.exercises.length > 0 && <p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p>}</div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && plan.exercises.length > 0 && <button type="button" className="start-workout" onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
+        <div className="workout-section-title"><div><h2>Exercises in this workout</h2></div></div>
         {plan.exercises.length ? <div className="exercise-list">
           {plan.exercises.map((exercise, index) => {
             const setList: NonNullable<Exercise["setList"]> = exercise.setList?.length
               ? exercise.setList
               : Array.from({ length: exercise.sets }, () => ({ reps: exercise.reps, weight: 0 }));
             const volume = setList.reduce((sum, set) => sum + set.reps * set.weight, 0);
-            const definition = libraryById.get(exercise.id);
-            const exerciseLabel = exercise.name;
+            const isEditingExercise = editingExercise?.id === exercise.id;
+            const draft = isEditingExercise ? editingExercise : null;
             return <article className={`exercise-card ${done ? "exercise-locked" : ""}`} key={exercise.id}>
               <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div>
               <div className="exercise-main">
-                <div className="exercise-card-heading">
-                  {editingProgram
-                    ? <InlinePlanField id={`exercise:${exercise.id}:name`} label={`${exerciseLabel} name`} value={definition?.name ?? exercise.name} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { name: value })} maxLength={120} />
-                    : <h3>{exercise.name}</h3>}
+                {draft ? <div className="exercise-edit-form">
+                  <div className="exercise-edit-fields">
+                    <label className="exercise-edit-wide">Exercise name<input maxLength={120} value={draft.name} onChange={event => updateExerciseDraft({ name: event.target.value })} /></label>
+                    <label>Muscle group<input maxLength={80} value={draft.muscle} onChange={event => updateExerciseDraft({ muscle: event.target.value })} /></label>
+                    <label>Sets<input type="number" min={1} max={20} value={draft.sets} onChange={event => updateDraftSetCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))} /></label>
+                    <label>Target reps<input type="number" min={1} max={100} value={draft.reps} onChange={event => updateExerciseDraft({ reps: Number(event.target.value) || 1 })} /></label>
+                    <label>Rest seconds<input type="number" min={0} max={600} value={draft.rest} onChange={event => updateExerciseDraft({ rest: Number(event.target.value) || 0 })} /></label>
+                    <label>Tempo<input maxLength={40} value={draft.tempo} onChange={event => updateExerciseDraft({ tempo: event.target.value })} /></label>
+                  </div>
+                  <div className="exercise-edit-sets"><div className="exercise-edit-set-head"><b>Set</b><b>Reps</b><b>Weight (kg)</b><span /></div>
+                    {(draft.setList ?? []).map((set, setIndex) => <div className="exercise-edit-set-row" key={set.id ?? setIndex}><span>{setIndex + 1}</span><input aria-label={`Set ${setIndex + 1} reps`} type="number" min={1} max={1000} value={set.reps} onChange={event => updateDraftSet(setIndex, "reps", Number(event.target.value) || 1)} /><input aria-label={`Set ${setIndex + 1} weight`} type="number" min={0} max={10000} step={0.5} value={set.weight} onChange={event => updateDraftSet(setIndex, "weight", Number(event.target.value) || 0)} /><button type="button" className="exercise-remove-set" disabled={(draft.setList?.length ?? 0) <= 1} onClick={() => removeDraftSet(setIndex)}>Remove</button></div>)}
+                    <button type="button" className="exercise-add-set" disabled={(draft.setList?.length ?? 0) >= 20} onClick={addDraftSet}>＋ Add set</button>
+                  </div>
+                  <div className="exercise-edit-fields exercise-edit-extra">
+                    <label className="exercise-edit-wide">Description<textarea maxLength={4000} value={draft.description ?? ""} onChange={event => updateExerciseDraft({ description: event.target.value })} /></label>
+                    <label>Instructions<textarea maxLength={20_039} value={(draft.steps ?? []).join("\n")} onChange={event => updateExerciseDraft({ steps: event.target.value.split("\n").slice(0, 40) })} /></label>
+                    <label>Form cues<textarea maxLength={12_039} value={(draft.cues ?? []).join("\n")} onChange={event => updateExerciseDraft({ cues: event.target.value.split("\n").slice(0, 40) })} /></label>
+                    <label className="exercise-edit-wide">Demo video URL<input type="url" maxLength={2048} value={draft.videoUrl ?? ""} onChange={event => updateExerciseDraft({ videoUrl: event.target.value })} /></label>
+                  </div>
+                  <button type="button" className="exercise-save" disabled={saveExerciseMutation.isPending} onClick={() => void saveExerciseDraft()}>{saveExerciseMutation.isPending ? "Saving exercise…" : "Save exercise"}</button>
+                </div> : <>
+                  <div className="exercise-card-heading"><div><h3>{exercise.name}</h3><p>{exercise.muscle} · {volume.toLocaleString()} kg volume</p></div><button type="button" className="exercise-edit-button" disabled={Boolean(editingExercise) || active !== null} onClick={() => beginExerciseEdit(exercise)}><Pencil size={14} />Edit</button></div>
+                  <div className="exercise-stats"><span><b>{exercise.sets}</b> sets</span><span><b>{exercise.reps}</b> reps</span><span><b>{exercise.rest}</b> sec rest</span><span><b>{exercise.tempo}</b> tempo</span></div>
+                  {exercise.description && <p className="exercise-description">{exercise.description}</p>}
+                  <div className="exercise-plan-sets"><b>Set</b><b>Reps × Weight</b>{setList.map((set, setIndex) => <Fragment key={set.id ?? setIndex}><span>{setIndex + 1}</span><span>{set.reps} reps × {set.weight}kg</span></Fragment>)}</div>
+                  {exercise.steps?.length ? <ol className="exercise-steps">{exercise.steps.map((step, stepIndex) => <li key={stepIndex}><span>{stepIndex + 1}</span>{step}</li>)}</ol> : exercise.cues?.[0] && <small>{exercise.cues[0]}</small>}
+                  {exercise.videoUrl && <a className="exercise-video" href={exercise.videoUrl} target="_blank" rel="noreferrer">↗ Watch demo</a>}
                   {editingProgram && <button type="button" className="text-button danger-text" onClick={() => deleteExercise(exercise.id)}>Remove from day</button>}
-                </div>
-                {editingProgram && <div className="exercise-inline-fields">
-                  <InlinePlanField id={`exercise:${exercise.id}:muscle`} label={`${exerciseLabel} muscle`} value={definition?.muscle ?? exercise.muscle} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { muscle: value })} maxLength={80} />
-                  <InlinePlanField id={`exercise:${exercise.id}:sets`} label={`${exerciseLabel} sets`} value={exercise.sets} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateExerciseSetCount(exercise, Number(value))} type="number" min={1} max={20} step={1} />
-                  <InlinePlanField id={`exercise:${exercise.id}:reps`} label={`${exerciseLabel} target reps`} value={exercise.reps} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanExercise(exercise.id, { reps: Number(value) })} type="number" min={1} max={100} step={1} />
-                  <InlinePlanField id={`exercise:${exercise.id}:rest`} label={`${exerciseLabel} rest seconds`} value={exercise.rest} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanExercise(exercise.id, { rest: Number(value) })} type="number" min={0} max={600} />
-                  <InlinePlanField id={`exercise:${exercise.id}:tempo`} label={`${exerciseLabel} tempo`} value={exercise.tempo} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanExercise(exercise.id, { tempo: value })} maxLength={40} />
-                </div>}
-                <p>{exercise.muscle} · {volume.toLocaleString()} kg vol</p>
-                {!editingProgram && <div className="exercise-stats"><span><b>{exercise.sets}</b> sets</span><span><b>{exercise.reps}</b> reps</span><span><b>{exercise.rest}</b> sec rest</span><span><b>{exercise.tempo}</b> tempo</span></div>}
-                {exercise.description && !editingProgram && <p className="exercise-description">{exercise.description}</p>}
-                <div className="exercise-plan-sets">
-                  <b>Set</b><b>Reps × Weight</b>
-                  {setList.map((set, setIndex) => <Fragment key={set.id ?? setIndex}>
-                    <span>{setIndex + 1}</span>
-                    <span className={editingProgram ? "exercise-set-edit" : ""}>
-                      {editingProgram
-                        ? <>
-                          <InlinePlanField id={`exercise:${exercise.id}:set:${setIndex}:reps`} label={`${exerciseLabel} set ${setIndex + 1} reps`} value={set.reps} displayValue={`${set.reps} reps`} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateExerciseSet(exercise, setIndex, "reps", Number(value))} type="number" min={1} max={1000} step={1} compact />
-                          <span>×</span>
-                          <InlinePlanField id={`exercise:${exercise.id}:set:${setIndex}:weight`} label={`${exerciseLabel} set ${setIndex + 1} weight`} value={set.weight} displayValue={`${set.weight} kg`} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateExerciseSet(exercise, setIndex, "weight", Number(value))} type="number" min={0} max={10000} step={0.5} compact />
-                          {setList.length > 1 && <button type="button" className="text-button danger-text" onClick={() => removeExerciseSet(exercise, setIndex)}>Remove</button>}
-                        </>
-                        : `${set.reps} reps × ${set.weight}kg`}
-                    </span>
-                  </Fragment>)}
-                </div>
-                {editingProgram && <>
-                  <button type="button" className="add-plan-set" onClick={() => addExerciseSet(exercise)}>＋ Add set</button>
-                  <details className="exercise-details-editor">
-                    <summary>Exercise details and coaching cues</summary>
-                    <InlinePlanField id={`exercise:${exercise.id}:description`} label={`${exerciseLabel} description`} value={definition?.description ?? ""} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { description: value })} maxLength={4000} multiline required={false} />
-                    <InlinePlanField id={`exercise:${exercise.id}:steps`} label={`${exerciseLabel} instructions`} value={(definition?.steps ?? []).join("\n")} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { steps: value.split("\n").map(step => step.trim()).filter(Boolean) })} maxLength={20_039} maxLines={40} maxLineLength={500} multiline required={false} />
-                    <InlinePlanField id={`exercise:${exercise.id}:cues`} label={`${exerciseLabel} form cues`} value={(definition?.cues ?? []).join("\n")} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { cues: value.split("\n").map(cue => cue.trim()).filter(Boolean) })} maxLength={12_039} maxLines={40} maxLineLength={300} multiline required={false} />
-                    <InlinePlanField id={`exercise:${exercise.id}:video`} label={`${exerciseLabel} demo video URL`} value={definition?.videoUrl ?? ""} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updateLibraryExercise(exercise.id, { videoUrl: value })} type="url" maxLength={2048} required={false} />
-                  </details>
                 </>}
-                {!editingProgram && exercise.steps?.length ? <ol className="exercise-steps">{exercise.steps.map((step, stepIndex) => <li key={stepIndex}><span>{stepIndex + 1}</span>{step}</li>)}</ol> : !editingProgram && exercise.cues[0] && <small>{exercise.cues[0]}</small>}
-                {exercise.videoUrl && !editingProgram && <a className="exercise-video" href={exercise.videoUrl} target="_blank" rel="noreferrer">↗ Watch demo</a>}
               </div>
             </article>;
           })}
-        </div> : <section className="workout-empty"><p>No exercises yet. Add an existing exercise or create a new one.</p></section>}
-        {editingProgram && <div className="exercise-library-actions"><details className="exercise-library-picker"><summary>Add from exercise library</summary><div role="group" aria-label="Exercises in your library">{visibleLibrary.filter(item => !plan.exercises.some(exercise => exercise.id === item.id)).map(item => <button type="button" key={item.id} onClick={() => addLibraryExercise(item.id)}>{item.name}<span>{item.muscle}</span></button>)}</div></details><button type="button" className="text-button" onClick={addNewExercise}>＋ New exercise</button><button type="button" className="text-button danger-text" onClick={deletePlanDraft}>Delete workout day</button></div>}
+        </div> : null}
+        {(!plan.exercises.length || !active) && <div className="exercise-library-actions">
+          <details className="exercise-library-picker" open={addExerciseOpen} onToggle={event => setAddExerciseOpen((event.currentTarget as HTMLDetailsElement).open)}><summary>＋ Add exercise</summary><div role="group" aria-label="Choose an exercise">{visibleLibrary.filter(item => !plan.exercises.some(exercise => exercise.id === item.id)).map(item => <button type="button" key={item.id} onClick={() => addLibraryExercise(item.id)}>{item.name}<span>{item.muscle}</span></button>)}<button type="button" className="exercise-create-option" onClick={addNewExercise}>Create a new exercise</button></div></details>
+          {editingProgram && <button type="button" className="text-button danger-text" onClick={deletePlanDraft}>Delete workout day</button>}
+        </div>}
         {done && <section className="session-receipt"><div><Check size={17} /><b>Workout complete</b></div><span>{done.totalSets} sets · {Math.round(done.duration / 60)} min · {Math.round(done.totalVolume).toLocaleString()} kg total volume</span></section>}
       </>}
       <section className="recent-workouts"><div className="workout-section-title"><div><h2>Recent sessions</h2><p>Your latest logged training days.</p></div></div>{logs.length ? logs.slice(0, 5).map(log => <div className="recent-row" key={log._id}><span className="recent-date">{new Date(`${log.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><b>{log.dayName || legacyDayLabels[log.dayType] || plans.find(item => item.id === log.dayType)?.name || "Workout day"}</b><span>{log.totalSets} sets</span><span>{Math.round(log.duration / 60)} min</span></div>) : <p className="empty-workouts">Finish your first session to start building a training history.</p>}</section>

@@ -59,6 +59,7 @@ router.delete("/weight-logs/:id", asyncHandler(weights.remove));
 router.get("/workout-plans", asyncHandler(workout.listPlans));
 router.get("/exercise-library", asyncHandler(workout.listExerciseLibrary));
 router.put("/workout-program", asyncHandler(workout.saveProgram));
+router.put("/workout-plans/:dayType/exercises/:exerciseId", asyncHandler(workout.savePlanExercise));
 router.put("/workout-plans/:dayType", asyncHandler(workout.savePlan));
 router.delete("/workout-plans/:dayType", asyncHandler(workout.removePlan));
 router.put("/workout-week", asyncHandler(workout.putWeek));

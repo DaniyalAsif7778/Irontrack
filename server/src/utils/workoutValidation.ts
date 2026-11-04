@@ -37,6 +37,11 @@ export function workoutPlanDataPayload(input: any) {
   return { name: input.name.trim(), exercises: workoutPlanPayload(input) };
 }
 
+export function workoutExercisePayload(input: any, exerciseId: string) {
+  if (!isPlanId(exerciseId)) throw new Error("exercise ID is invalid");
+  return workoutPlanPayload({ exercises: [{ ...input, id: exerciseId }] })[0];
+}
+
 type ExerciseLibraryPayload = { id: string; name: string; muscle: string; description: string; cues: string[]; steps: string[]; videoUrl: string };
 type WorkoutProgramPayload = { plans: { id: string; name: string; exercises: { exerciseId: string; sets: number; reps: number; rest: number; tempo: string; setList: { id: string; reps: number; weight: number }[] }[] }[]; days: { key: string; label: string; planId: string | null }[]; exerciseLibrary: ExerciseLibraryPayload[] };
 

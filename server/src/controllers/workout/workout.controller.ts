@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { workoutLogLimit, workoutLogPayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
+import { workoutExercisePayload, workoutLogLimit, workoutLogPayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as workout from "../../services/workout/workout.service.js";
@@ -29,6 +29,22 @@ export const savePlan: RequestHandler = async (req, res) => {
   const plans = await workout.listPlans(req.auth!.userId);
   if (!plans.some(plan => plan.id === planId) && plans.length >= 20) { fail(res, "You can save up to 20 workout days"); return; }
   res.json(await workout.savePlan(req.auth!.userId, planId, data.name, data.exercises));
+};
+export const savePlanExercise: RequestHandler = async (req, res) => {
+  const planId = routeParam(req.params.dayType);
+  const exerciseId = routeParam(req.params.exerciseId);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(planId)) { fail(res, "Invalid workout day ID"); return; }
+  let exercise: ReturnType<typeof workoutExercisePayload>;
+  try { exercise = workoutExercisePayload(req.body, exerciseId); }
+  catch (error) { fail(res, error instanceof Error ? error.message : "Check the exercise details"); return; }
+  try {
+    const saved = await workout.savePlanExercise(req.auth!.userId, planId, exercise);
+    if (!saved) { fail(res, "Workout day not found", 404); return; }
+    res.json(saved);
+  } catch (error) {
+    if (error instanceof Error && error.message === "A workout day can contain up to 40 exercises") { fail(res, error.message, 400); return; }
+    throw error;
+  }
 };
 export const removePlan: RequestHandler = async (req, res) => {
   const planId = routeParam(req.params.dayType);

@@ -123,6 +123,45 @@ export async function savePlan(ownerId: string, planId: string, name: string, ex
   return saved!;
 }
 
+export async function savePlanExercise(ownerId: string, planId: string, exercise: Exercise) {
+  const owner = new Types.ObjectId(ownerId);
+  const session = await mongoose.startSession();
+  let saved: Exercise | null = null;
+  try {
+    await session.withTransaction(async () => {
+      const plan = await WorkoutPlan.findOne({ ownerId: owner, dayType: planId }).session(session).lean() as unknown as StoredPlan | null;
+      if (!plan) return;
+      const existing = (plan.exercises ?? []).some(item => item.exerciseId === exercise.id);
+      if (!existing && (plan.exercises?.length ?? 0) >= 40) throw new Error("A workout day can contain up to 40 exercises");
+
+      await ExerciseLibrary.findOneAndUpdate(
+        { ownerId: owner, exerciseId: exercise.id },
+        { $set: { ownerId: owner, exerciseId: exercise.id, name: exercise.name, muscle: exercise.muscle, description: exercise.description ?? "", cues: exercise.cues ?? [], steps: exercise.steps ?? [], videoUrl: exercise.videoUrl ?? "" } },
+        { upsert: true, new: true, runValidators: true, session },
+      );
+
+      const reference = referenceFromExercise(exercise);
+      if (existing) {
+        await WorkoutPlan.updateOne(
+          { ownerId: owner, dayType: planId, "exercises.exerciseId": exercise.id },
+          { $set: { "exercises.$": reference } },
+          { runValidators: true, session },
+        );
+      } else {
+        await WorkoutPlan.updateOne(
+          { ownerId: owner, dayType: planId },
+          { $push: { exercises: reference } },
+          { runValidators: true, session },
+        );
+      }
+      saved = exercise;
+    });
+  } finally {
+    await session.endSession();
+  }
+  return saved;
+}
+
 export async function saveWorkoutProgram(ownerId: string, data: ReturnType<typeof workoutProgramPayload>) {
   const owner = new Types.ObjectId(ownerId);
   const session = await mongoose.startSession();

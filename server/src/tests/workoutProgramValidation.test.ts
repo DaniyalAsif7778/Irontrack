@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../utils/workoutValidation.js";
+import { workoutExercisePayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../utils/workoutValidation.js";
 
 const sevenDayWeek = [
   { key: "mon", label: "Monday", planId: "day-upper" },
@@ -14,6 +14,12 @@ const sevenDayWeek = [
 describe("custom workout program validation", () => {
   it("accepts a user-named plan with an empty exercise list", () => {
     expect(workoutPlanDataPayload({ name: "Upper body", exercises: [] })).toEqual({ name: "Upper body", exercises: [] });
+  });
+
+  it("validates one complete exercise card before its focused save", () => {
+    expect(workoutExercisePayload({ name: "Dumbbell row", muscle: "Back", sets: 2, reps: 8, rest: 60, tempo: "3-1-2", cues: [], setList: [{ id: "set-1", reps: 8, weight: 20 }] }, "row")).toMatchObject({ id: "row", name: "Dumbbell row", sets: 2 });
+    expect(() => workoutExercisePayload({ name: "", muscle: "Back", sets: 2, reps: 8, rest: 60, tempo: "3-1-2", cues: [] }, "row")).toThrow(/name/i);
+    expect(() => workoutExercisePayload({ name: "Row", muscle: "Back", sets: 2, reps: 8, rest: 60, tempo: "3-1-2", cues: [] }, "bad/id")).toThrow(/ID/i);
   });
 
   it("rejects blank, oversized, or unowned plan IDs in the weekly schedule", () => {

@@ -37,6 +37,7 @@ describe("WorkoutPage", () => {
         const payload = JSON.parse(String(options.body));
         return { days: payload.days, exerciseLibrary: payload.exerciseLibrary, plans: payload.plans.map((item: { id: string; name: string; exercises: { exerciseId: string; sets: number; reps: number; rest: number; tempo: string; setList: unknown[] }[] }) => ({ id: item.id, name: item.name, exercises: item.exercises.map(ref => ({ ...payload.exerciseLibrary.find((definition: { id: string }) => definition.id === ref.exerciseId), ...ref, id: ref.exerciseId })) })) };
       }
+      if (/^\/workout-plans\/[^/]+\/exercises\/[^/]+$/.test(path) && options?.method === "PUT") return JSON.parse(String(options.body));
       if (path === "/workout-week" && options?.method === "PUT") return JSON.parse(String(options.body)).days;
       if (path === "/workout-week") return week;
       if (path.startsWith("/workout-logs")) return [];
@@ -86,8 +87,8 @@ describe("WorkoutPage", () => {
     renderWorkout();
     fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
     vi.useFakeTimers();
-    fireEvent.click(screen.getByRole("button", { name: "Auto Off" }));
-    expect(screen.getByRole("button", { name: "Auto On" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Auto coach off" }));
+    expect(screen.getByRole("button", { name: "Auto coach on" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: /Done — Set 1 of 1/i }));
 
     expect(screen.getByRole("heading", { name: "Dumbbell Row", level: 3 })).toBeInTheDocument();
@@ -113,7 +114,7 @@ describe("WorkoutPage", () => {
     expect(payload.exercises).toEqual([{ exerciseId: "row", name: "Dumbbell Row", muscle: "Back", sets: [{ reps: 8, weight: 0 }] }]);
   });
 
-  it("announces the current exercise and speaks the first tempo count", async () => {
+  it("speaks one slower tempo cue and couples auto progression to voice coaching", async () => {
     class MockSpeechSynthesisUtterance {
       lang = "";
       rate = 1;
@@ -126,50 +127,40 @@ describe("WorkoutPage", () => {
 
     renderWorkout();
     fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
-    fireEvent.click(screen.getByRole("button", { name: "Voice coach off" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auto coach off" }));
 
     await waitFor(() => expect(speech.speak).toHaveBeenCalled());
-    const introduction = speech.speak.mock.calls[0][0] as MockSpeechSynthesisUtterance;
-    expect(introduction.text).toBe("Dumbbell Row. Set 1.");
-    introduction.onend?.();
-    expect((speech.speak.mock.calls[1][0] as MockSpeechSynthesisUtterance).text).toBe("lower one");
+    const cue = speech.speak.mock.calls[0][0] as MockSpeechSynthesisUtterance;
+    expect(cue.text).toBe("Dumbbell Row. Set one. lower for 3 seconds. pause for 1 second. lift for 2 seconds.");
+    expect(cue.rate).toBe(0.9);
+    expect(speech.speak).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Auto coach on" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(speech.cancel).toHaveBeenCalled();
   });
 
-  it("edits inline and persists the complete workout once from the header", async () => {
+  it("saves an edited exercise through its own request without saving the whole program", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit schedule" }));
     const dayStrip = screen.getByRole("group", { name: "Workout days" });
-    expect(dayStrip).toHaveClass("week-strip");
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
-    fireEvent.click(screen.getByRole("button", { name: `Edit ${dayLabel} workout name` }));
-    const workoutName = screen.getByLabelText(`${dayLabel} workout name`);
-    expect(workoutName).toHaveAttribute("autocomplete", "off");
-    fireEvent.change(workoutName, { target: { value: "Pull strength" } });
-    fireEvent.click(screen.getByRole("button", { name: `Save ${dayLabel} workout name` }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit Dumbbell Row target reps" }));
-    fireEvent.change(screen.getByLabelText("Dumbbell Row target reps"), { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Dumbbell Row target reps" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit Dumbbell Row name" }));
-    fireEvent.change(screen.getByLabelText("Dumbbell Row name"), { target: { value: "Single arm row" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Dumbbell Row name" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(dayStrip).toHaveClass("week-strip-editing");
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Exercise name"), { target: { value: "Single arm row" } });
+    fireEvent.change(screen.getByLabelText("Target reps"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save exercise" }));
 
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-program", expect.objectContaining({ method: "PUT" })));
-    const saves = api.mock.calls.filter(([path, options]) => path === "/workout-program" && options?.method === "PUT");
-    expect(saves).toHaveLength(1);
-    expect(JSON.parse(String(saves[0][1].body))).toMatchObject({
-      plans: [{ id: "day-pull", name: "Pull strength", exercises: [{ exerciseId: "row", reps: 10 }] }],
-      exerciseLibrary: [{ id: "row", name: "Single arm row" }],
-    });
-    expect(await screen.findByRole("heading", { name: "Pull strength" })).toBeInTheDocument();
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-plans/day-pull/exercises/row", expect.objectContaining({ method: "PUT" })));
+    const exerciseSave = api.mock.calls.find(([path, options]) => path === "/workout-plans/day-pull/exercises/row" && options?.method === "PUT")!;
+    expect(JSON.parse(String(exerciseSave[1].body))).toMatchObject({ id: "row", name: "Single arm row", reps: 10, sets: 1, tempo: "3-1-2" });
+    expect(api).not.toHaveBeenCalledWith("/workout-program", expect.anything());
+    expect(await screen.findByRole("heading", { name: "Single arm row", level: 3 })).toBeInTheDocument();
   });
 
   it("edits the overview title in place, closes the field, and persists its value", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit schedule" }));
     fireEvent.click(screen.getByRole("button", { name: "Edit Workout name" }));
     const titleInput = screen.getByRole("textbox", { name: "Workout name" });
     fireEvent.change(titleInput, { target: { value: "Back day" } });
@@ -185,7 +176,7 @@ describe("WorkoutPage", () => {
   it("closes a workout-name input when focus moves elsewhere", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit schedule" }));
     fireEvent.click(screen.getByRole("button", { name: `Edit ${dayLabel} workout name` }));
     const nameInput = screen.getByLabelText(`${dayLabel} workout name`);
     fireEvent.change(nameInput, { target: { value: "Pull focus" } });
@@ -200,46 +191,55 @@ describe("WorkoutPage", () => {
   it("shows a close control and asks before discarding workout plan changes", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit schedule" }));
     fireEvent.click(screen.getByRole("button", { name: `Edit ${dayLabel} workout name` }));
     fireEvent.change(screen.getByLabelText(`${dayLabel} workout name`), { target: { value: "Unsaved name" } });
     fireEvent.click(screen.getByRole("button", { name: `Save ${dayLabel} workout name` }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel changes" }));
 
     expect(confirm).toHaveBeenCalledWith("Discard your unsaved workout changes?");
-    expect(await screen.findByRole("button", { name: "Edit plan" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Edit schedule" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pull" })).toBeInTheDocument();
   });
 
-  it("cancels a single inline field without changing its saved draft", async () => {
+  it("shows one card save action while editing an exercise", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit Dumbbell Row target reps" }));
-    fireEvent.change(screen.getByLabelText("Dumbbell Row target reps"), { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel editing Dumbbell Row target reps" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Exercise name")).toHaveValue("Dumbbell Row");
+    expect(screen.getByLabelText("Muscle group")).toHaveValue("Back");
+    expect(screen.getAllByRole("button", { name: "Save exercise" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Cancel editing|Save Dumbbell Row/ })).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByText("8")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Dumbbell Row target reps")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  it("keeps an empty workout day focused on Add exercise and saves a library selection to that day", async () => {
+    const defaultImplementation = api.getMockImplementation();
+    api.mockImplementation(async (path: string, options?: RequestInit) => path === "/workout-plans" ? [{ ...plan, exercises: [] }] : defaultImplementation!(path, options));
+
+    renderWorkout();
+    expect(await screen.findByRole("heading", { name: "Pull" })).toBeInTheDocument();
+    expect(screen.getByText("＋ Add exercise")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start workout" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No exercises yet/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("＋ Add exercise"));
+    fireEvent.click(screen.getByRole("button", { name: /Dumbbell Row/ }));
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-plans/day-pull/exercises/row", expect.objectContaining({ method: "PUT" })));
+    expect(api).not.toHaveBeenCalledWith("/workout-program", expect.anything());
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
   it("keeps the set rows aligned with the edited target set count", async () => {
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit Dumbbell Row sets" }));
-    fireEvent.change(screen.getByLabelText("Dumbbell Row sets"), { target: { value: "3" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Dumbbell Row sets" }));
-
-    expect(screen.getByRole("button", { name: "Edit Dumbbell Row set 3 reps" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-program", expect.objectContaining({ method: "PUT" })));
-    const save = api.mock.calls.find(([path, options]) => path === "/workout-program" && options?.method === "PUT")!;
-    expect(JSON.parse(String(save[1].body)).plans[0].exercises[0]).toMatchObject({
-      sets: 3,
-      setList: [{ reps: 8, weight: 0 }, { reps: 8, weight: 0 }, { reps: 8, weight: 0 }],
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Sets"), { target: { value: "3" } });
+    expect(screen.getByLabelText("Set 3 reps")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save exercise" }));
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-plans/day-pull/exercises/row", expect.objectContaining({ method: "PUT" })));
+    const save = api.mock.calls.find(([path, options]) => path === "/workout-plans/day-pull/exercises/row" && options?.method === "PUT")!;
+    expect(JSON.parse(String(save[1].body))).toMatchObject({ sets: 3, setList: [{ reps: 8, weight: 0 }, { reps: 8, weight: 0 }, { reps: 8, weight: 0 }] });
+    expect(api).not.toHaveBeenCalledWith("/workout-program", expect.anything());
   });
 
   it("assigns an existing workout with buttons and saves it with the same draft", async () => {
@@ -247,7 +247,7 @@ describe("WorkoutPage", () => {
     const restLabel = `${restKey[0].toUpperCase()}${restKey.slice(1)}`;
     renderWorkout();
     await screen.findByRole("button", { name: "Start workout" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit schedule" }));
     const restDay = screen.getByRole("button", { name: restLabel.slice(0, 3) }).parentElement!;
     fireEvent.click(within(restDay).getByRole("button", { name: /Assign workout/ }));
 
@@ -264,7 +264,10 @@ describe("WorkoutPage", () => {
     api.mockImplementation(async (path: string, options?: RequestInit) => {
       if (path === "/workout-plans") return [];
       if (path === "/exercise-library") return [];
-      if (path === "/workout-program" && options?.method === "PUT") return JSON.parse(String(options.body));
+      if (path === "/workout-program" && options?.method === "PUT") {
+        const payload = JSON.parse(String(options.body));
+        return { days: payload.days, exerciseLibrary: payload.exerciseLibrary, plans: payload.plans.map((item: { id: string; name: string; exercises: { exerciseId: string; sets: number; reps: number; rest: number; tempo: string; setList: unknown[] }[] }) => ({ id: item.id, name: item.name, exercises: item.exercises.map(ref => ({ ...payload.exerciseLibrary.find((definition: { id: string }) => definition.id === ref.exerciseId), ...ref, id: ref.exerciseId })) })) };
+      }
       if (path === "/workout-week" && options?.method === "PUT") return JSON.parse(String(options.body)).days;
       if (path === "/workout-week") return weekdays.map(key => ({ key, label: key[0].toUpperCase() + key.slice(1), planId: null }));
       if (path.startsWith("/workout-logs")) return [];
@@ -277,7 +280,15 @@ describe("WorkoutPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create your first workout day" }));
     expect(await screen.findByLabelText(`${dayLabel} workout name`)).toHaveValue("New workout");
     fireEvent.change(screen.getByLabelText(`${dayLabel} workout name`), { target: { value: "Upper strength" } });
+    expect(screen.getByText("＋ Add exercise")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start workout" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/No exercises yet/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("＋ Add exercise"));
+    fireEvent.click(screen.getByRole("button", { name: "Create a new exercise" }));
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-program", expect.objectContaining({ method: "PUT" })));
+    const savedProgram = api.mock.calls.find(([path, options]) => path === "/workout-program" && options?.method === "PUT")!;
+    expect(JSON.parse(String(savedProgram[1].body)).plans[0].exercises).toHaveLength(1);
   });
 });
