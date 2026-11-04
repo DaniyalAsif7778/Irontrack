@@ -391,16 +391,8 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .week-day-select { display:flex; width:100%; height:24px; min-height:24px; align-items:center; justify-content:space-between; padding:0; border:0; background:transparent; color:var(--quiet); text-align:left; cursor:pointer; }
 .week-day-editor .week-day-select > span { font-size:11px; font-weight:600; }
 .week-day-editor .week-day-select i { width:6px; height:6px; background:var(--sage); border-radius:50%; }
-.week-day-workout { display:grid; gap:0; margin-top:1px; }
-.week-day-name { display:block; width:100%; min-width:0; height:23px; padding:2px 0; overflow:hidden; color:var(--ink); background:transparent; border:0; text-align:left; text-overflow:ellipsis; white-space:nowrap; }
-.week-day-name b { font-size:12px; font-weight:600; }
-.week-day-name:hover { color:var(--orange); }
-.overview-copy > .inline-plan-field { display:flex; align-items:center; gap:8px; margin:3px 0; }
-.overview-copy > .inline-plan-field .inline-plan-value { max-width:100%; font-size:24px; line-height:1.2; letter-spacing:-.035em; }
-.overview-copy > .inline-plan-field .inline-plan-input { display:block; min-width:min(100%, 260px); }
-.overview-copy > .inline-plan-field .inline-plan-input input { width:100%; min-height:42px; font-size:21px; font-weight:700; }
-.overview-copy > .inline-plan-field .inline-plan-icon { min-width:32px; min-height:32px; }
-.week-day-workout input { display:block; width:100%; min-width:0; height:23px; box-sizing:border-box; padding:2px 4px; color:var(--ink); background:var(--surface-soft); border:1px solid hsl(var(--primary) / .55); border-radius:5px; font-size:11px; line-height:17px; }
+.week-day-workout { display:grid; align-content:start; gap:6px; min-width:0; margin-top:4px; }
+.week-day-name { display:block; min-width:0; overflow:hidden; color:var(--ink); font-size:12px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
 .week-day-change,.week-day-assign { display:flex; align-items:center; width:100%; min-height:30px; margin-top:auto; padding:4px 2px; color:var(--sage); background:transparent; border:0; border-radius:5px; text-align:left; font-size:11px; }
 .week-day-change { opacity:1; }
 .week-day-change:hover,.week-day-assign:hover { background:var(--surface-raised); }
@@ -410,31 +402,18 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .week-assignment-panel button { min-height:40px; padding:7px 11px; color:var(--ink); background:var(--surface-raised); border:1px solid var(--line); border-radius:7px; font-size:12px; }
 .week-assignment-panel button:hover { border-color:var(--sage); }
 .week-assignment-panel .week-day-new { color:var(--sage); }
-.workout-program-actions { display:flex; justify-content:flex-end; margin:-5px 0 12px; }
+.week-new-workout-name { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:8px; color:var(--quiet); font-size:11px; }
+.week-new-workout-name input { grid-column:1 / -1; width:100%; min-height:40px; box-sizing:border-box; padding:8px 10px; color:var(--ink); background:var(--surface-raised); border:1px solid var(--line); border-radius:7px; font-size:13px; }
+.week-new-workout-name input:focus { border-color:var(--sage); outline:2px solid hsl(var(--accent) / .16); }
+.week-new-workout-name button { grid-column:1 / -1; justify-self:start; color:var(--sage); }
+.week-assignment-panel button:disabled { opacity:.5; cursor:not-allowed; }
 .exercise-card-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.inline-plan-field { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 8px; min-width:0; padding:7px; border:1px solid transparent; border-radius:8px; }
-.inline-plan-field:hover { background:var(--surface-raised); }
-.inline-plan-field.editing { background:var(--surface-raised); border-color:var(--line); }
-.inline-plan-label { grid-column:1 / -1; color:var(--subtle); font-size:10px; line-height:1.3; }
-.inline-plan-value { min-width:0; overflow:hidden; color:var(--ink); font-size:12px; font-weight:500; text-overflow:ellipsis; white-space:nowrap; }
-.inline-plan-icon { display:grid; flex:0 0 30px; place-items:center; width:30px; height:30px; padding:0; color:var(--quiet); background:transparent; border:1px solid transparent; border-radius:6px; cursor:pointer; }
-.inline-plan-icon:hover { color:var(--ink); background:var(--surface-soft); border-color:var(--line); }
-.inline-plan-icon:focus-visible { outline:2px solid hsl(var(--primary)); outline-offset:2px; }
-.inline-plan-icon.save { color:var(--sage); }
-.inline-plan-icon.cancel { color:var(--quiet); }
-.inline-plan-input { display:grid; grid-column:1; gap:4px; min-width:0; max-width:none !important; }
-.inline-plan-input input,.inline-plan-input textarea { width:100%; min-width:0; min-height:34px; padding:7px 8px; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:7px; font:inherit; font-size:12px; }
-.inline-plan-input textarea { min-height:90px; resize:vertical; }
-.inline-plan-input input:focus,.inline-plan-input textarea:focus { border-color:hsl(var(--primary)); outline:2px solid hsl(var(--primary) / .16); }
-.inline-plan-actions { display:flex; align-items:center; gap:2px; }
-.inline-plan-error { grid-column:1 / -1; color:var(--danger); font-size:10px; line-height:1.4; }
-.inline-plan-field.compact { display:flex; min-height:23px; gap:2px; padding:0; }
-.inline-plan-field.compact .inline-plan-value { font-size:11px; }
-.inline-plan-field.compact .inline-plan-icon { flex-basis:23px; width:23px; height:23px; }
-.inline-plan-field.compact.editing { gap:3px; border-color:transparent; }
-.inline-plan-field.compact .inline-plan-input { flex:1 1 auto; grid-column:auto; }
-.inline-plan-field.compact .inline-plan-input input { min-height:25px; padding:3px 4px; font-size:10px; }
-.inline-plan-field.compact .inline-plan-icon { flex-basis:21px; width:21px; height:21px; }
+.exercise-tempo-fields { display:grid; gap:7px; min-width:0; margin:0; padding:9px; border:1px solid var(--line); border-radius:8px; }
+.exercise-tempo-fields legend { padding:0 4px; color:var(--quiet); font-size:11px; }
+.exercise-tempo-fields > div { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.exercise-tempo-fields label { display:grid; gap:5px; color:var(--subtle); font-size:10px; }
+.exercise-tempo-fields input { width:100%; min-width:0; min-height:36px; box-sizing:border-box; padding:6px 8px; color:var(--ink); background:var(--surface-raised); border:1px solid var(--line); border-radius:7px; font-size:12px; }
+.exercise-tempo-fields small { color:var(--subtle); font-size:10px; }
 .exercise-library-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:14px 0 20px; }
 .exercise-card-heading { align-items:flex-start; }
 .exercise-card-heading > div { display:grid; gap:4px; min-width:0; }
@@ -1436,11 +1415,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .public-footer > span { display: none; }
 }
 @media (max-width: 700px) {
-  .workout-page-header { align-items:flex-start; flex-direction:column; }
-  .workout-header-actions { width:100%; justify-content:flex-start; }
+  .workout-page-header { display:flex; align-items:flex-start; flex-direction:row; flex-wrap:wrap; gap:8px 12px; }
+  .workout-page-header > div:first-child { flex:1 1 100%; min-width:0; }
+  .workout-header-actions { display:flex; width:100%; justify-content:flex-start; flex-wrap:wrap; gap:6px; }
   .week-strip-editing { padding-bottom:6px; }
   .week-day-editor { flex-basis:118px; min-height:112px; }
   .workout-cancel-edit { min-height:42px; }
-  .workout-program-actions { justify-content:flex-start; margin-top:-4px; }
   .exercise-library-actions { gap:6px; }
 }

@@ -44,7 +44,6 @@ export const savePlanExercise: RequestHandler = async (req, res) => {
   catch (error) { fail(res, error instanceof Error ? error.message : "Check the exercise details"); return; }
   try {
     const saved = await workout.savePlanExercise(req.auth!.userId, planId, exercise, planName, dayKey);
-    if (!saved) { fail(res, "Workout day not found", 404); return; }
     res.json(saved);
   } catch (error) {
     if (error instanceof Error && ["A workout day can contain up to 40 exercises", "You can save up to 20 workout days", "A new workout day needs a name and weekday"].includes(error.message)) { fail(res, error.message, 400); return; }

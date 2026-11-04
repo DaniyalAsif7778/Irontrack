@@ -15,136 +15,36 @@ type Plan = { id: string; name: string; exercises: Exercise[] };
 type WorkoutLog = { _id: string; date: string; dayType: DayType; dayName?: string; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; totalSets: number; totalVolume: number; duration: number };
 type WeekDay = { key: string; label: string; planId: DayType | null };
 type SetEntry = { reps: number; weight: number; completed: boolean };
-type ActiveWorkout = { date: string; dayType: DayType; dayName: string; startedAt: number; exerciseStartedAt?: number; elapsedBeforePause: number; pausedAt: number | null; pausedRestSeconds: number | null; entries: Record<string, SetEntry[]>; restUntil: number | null; currentExerciseIndex?: number; pendingExerciseIndex?: number | null; restMode?: "set" | "exercise" | "rep"; exerciseSnapshots?: Exercise[]; autoAdvance?: boolean; voiceCoach?: boolean; skippedExercises?: string[] };
+type ActiveWorkout = { date: string; dayType: DayType; dayName: string; startedAt: number; exerciseStartedAt?: number; elapsedBeforePause: number; pausedAt: number | null; pausedRestSeconds: number | null; entries: Record<string, SetEntry[]>; restUntil: number | null; repStartedAt?: number; repElapsedBeforePause?: number; currentExerciseIndex?: number; pendingExerciseIndex?: number | null; restMode?: "set" | "exercise" | "rep"; exerciseSnapshots?: Exercise[]; autoAdvance?: boolean; voiceCoach?: boolean; skippedExercises?: string[] };
 
 const activeKey = "irontrack_active_workout_v1";
+const workoutNameSuggestionsKey = (accountId?: string) => `irontrack_workout_name_suggestions_v1:${accountId ?? "local"}`;
+function readWorkoutNameSuggestions(accountId?: string): string[] {
+  try {
+    const names = JSON.parse(localStorage.getItem(workoutNameSuggestionsKey(accountId)) ?? "[]");
+    return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string" && name.trim().length > 0 && name.trim().length <= 80) : [];
+  } catch { return []; }
+}
+function tempoParts(tempo: string): [number, number, number] {
+  const values = tempo.split(/[\s-]+/).map(Number);
+  return values.length === 3 && values.every(value => Number.isInteger(value) && value >= 0 && value <= 10) ? values as [number, number, number] : [3, 1, 2];
+}
+const spokenCount = (count: number) => numberWords[count - 1] ?? String(count);
 const legacyDayLabels: Record<string, string> = { push: "Push", pull: "Pull", legs: "Legs", push_high: "Push · high rep", pull_high: "Pull · high rep", legs_high: "Legs · high rep" };
 const readActive = (): ActiveWorkout | null => {
-  try { const value = localStorage.getItem(activeKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; const coachEnabled = Boolean(parsed.autoAdvance || parsed.voiceCoach); return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: coachEnabled, voiceCoach: coachEnabled, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
+  try { const value = localStorage.getItem(activeKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; const coachEnabled = Boolean(parsed.autoAdvance || parsed.voiceCoach); return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, repElapsedBeforePause: parsed.repElapsedBeforePause ?? 0, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: coachEnabled, voiceCoach: coachEnabled, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
 };
 const todayWeekKey = () => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${ironToday()}T12:00:00`).getDay()];
 const elapsedText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const numberWords = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-function voiceCue(exercise: Exercise, setIndex: number) {
-  const [lower, hold, lift] = exercise.tempo.split("-").map(Number);
-  const phases = [lower, hold, lift];
-  const labels = ["lower", "pause", "lift"];
-  const tempo = phases.length === 3 && phases.every(value => Number.isInteger(value) && value >= 0 && value <= 10) && phases.some(Boolean)
-    ? phases.map((seconds, index) => seconds > 0 ? `${labels[index]} for ${seconds} ${seconds === 1 ? "second" : "seconds"}` : "").filter(Boolean).join(". ")
-    : "Move with control";
-  return `${exercise.name}. Set ${numberWords[setIndex] ?? setIndex + 1}. ${tempo}.`;
-}
-
-type InlineFieldType = "text" | "number" | "url";
-type InlinePlanFieldProps = {
-  id: string;
-  label: string;
-  value: string | number;
-  editingFieldKey: string | null;
-  setEditingFieldKey: (id: string | null) => void;
-  onSave: (value: string) => void;
-  type?: InlineFieldType;
-  displayValue?: string;
-  min?: number;
-  max?: number;
-  step?: number;
-  maxLength?: number;
-  maxLines?: number;
-  maxLineLength?: number;
-  multiline?: boolean;
-  required?: boolean;
-  compact?: boolean;
-  asHeading?: boolean;
-};
-
-function InlinePlanField({
-  id, label, value, editingFieldKey, setEditingFieldKey, onSave, type = "text",
-  displayValue, min, max, step, maxLength, maxLines, maxLineLength, multiline = false, required = true, compact = false, asHeading = false,
-}: InlinePlanFieldProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState(String(value));
-  const [error, setError] = useState("");
-  const isEditing = editingFieldKey === id;
-
-  function parseDraft() {
-    const trimmed = draft.trim();
-    if (required && !trimmed) return { error: "This value is required." };
-    if (maxLength !== undefined && trimmed.length > maxLength) return { error: `Use ${maxLength} characters or fewer.` };
-    if (maxLines !== undefined && trimmed.split("\n").length > maxLines) return { error: `Use ${maxLines} lines or fewer.` };
-    if (maxLineLength !== undefined && trimmed.split("\n").some(line => line.length > maxLineLength)) return { error: `Keep each line to ${maxLineLength} characters or fewer.` };
-    if (type === "number") {
-      const number = Number(trimmed);
-      if (!trimmed || !Number.isFinite(number) || step === 1 && !Number.isInteger(number)) return { error: "Enter a valid number." };
-      if (min !== undefined && number < min) return { error: `Use ${min} or more.` };
-      if (max !== undefined && number > max) return { error: `Use ${max} or less.` };
-      return { value: String(number) };
-    }
-    if (type === "url" && trimmed) {
-      try {
-        const url = new URL(trimmed);
-        if (!["http:", "https:"].includes(url.protocol)) return { error: "Use an HTTP or HTTPS link." };
-      } catch {
-        return { error: "Enter a valid web link." };
-      }
-    }
-    return { value: trimmed };
-  }
-
-  function commit(closeOnError = false) {
-    const parsed = parseDraft();
-    if (parsed.error) {
-      setError(parsed.error);
-      if (closeOnError) {
-        toast.error(`${label}: ${parsed.error}`);
-        setEditingFieldKey(null);
-      }
-      return;
-    }
-    onSave(parsed.value ?? "");
-    setError("");
-    setEditingFieldKey(null);
-  }
-
-  useEffect(() => {
-    if (!isEditing) return;
-    setDraft(String(value));
-    setError("");
-    const field = inputRef.current ?? textareaRef.current;
-    field?.focus();
-    field?.select();
-  }, [isEditing, value]);
-
-  useEffect(() => {
-    if (!isEditing) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (event.target instanceof Node && !wrapperRef.current?.contains(event.target)) commit(true);
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
-  }, [isEditing, draft, label, type, min, max, step, maxLength, maxLines, maxLineLength, required, onSave]);
-
-  const fieldClassName = `inline-plan-field${compact ? " compact" : ""}${isEditing ? " editing" : ""}`;
-  if (!isEditing) return <div ref={wrapperRef} className={fieldClassName}>
-    <span className={compact ? "sr-only" : "inline-plan-label"}>{label}</span>
-    {asHeading ? <h2 className="inline-plan-value" title={displayValue ?? String(value)}>{displayValue ?? (String(value) || "—")}</h2> : <strong className="inline-plan-value" title={displayValue ?? String(value)}>{displayValue ?? (String(value) || "—")}</strong>}
-    <button type="button" className="inline-plan-icon" aria-label={`Edit ${label}`} onClick={() => { setDraft(String(value)); setError(""); setEditingFieldKey(id); }}><Pencil size={14} /></button>
-  </div>;
-
-  return <div ref={wrapperRef} className={fieldClassName}>
-    <label className="inline-plan-input">
-      <span className={compact ? "sr-only" : "inline-plan-label"}>{label}</span>
-      {multiline
-        ? <textarea ref={textareaRef} aria-label={label} maxLength={maxLength} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Escape") setEditingFieldKey(null); else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); commit(); } }} />
-        : <input ref={inputRef} aria-label={label} type={type} autoComplete="off" min={min} max={max} step={step} maxLength={maxLength} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === "Escape") setEditingFieldKey(null); else if (event.key === "Enter") { event.preventDefault(); commit(); } }} />}
-    </label>
-    <div className="inline-plan-actions">
-      <button type="button" className="inline-plan-icon save" aria-label={`Save ${label}`} onClick={() => commit()}><Check size={15} /></button>
-      <button type="button" className="inline-plan-icon cancel" aria-label={`Cancel editing ${label}`} onClick={() => setEditingFieldKey(null)}><X size={15} /></button>
-    </div>
-    {error && <span className="inline-plan-error" role="alert">{error}</span>}
-  </div>;
+function tempoCountCues(exercise: Exercise, elapsedSeconds = 0) {
+  const labels = ["Lower", "Hold", "Lift"];
+  let offset = 0;
+  return tempoParts(exercise.tempo).flatMap((seconds, phase) => {
+    const cues = Array.from({ length: seconds }, (_, index) => ({ at: (offset + index) * 1000, text: index === 0 ? `${labels[phase]}, ${spokenCount(index + 1)}` : spokenCount(index + 1) }));
+    offset += seconds;
+    return cues;
+  }).filter(cue => cue.at >= elapsedSeconds * 1000);
 }
 
 export default function Workout({ onError, accountId }: { onError: (message: string) => void; accountId?: string }) {
@@ -156,10 +56,13 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const [weekDraft, setWeekDraft] = useState<WeekDay[]>([]);
   const [planDrafts, setPlanDrafts] = useState<Plan[]>([]);
   const [exerciseLibraryDraft, setExerciseLibraryDraft] = useState<LibraryExercise[]>([]);
-  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
   const [assignmentDayKey, setAssignmentDayKey] = useState<string | null>(null);
+  const [savedWorkoutNames, setSavedWorkoutNames] = useState(() => readWorkoutNameSuggestions(accountId));
+  const [newWorkoutName, setNewWorkoutName] = useState("");
+  const [showNewWorkoutName, setShowNewWorkoutName] = useState(false);
+  const spokenSetCue = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const plansQuery = useQuery({ queryKey: ["workout", "plans"], queryFn: () => api<Plan[]>("/workout-plans") });
   const weekQuery = useQuery({ queryKey: ["workout", "week"], queryFn: () => api<WeekDay[]>("/workout-week") });
@@ -169,6 +72,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const week = weekQuery.data ?? [];
   const exerciseLibrary = libraryQuery.data ?? [];
   const logs = logsQuery.data ?? [];
+  useEffect(() => { setSavedWorkoutNames(readWorkoutNameSuggestions(accountId)); }, [accountId]);
   const loaded = !plansQuery.isPending && !weekQuery.isPending && !libraryQuery.isPending && !logsQuery.isPending;
   const finishMutation = useMutation({
     mutationFn: async (payload: { date: string; dayType: DayType; dayName: string; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; duration: number; actionId: string }) => {
@@ -275,20 +179,36 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const sessionProgressSets = completedSets + skippedSetCount;
   const sessionDone = Boolean(active && completedSets > 0 && sessionProgressSets >= sessionTotalSets);
   useEffect(() => {
-    if (!(active?.voiceCoach || active?.autoAdvance) || active.pausedAt || restSeconds > 0 || !currentExercise || activeSetIndex < 0 || !voiceAvailable) return;
+    if (!(active?.voiceCoach || active?.autoAdvance) || active.pausedAt || !currentExercise || !voiceAvailable) return;
     const synthesis = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance(voiceCue(currentExercise, activeSetIndex));
-    utterance.lang = navigator.language;
-    utterance.rate = 0.9;
     const language = navigator.language.toLowerCase();
     const voices = synthesis.getVoices?.() ?? [];
     const matchingVoice = voices.find(voice => voice.lang.toLowerCase() === language)
       ?? voices.find(voice => voice.default && voice.lang.split("-")[0].toLowerCase() === language.split("-")[0]);
-    if (matchingVoice) utterance.voice = matchingVoice;
+    const timers: number[] = [];
+    const speak = (text: string) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = navigator.language;
+      utterance.rate = 0.95;
+      if (matchingVoice) utterance.voice = matchingVoice;
+      synthesis.speak(utterance);
+    };
     synthesis.cancel();
-    synthesis.speak(utterance);
-    return () => synthesis.cancel();
-  }, [active?.voiceCoach, active?.autoAdvance, active?.pausedAt, active?.startedAt, currentExercise?.id, currentExercise?.name, currentExercise?.tempo, activeSetIndex, restSeconds > 0, voiceAvailable]);
+    const repIsRunning = active.restMode === "rep" && active.restUntil != null && active.restUntil > Date.now();
+    if (repIsRunning) {
+      const elapsedRepSeconds = (active.repElapsedBeforePause ?? 0) + Math.max(0, Math.floor((Date.now() - (active.repStartedAt ?? Date.now())) / 1000));
+      for (const cue of tempoCountCues(currentExercise, elapsedRepSeconds)) {
+        timers.push(window.setTimeout(() => speak(cue.text), Math.max(0, cue.at - elapsedRepSeconds * 1000)));
+      }
+    } else if (restSeconds === 0 && activeSetIndex >= 0) {
+      const cueKey = `${active.startedAt}:${currentExercise.id}:${activeSetIndex}`;
+      if (spokenSetCue.current !== cueKey) {
+        spokenSetCue.current = cueKey;
+        speak(`${currentExercise.name}. Set ${numberWords[activeSetIndex] ?? activeSetIndex + 1}.`);
+      }
+    }
+    return () => { timers.forEach(window.clearTimeout); synthesis.cancel(); };
+  }, [active?.voiceCoach, active?.autoAdvance, active?.pausedAt, active?.restMode, active?.restUntil, active?.repStartedAt, active?.repElapsedBeforePause, active?.startedAt, currentExercise?.id, currentExercise?.name, currentExercise?.tempo, activeSetIndex, restSeconds > 0, voiceAvailable]);
   const programIsDirty = editingProgram && (JSON.stringify(weekDraft) !== JSON.stringify(week) || JSON.stringify(planDrafts) !== JSON.stringify(plans) || JSON.stringify(exerciseLibraryDraft) !== JSON.stringify(exerciseLibrary));
 
   function startWorkout() {
@@ -305,8 +225,10 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   function togglePause() {
     setActive(current => {
       if (!current) return null;
-      if (current.pausedAt) return { ...current, startedAt: Date.now(), exerciseStartedAt: (current.exerciseStartedAt ?? current.startedAt) + (Date.now() - current.pausedAt), pausedAt: null, restUntil: current.pausedRestSeconds ? Date.now() + current.pausedRestSeconds * 1000 : null, pausedRestSeconds: null };
-      return { ...current, elapsedBeforePause: current.elapsedBeforePause + Math.floor((Date.now() - current.startedAt) / 1000), pausedAt: Date.now(), pausedRestSeconds: current.restUntil ? Math.max(0, Math.ceil((current.restUntil - Date.now()) / 1000)) : null, restUntil: null };
+      if (current.pausedAt) return { ...current, startedAt: Date.now(), exerciseStartedAt: (current.exerciseStartedAt ?? current.startedAt) + (Date.now() - current.pausedAt), repStartedAt: current.restMode === "rep" && current.pausedRestSeconds ? Date.now() : current.repStartedAt, pausedAt: null, restUntil: current.pausedRestSeconds ? Date.now() + current.pausedRestSeconds * 1000 : null, pausedRestSeconds: null };
+      const pausedAt = Date.now();
+      const repElapsedBeforePause = current.restMode === "rep" && current.restUntil ? (current.repElapsedBeforePause ?? 0) + Math.max(0, Math.floor((pausedAt - (current.repStartedAt ?? pausedAt)) / 1000)) : current.repElapsedBeforePause;
+      return { ...current, elapsedBeforePause: current.elapsedBeforePause + Math.floor((pausedAt - current.startedAt) / 1000), repElapsedBeforePause, repStartedAt: undefined, pausedAt, pausedRestSeconds: current.restUntil ? Math.max(0, Math.ceil((current.restUntil - pausedAt) / 1000)) : null, restUntil: null };
     });
   }
 
@@ -336,13 +258,14 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       const nextExerciseIndex = exerciseFinished ? Math.min((current.currentExerciseIndex ?? 0) + 1, Math.max(0, (activePlan?.exercises.length ?? 1) - 1)) : current.currentExerciseIndex ?? 0;
       const deferExerciseChange = Boolean(current.autoAdvance && exerciseFinished && moreSets);
       const restMode = exerciseFinished ? "exercise" : "set";
-      return { ...current, entries, currentExerciseIndex: deferExerciseChange ? current.currentExerciseIndex ?? 0 : nextExerciseIndex, pendingExerciseIndex: deferExerciseChange ? nextExerciseIndex : null, exerciseStartedAt: exerciseFinished && !deferExerciseChange ? Date.now() : current.exerciseStartedAt, restMode, restUntil: moreSets ? Date.now() + (exerciseFinished ? Math.max(exercise.rest, 60) : exercise.rest) * 1000 : null };
+      return { ...current, entries, currentExerciseIndex: deferExerciseChange ? current.currentExerciseIndex ?? 0 : nextExerciseIndex, pendingExerciseIndex: deferExerciseChange ? nextExerciseIndex : null, exerciseStartedAt: exerciseFinished && !deferExerciseChange ? Date.now() : current.exerciseStartedAt, repStartedAt: undefined, repElapsedBeforePause: 0, restMode, restUntil: moreSets ? Date.now() + (exerciseFinished ? Math.max(exercise.rest, 60) : exercise.rest) * 1000 : null };
     });
   }
 
   function startRepTimer(exercise: Exercise) {
-    const seconds = exercise.tempo.split(/[\s-]+/).map(Number).filter(Number.isFinite).reduce((sum, value) => sum + value, 0) || 6;
-    setActive(current => current ? { ...current, restUntil: Date.now() + seconds * 1000, restMode: "rep" } : null);
+    const seconds = tempoParts(exercise.tempo).reduce((sum, value) => sum + value, 0);
+    if (!seconds) { toast.error("Set at least one tempo phase to 1 second or more first."); return; }
+    setActive(current => current ? { ...current, repStartedAt: Date.now(), repElapsedBeforePause: 0, restUntil: Date.now() + seconds * 1000, restMode: "rep" } : null);
   }
 
   function skipExercise() {
@@ -404,7 +327,6 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   function cancelProgramEdit() {
     if (programIsDirty && !confirm("Discard your unsaved workout changes?")) return;
     setEditingProgram(false);
-    setEditingFieldKey(null);
     setAssignmentDayKey(null);
   }
 
@@ -421,14 +343,9 @@ export default function Workout({ onError, accountId }: { onError: (message: str
         })),
       });
       setEditingProgram(false);
-      setEditingFieldKey(null);
       setAssignmentDayKey(null);
       toast.success("Workout plan saved");
     } catch (reason) { onError((reason as Error).message); }
-  }
-
-  function updatePlanName(planId: string, name: string) {
-    setPlanDrafts(current => current.map(item => item.id === planId ? { ...item, name } : item));
   }
 
   function beginExerciseEdit(exercise: Exercise) {
@@ -437,6 +354,15 @@ export default function Workout({ onError, accountId }: { onError: (message: str
 
   function updateExerciseDraft(patch: Partial<Exercise>) {
     setEditingExercise(current => current ? { ...current, ...patch } : current);
+  }
+
+  function updateTempoPhase(index: number, value: string) {
+    setEditingExercise(current => {
+      if (!current) return current;
+      const phases = tempoParts(current.tempo);
+      phases[index] = Math.max(0, Math.min(10, Number(value) || 0));
+      return { ...current, tempo: phases.join("-") };
+    });
   }
 
   function updateDraftSet(setIndex: number, field: "reps" | "weight", value: number) {
@@ -457,7 +383,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     if (!exercise.name.trim() || exercise.name.length > 120) { toast.error("Enter an exercise name up to 120 characters."); return; }
     if (!exercise.muscle.trim() || exercise.muscle.length > 80) { toast.error("Enter a muscle group up to 80 characters."); return; }
     if (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 20 || !Number.isInteger(exercise.reps) || exercise.reps < 1 || exercise.reps > 100 || !Number.isFinite(exercise.rest) || exercise.rest < 0 || exercise.rest > 600) { toast.error("Check the set, rep, and rest targets."); return; }
-    if (exercise.tempo.length > 40 || (exercise.setList?.length ?? 0) !== exercise.sets || exercise.setList?.some(set => !Number.isInteger(set.reps) || set.reps < 1 || set.reps > 1000 || !Number.isFinite(set.weight) || set.weight < 0 || set.weight > 10000)) { toast.error("Check the tempo and set details."); return; }
+    if (exercise.tempo.length > 40 || !tempoParts(exercise.tempo).some(Boolean) || (exercise.setList?.length ?? 0) !== exercise.sets || exercise.setList?.some(set => !Number.isInteger(set.reps) || set.reps < 1 || set.reps > 1000 || !Number.isFinite(set.weight) || set.weight < 0 || set.weight > 10000)) { toast.error("Check the tempo and set details."); return; }
     if ((exercise.description?.length ?? 0) > 4000 || (exercise.cues?.length ?? 0) > 40 || exercise.cues?.some(cue => cue.length > 300) || (exercise.steps?.length ?? 0) > 40 || exercise.steps?.some(step => step.length > 500)) { toast.error("Exercise details exceed the allowed length."); return; }
     if ((exercise.videoUrl?.length ?? 0) > 2048) { toast.error("The demo video link is too long."); return; }
     if (exercise.videoUrl) {
@@ -472,14 +398,30 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     setWeekDraft(current => current.map(day => day.key === dayKey ? { ...day, planId } : day));
   }
 
-  function createPlanDraft() {
-    const planId = `day-${crypto.randomUUID()}`;
-    const dayKey = assignmentDayKey ?? selectedKey;
-    setPlanDrafts(current => [...current, { id: planId, name: "New workout", exercises: [] }]);
+  function saveWorkoutNameSuggestion(value = newWorkoutName) {
+    const name = value.trim().slice(0, 80);
+    if (!name) return false;
+    const next = [name, ...savedWorkoutNames.filter(item => item.toLocaleLowerCase() !== name.toLocaleLowerCase())].slice(0, 30);
+    try { localStorage.setItem(workoutNameSuggestionsKey(accountId), JSON.stringify(next)); }
+    catch { toast.error("This workout name could not be saved on this device."); return false; }
+    setSavedWorkoutNames(next);
+    setNewWorkoutName("");
+    setShowNewWorkoutName(false);
+    return true;
+  }
+
+  function chooseWorkoutName(dayKey: string, name: string) {
+    if (newWorkoutName.trim()) saveWorkoutNameSuggestion(newWorkoutName);
+    const matchingPlan = visiblePlans.find(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    const assignedId = visibleWeek.find(day => day.key === dayKey)?.planId;
+    const assignedPlan = visiblePlans.find(item => item.id === assignedId);
+    const planId = matchingPlan?.id ?? assignedPlan?.id ?? `day-${crypto.randomUUID()}`;
+    if (!matchingPlan && assignedPlan) setPlanDrafts(current => current.map(item => item.id === assignedPlan.id ? { ...item, name } : item));
+    else if (!matchingPlan) setPlanDrafts(current => [...current, { id: planId, name, exercises: [] }]);
     updateWeekAssignment(dayKey, planId);
     setSelectedKey(dayKey);
     setAssignmentDayKey(null);
-    setEditingFieldKey(`plan:${dayKey}:${planId}:name`);
+    setShowNewWorkoutName(false);
   }
 
   function deletePlanDraft() {
@@ -534,33 +476,21 @@ export default function Workout({ onError, accountId }: { onError: (message: str
         const completedToday = day.planId && logs.some(log => log.date === ironToday() && log.dayType === day.planId);
         return editingProgram ? <div className={`week-day-editor ${selectedKey === day.key ? "selected" : ""}`} key={day.key}>
           <button type="button" className="week-day-select" aria-pressed={selectedKey === day.key} onClick={() => setSelectedKey(day.key)}><span>{day.label.slice(0, 3)}</span>{completedToday && <i aria-label="Completed" />}</button>
-          {assignedPlan ? <div className="week-day-workout">
-            <InlinePlanField
-              id={`plan:${day.key}:${assignedPlan.id}:name`}
-              label={`${day.label} workout name`}
-              value={assignedPlan.name}
-              editingFieldKey={editingFieldKey}
-              setEditingFieldKey={setEditingFieldKey}
-              onSave={value => updatePlanName(assignedPlan.id, value)}
-              maxLength={80}
-              compact
-            />
-            <button type="button" className="week-day-change" aria-label={`Change workout for ${day.label}`} aria-expanded={assignmentDayKey === day.key} onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>Change workout</button>
-          </div> : <button type="button" className="week-day-assign" aria-label={`Assign workout to ${day.label}`} onClick={() => setAssignmentDayKey(current => current === day.key ? null : day.key)}>＋ Assign workout</button>}
+          {assignedPlan ? <div className="week-day-workout"><strong className="week-day-name">{assignedPlan.name}</strong><button type="button" data-assignment-trigger={day.key} className="week-day-change" aria-label={`Change workout for ${day.label}`} aria-expanded={assignmentDayKey === day.key} onClick={() => { if (newWorkoutName.trim()) saveWorkoutNameSuggestion(); setAssignmentDayKey(current => current === day.key ? null : day.key); }}>Change workout</button></div> : <button type="button" data-assignment-trigger={day.key} className="week-day-assign" aria-label={`Choose a workout for ${day.label}`} aria-expanded={assignmentDayKey === day.key} onClick={() => { if (newWorkoutName.trim()) saveWorkoutNameSuggestion(); setAssignmentDayKey(current => current === day.key ? null : day.key); }}>＋ Choose workout</button>}
         </div> : <button type="button" key={day.key} className={selectedKey === day.key ? "selected" : ""} onClick={() => setSelectedKey(day.key)}>
           <span>{day.label.slice(0, 3)}</span><b>{assignedPlan?.name ?? "Rest"}</b>{completedToday && <i aria-label="Completed" />}
         </button>;
       })}
     </div>
     {editingProgram && assignmentDayKey && <div className="week-assignment-panel" role="group" aria-label={`Choose a workout for ${visibleWeek.find(day => day.key === assignmentDayKey)?.label ?? "this day"}`}>
-      <span>{visibleWeek.find(day => day.key === assignmentDayKey)?.label}: assign a workout</span>
+      <span>{visibleWeek.find(day => day.key === assignmentDayKey)?.label}: choose a workout name</span>
       <div>
-        <button type="button" aria-pressed={!visibleWeek.find(day => day.key === assignmentDayKey)?.planId} onClick={() => { updateWeekAssignment(assignmentDayKey, null); setAssignmentDayKey(null); }}>Rest day</button>
-        {visiblePlans.map(item => <button type="button" key={item.id} aria-pressed={visibleWeek.find(day => day.key === assignmentDayKey)?.planId === item.id} onClick={() => { updateWeekAssignment(assignmentDayKey, item.id); setSelectedKey(assignmentDayKey); setAssignmentDayKey(null); }}>{item.name}</button>)}
-        <button type="button" className="week-day-new" onClick={createPlanDraft}>＋ New workout</button>
+        <button type="button" aria-pressed={!visibleWeek.find(day => day.key === assignmentDayKey)?.planId} onClick={() => { if (newWorkoutName.trim()) saveWorkoutNameSuggestion(); updateWeekAssignment(assignmentDayKey, null); setAssignmentDayKey(null); }}>Rest day</button>
+        {[...new Set([...visiblePlans.map(item => item.name), ...savedWorkoutNames])].map(name => { const item = visiblePlans.find(planItem => planItem.name.toLocaleLowerCase() === name.toLocaleLowerCase()); return <button type="button" key={name} aria-pressed={Boolean(item && visibleWeek.find(day => day.key === assignmentDayKey)?.planId === item.id)} onClick={() => chooseWorkoutName(assignmentDayKey, name)}>{name}</button>; })}
+        <button type="button" className="week-day-new" onClick={() => setShowNewWorkoutName(true)}>＋ New workout</button>
       </div>
+      {showNewWorkoutName && <label className="week-new-workout-name">New workout name<input aria-label="New workout name" autoFocus maxLength={80} value={newWorkoutName} onChange={event => setNewWorkoutName(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (saveWorkoutNameSuggestion()) chooseWorkoutName(assignmentDayKey, newWorkoutName.trim()); } else if (event.key === "Escape") { setShowNewWorkoutName(false); setNewWorkoutName(""); } }} onBlur={event => { const panel = event.currentTarget.closest(".week-assignment-panel"); if (!panel?.contains(event.relatedTarget as Node | null)) { saveWorkoutNameSuggestion(); const trigger = (event.relatedTarget as HTMLElement | null)?.closest<HTMLElement>("[data-assignment-trigger]"); if (trigger?.dataset.assignmentTrigger !== assignmentDayKey) setAssignmentDayKey(null); } }} /><button type="button" disabled={!newWorkoutName.trim()} onClick={() => { const name = newWorkoutName.trim(); if (saveWorkoutNameSuggestion(name)) chooseWorkoutName(assignmentDayKey, name); }}>Save &amp; use</button></label>}
     </div>}
-    {editingProgram && <div className="workout-program-actions"><button type="button" className="text-button" onClick={createPlanDraft}>＋ Create workout day</button></div>}
     {active ? <section className="active-workout">
       <div className="active-workout-top"><div><span className={`live-dot ${active.pausedAt ? "paused" : ""}`} /> {active.pausedAt ? "Paused" : "In progress"}</div><strong><Clock3 size={16} /> {elapsedText(elapsed)}</strong><div className="workout-session-controls"><button type="button" className="session-control" onClick={togglePause}>{active.pausedAt ? <Play size={15} /> : <Pause size={15} />}{active.pausedAt ? "Resume" : "Pause"}</button><button type="button" className="session-control session-stop" onClick={stopWorkout}><X size={15} /> End</button></div></div>
       <div className="workout-mode-controls" aria-label="Workout coaching options">
@@ -571,7 +501,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       <div className="session-progress"><button type="button" aria-label="End workout" onClick={stopWorkout}><ChevronLeft size={18} /></button><div><i style={{ width: `${sessionTotalSets ? Math.min(sessionProgressSets / sessionTotalSets * 100, 100) : 0}%` }} /></div><span>{currentExercise ? currentExerciseIndex + 1 : activePlan?.exercises.length ?? 0}/{activePlan?.exercises.length ?? 0}</span></div>
       <div className="exercise-pills" aria-label="Workout exercises">{activePlan?.exercises.map((exercise, index) => { const complete = (active.entries[exercise.id] ?? []).every(entry => entry.completed); const skipped = skippedExerciseIds.includes(exercise.id); return <button type="button" key={exercise.id} className={`${index === currentExerciseIndex ? "current" : ""} ${complete ? "complete" : ""} ${skipped ? "skipped" : ""}`} onClick={() => setActive(current => current ? { ...current, skippedExercises: (current.skippedExercises ?? []).filter(id => id !== exercise.id), currentExerciseIndex: index, exerciseStartedAt: Date.now() } : null)} aria-label={`${skipped ? "Skipped" : "Go to"} exercise ${index + 1}: ${exercise.name}`}>{index + 1}</button>; })}</div>
       <div className="session-clock-row"><span><Clock3 size={14} /> Workout <b>{elapsedText(elapsed)}</b></span><span><TimerReset size={14} /> Exercise <b>{elapsedText(exerciseElapsed)}</b></span></div>
-      {restSeconds > 0 && <div className="session-countdown"><div className="countdown-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="44" style={{ strokeDasharray: 276.46, strokeDashoffset: 276.46 * (1 - restSeconds / Math.max(1, restTotal)) }} /></svg><b>{restSeconds}</b><small>sec</small></div><p>{active.pausedAt ? "Timer paused" : active.autoAdvance && active.pendingExerciseIndex != null ? "Next exercise starts after rest" : active.restMode === "exercise" ? "Rest between exercises" : active.restMode === "rep" ? "Rep tempo timer" : "Rest between sets"}</p>{!active.pausedAt && <button type="button" onClick={() => setActive(current => current ? { ...current, restUntil: null } : null)}>Skip timer</button>}</div>}
+      {restSeconds > 0 && <div className="session-countdown"><div className="countdown-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="44" style={{ strokeDasharray: 276.46, strokeDashoffset: 276.46 * (1 - restSeconds / Math.max(1, restTotal)) }} /></svg><b>{restSeconds}</b><small>sec</small></div><p>{active.pausedAt ? "Timer paused" : active.autoAdvance && active.pendingExerciseIndex != null ? "Next exercise starts after rest" : active.restMode === "exercise" ? "Rest between exercises" : active.restMode === "rep" ? "Tempo count" : "Rest between sets"}</p>{!active.pausedAt && <button type="button" onClick={() => setActive(current => current ? { ...current, restUntil: null, repStartedAt: undefined, repElapsedBeforePause: 0 } : null)}>Skip timer</button>}</div>}
       {!activePlan ? <p className="empty-workouts">Loading workout plan…</p> : sessionDone ? (
         <section className="session-done"><span>🏆</span><h2>Workout Complete!</h2><div><article><b>{completedSets}</b><small>Sets</small></article><article><b>{elapsedText(elapsed)}</b><small>Duration</small></article><article><b>{completedExerciseCount}</b><small>Exercises</small></article><article><b>{activePlan.exercises.reduce((sum, exercise) => sum + (active.entries[exercise.id] ?? []).reduce((total, set) => total + set.reps * set.weight, 0), 0).toLocaleString()} kg</b><small>Volume</small></article></div>
           {skippedExerciseCount > 0 && <><p>{skippedExerciseCount} exercise{skippedExerciseCount === 1 ? " has" : "s have"} skipped sets. Only completed sets will be saved.</p><div className="session-skipped-actions">{activePlan.exercises.map((exercise, index) => skippedExerciseIds.includes(exercise.id) && <button type="button" key={exercise.id} onClick={() => resumeSkippedExercise(exercise.id, index)}>Resume {exercise.name}</button>)}</div></>}
@@ -584,14 +514,14 @@ export default function Workout({ onError, accountId }: { onError: (message: str
         {currentExercise.cues.length > 0 && <div className="session-cues"><b>Cues</b>{currentExercise.cues.map((cue, index) => <p key={index}><ChevronRight size={13} />{cue}</p>)}</div>}
         <div className="session-exercises"><div className="set-head"><span>Set</span><span>Reps</span><span>Load</span><span /></div>
         {(active.entries[currentExercise.id] ?? []).map((entry, index) => <div className={`set-row ${entry.completed ? "set-done" : ""}`} key={`${currentExercise.id}-${index}`}>
-          <span className="set-number">{index + 1}</span><input type="number" min="0" max="1000" value={entry.reps} disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} reps`} onChange={event => editSet(currentExercise.id, index, "reps", Number(event.target.value))} /><input type="number" min="0" step="0.5" max="10000" value={entry.weight || ""} placeholder="0" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} weight`} onChange={event => editSet(currentExercise.id, index, "weight", Number(event.target.value))} /><span>{entry.completed && <Check size={15} />}</span>
+          <span className="set-number">{index + 1}</span><input type="number" min="1" max="1000" value={entry.reps || ""} placeholder="Reps" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} reps`} onChange={event => editSet(currentExercise.id, index, "reps", Number(event.target.value))} /><input type="number" min="0" step="0.5" max="10000" value={entry.weight || ""} placeholder="0" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} weight`} onChange={event => editSet(currentExercise.id, index, "weight", Number(event.target.value))} /><span>{entry.completed && <Check size={15} />}</span>
         </div>)}</div>
-        <button type="button" className="finish-workout" disabled={!currentEntries.some(entry => !entry.completed) || restSeconds > 0 || Boolean(active.pausedAt)} onClick={() => completeSet(currentExercise, activeSetIndex)}><Check size={16} /> Done — Set {currentEntries.filter(entry => entry.completed).length + 1} of {currentExercise.sets}</button>
-        <div className="session-bottom-actions"><button type="button" disabled={Boolean(active.pausedAt)} onClick={() => startRepTimer(currentExercise)}><TimerReset size={14} /> Rep Timer</button><button type="button" disabled={Boolean(active.pausedAt)} onClick={skipExercise}><ChevronRight size={14} /> Skip Exercise</button></div>
+        <button type="button" className="finish-workout" disabled={!currentEntries.some(entry => !entry.completed) || (currentEntries[activeSetIndex]?.reps ?? 0) < 1 || restSeconds > 0 || Boolean(active.pausedAt)} onClick={() => completeSet(currentExercise, activeSetIndex)}><Check size={16} /> Done — Set {currentEntries.filter(entry => entry.completed).length + 1} of {currentExercise.sets}</button>
+        <div className="session-bottom-actions"><button type="button" disabled={Boolean(active.pausedAt) || !tempoParts(currentExercise.tempo).some(Boolean)} onClick={() => startRepTimer(currentExercise)}><TimerReset size={14} /> Start tempo count</button><button type="button" disabled={Boolean(active.pausedAt)} onClick={skipExercise}><ChevronRight size={14} /> Skip Exercise</button></div>
       </article> : null}
     </section> : <>
-    {!loaded ? <section className="rest-day"><h2>Loading your training plan</h2></section> : !selected?.planId ? <section className="rest-day"><div className="rest-mark"><RotateCcw /></div><h2>{plans.length ? "Recovery day" : "Start with your own workout"}</h2><p>{plans.length ? "This day is set aside for rest. Assign a workout day here whenever your schedule changes." : "Create a workout day, add your exercises, then choose which days you want to train."}</p>{!plans.length && <button type="button" className="start-workout" onClick={() => { beginProgramEdit(); createPlanDraft(); }}>Create your first workout day</button>}</section> : !plan ? <section className="rest-day"><h2>Workout day unavailable</h2><p>This schedule entry no longer has a saved plan. Edit your weekly schedule to choose another workout or rest day.</p></section> : <>
-        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span>{editingProgram ? <InlinePlanField id={`plan:${plan.id}:overview-name`} label="Workout name" value={plan.name} editingFieldKey={editingFieldKey} setEditingFieldKey={setEditingFieldKey} onSave={value => updatePlanName(plan.id, value)} maxLength={80} asHeading /> : <h2>{plan.name}</h2>}{plan.exercises.length > 0 && <p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p>}</div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && plan.exercises.length > 0 && <button type="button" className="start-workout" onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
+    {!loaded ? <section className="rest-day"><h2>Loading your training plan</h2></section> : !selected?.planId ? <section className="rest-day"><div className="rest-mark"><RotateCcw /></div><h2>{plans.length ? "Recovery day" : "Choose your first workout"}</h2><p>{plans.length ? "This day is set aside for rest. Choose a workout name whenever your schedule changes." : "Choose a workout name, add exercises, and assign the workout to the days you train."}</p><button type="button" className="start-workout" onClick={() => { beginProgramEdit(); setAssignmentDayKey(selectedKey); }}>Choose workout</button></section> : !plan ? <section className="rest-day"><h2>Workout day unavailable</h2><p>This schedule entry no longer has a saved plan. Edit your weekly schedule to choose another workout or rest day.</p></section> : <>
+        <section className="workout-overview"><div className="overview-copy"><span className="program-label">{selected.label}</span><h2>{plan.name}</h2>{plan.exercises.length > 0 && <p>{plan.exercises.length} exercises · {totalSets} working sets · Dumbbells</p>}</div><div className="overview-action">{done ? <span className="workout-complete"><Check size={16} /> Completed today</span> : !editingProgram && plan.exercises.length > 0 && <button type="button" className="start-workout" onClick={startWorkout}><Play size={16} fill="currentColor" /> Start workout</button>}</div></section>
         <div className="workout-section-title"><div><h2>Exercises in this workout</h2></div></div>
         {plan.exercises.length ? <div className="exercise-list">
           {plan.exercises.map((exercise, index) => {
@@ -609,12 +539,12 @@ export default function Workout({ onError, accountId }: { onError: (message: str
                     <label className="exercise-edit-wide">Exercise name<input maxLength={120} value={draft.name} onChange={event => updateExerciseDraft({ name: event.target.value })} /></label>
                     <label>Muscle group<input maxLength={80} value={draft.muscle} onChange={event => updateExerciseDraft({ muscle: event.target.value })} /></label>
                     <label>Sets<input type="number" min={1} max={20} value={draft.sets} onChange={event => updateDraftSetCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))} /></label>
-                    <label>Target reps<input type="number" min={1} max={100} value={draft.reps} onChange={event => updateExerciseDraft({ reps: Number(event.target.value) || 1 })} /></label>
+                    <label>Target reps<input type="number" min={1} max={100} value={draft.reps || ""} onChange={event => updateExerciseDraft({ reps: Number(event.target.value) })} /></label>
                     <label>Rest seconds<input type="number" min={0} max={600} value={draft.rest} onChange={event => updateExerciseDraft({ rest: Number(event.target.value) || 0 })} /></label>
-                    <label>Tempo<input maxLength={40} value={draft.tempo} onChange={event => updateExerciseDraft({ tempo: event.target.value })} /></label>
+                    <fieldset className="exercise-tempo-fields exercise-edit-wide"><legend>Tempo per rep (seconds)</legend><div>{(["Lower", "Hold", "Lift"] as const).map((phase, phaseIndex) => <label key={phase}>{phase}<input aria-label={`${phase} tempo seconds`} type="number" min={0} max={10} value={tempoParts(draft.tempo)[phaseIndex]} onChange={event => updateTempoPhase(phaseIndex, event.target.value)} /></label>)}</div><small>The voice coach counts each phase when you start the tempo count.</small></fieldset>
                   </div>
                   <div className="exercise-edit-sets"><div className="exercise-edit-set-head"><b>Set</b><b>Reps</b><b>Weight (kg)</b><span /></div>
-                    {(draft.setList ?? []).map((set, setIndex) => <div className="exercise-edit-set-row" key={set.id ?? setIndex}><span>{setIndex + 1}</span><input aria-label={`Set ${setIndex + 1} reps`} type="number" min={1} max={1000} value={set.reps} onChange={event => updateDraftSet(setIndex, "reps", Number(event.target.value) || 1)} /><input aria-label={`Set ${setIndex + 1} weight`} type="number" min={0} max={10000} step={0.5} value={set.weight} onChange={event => updateDraftSet(setIndex, "weight", Number(event.target.value) || 0)} /><button type="button" className="exercise-remove-set" disabled={(draft.setList?.length ?? 0) <= 1} onClick={() => removeDraftSet(setIndex)}>Remove</button></div>)}
+                    {(draft.setList ?? []).map((set, setIndex) => <div className="exercise-edit-set-row" key={set.id ?? setIndex}><span>{setIndex + 1}</span><input aria-label={`Set ${setIndex + 1} reps`} type="number" min={1} max={1000} value={set.reps || ""} onChange={event => updateDraftSet(setIndex, "reps", Number(event.target.value))} /><input aria-label={`Set ${setIndex + 1} weight`} type="number" min={0} max={10000} step={0.5} value={set.weight || ""} onChange={event => updateDraftSet(setIndex, "weight", Number(event.target.value))} /><button type="button" className="exercise-remove-set" disabled={(draft.setList?.length ?? 0) <= 1} onClick={() => removeDraftSet(setIndex)}>Remove</button></div>)}
                     <button type="button" className="exercise-add-set" disabled={(draft.setList?.length ?? 0) >= 20} onClick={addDraftSet}>＋ Add set</button>
                   </div>
                   <div className="exercise-edit-fields exercise-edit-extra">

@@ -54,9 +54,9 @@ describe("workout controller error handling", () => {
     workout.savePlanExercise.mockResolvedValue(exercise);
     const res = response();
 
-    await savePlanExercise({ auth: { userId: "owner-1" }, params: { dayType: "day-pull", exerciseId: "row" }, body: exercise } as never, res as never, vi.fn());
+    await savePlanExercise({ auth: { userId: "owner-1" }, params: { dayType: "day-pull", exerciseId: "row" }, body: { ...exercise, planName: "Back day", dayKey: "thu" } } as never, res as never, vi.fn());
 
-    expect(workout.savePlanExercise).toHaveBeenCalledWith("owner-1", "day-pull", expect.objectContaining({ id: "row", sets: 2, name: "Dumbbell Row" }), undefined, undefined);
+    expect(workout.savePlanExercise).toHaveBeenCalledWith("owner-1", "day-pull", expect.objectContaining({ id: "row", sets: 2, name: "Dumbbell Row" }), "Back day", "thu");
     expect(res.json).toHaveBeenCalledWith(exercise);
   });
 
