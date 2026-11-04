@@ -123,16 +123,17 @@ export async function savePlan(ownerId: string, planId: string, name: string, ex
   return saved!;
 }
 
-export async function savePlanExercise(ownerId: string, planId: string, exercise: Exercise) {
+export async function savePlanExercise(ownerId: string, planId: string, exercise: Exercise, planName?: string, dayKey?: string) {
   const owner = new Types.ObjectId(ownerId);
   const session = await mongoose.startSession();
   let saved: Exercise | null = null;
   try {
     await session.withTransaction(async () => {
       const plan = await WorkoutPlan.findOne({ ownerId: owner, dayType: planId }).session(session).lean() as unknown as StoredPlan | null;
-      if (!plan) return;
-      const existing = (plan.exercises ?? []).some(item => item.exerciseId === exercise.id);
-      if (!existing && (plan.exercises?.length ?? 0) >= 40) throw new Error("A workout day can contain up to 40 exercises");
+      if (!plan && (!planName || !dayKey || !WORKOUT_WEEKDAYS.includes(dayKey as typeof WORKOUT_WEEKDAYS[number]))) throw new Error("A new workout day needs a name and weekday");
+      if (!plan && await WorkoutPlan.countDocuments({ ownerId: owner }).session(session) >= 20) throw new Error("You can save up to 20 workout days");
+      const existing = (plan?.exercises ?? []).some(item => item.exerciseId === exercise.id);
+      if (plan && !existing && (plan.exercises?.length ?? 0) >= 40) throw new Error("A workout day can contain up to 40 exercises");
 
       await ExerciseLibrary.findOneAndUpdate(
         { ownerId: owner, exerciseId: exercise.id },
@@ -141,7 +142,12 @@ export async function savePlanExercise(ownerId: string, planId: string, exercise
       );
 
       const reference = referenceFromExercise(exercise);
-      if (existing) {
+      if (!plan) {
+        await WorkoutPlan.create([{ ownerId: owner, dayType: planId, name: planName, exercises: [reference] }], { session });
+        const days = WORKOUT_WEEKDAYS.map(key => ({ key, label: WORKOUT_WEEKDAY_LABELS[key], planId: null }));
+        await WorkoutProgram.updateOne({ ownerId: owner }, { $setOnInsert: { ownerId: owner, days } }, { upsert: true, session });
+        await WorkoutProgram.updateOne({ ownerId: owner, "days.key": dayKey }, { $set: { "days.$.planId": planId } }, { runValidators: true, session });
+      } else if (existing) {
         await WorkoutPlan.updateOne(
           { ownerId: owner, dayType: planId, "exercises.exerciseId": exercise.id },
           { $set: { "exercises.$": reference } },

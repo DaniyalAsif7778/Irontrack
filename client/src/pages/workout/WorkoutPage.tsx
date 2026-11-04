@@ -193,9 +193,11 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     },
   });
   const saveExerciseMutation = useMutation({
-    mutationFn: ({ planId, exercise }: { planId: string; exercise: Exercise }) => api<Exercise>(`/workout-plans/${encodeURIComponent(planId)}/exercises/${encodeURIComponent(exercise.id)}`, { method: "PUT", body: JSON.stringify(exercise) }),
+    mutationFn: ({ planId, planName, dayKey, exercise }: { planId: string; planName: string; dayKey: string; exercise: Exercise }) => api<Exercise>(`/workout-plans/${encodeURIComponent(planId)}/exercises/${encodeURIComponent(exercise.id)}`, { method: "PUT", body: JSON.stringify({ ...exercise, planName, dayKey }) }),
     onSuccess: (saved, variables) => {
-      const updatePlanExercises = (items: Plan[]) => items.map(item => {
+      const updatePlanExercises = (items: Plan[]) => {
+        const hasPlan = items.some(item => item.id === variables.planId);
+        const updated = items.map(item => {
         const hasExercise = item.exercises.some(exercise => exercise.id === saved.id);
         const exercises = item.exercises.map(exercise => exercise.id !== saved.id ? exercise : {
           ...exercise, name: saved.name, muscle: saved.muscle, description: saved.description, cues: saved.cues, steps: saved.steps, videoUrl: saved.videoUrl,
@@ -203,13 +205,17 @@ export default function Workout({ onError, accountId }: { onError: (message: str
         });
         if (item.id === variables.planId && !hasExercise) exercises.push(saved);
         return { ...item, exercises };
-      });
-      queryClient.setQueryData<Plan[]>(["workout", "plans"], current => current ? updatePlanExercises(current) : current);
+        });
+        return hasPlan ? updated : [...updated, { id: variables.planId, name: variables.planName, exercises: [saved] }];
+      };
+      queryClient.setQueryData<Plan[]>(["workout", "plans"], current => updatePlanExercises(current ?? []));
+      queryClient.setQueryData<WeekDay[]>(["workout", "week"], current => current?.map(day => day.key === variables.dayKey ? { ...day, planId: variables.planId } : day));
       queryClient.setQueryData<LibraryExercise[]>(["workout", "exercise-library"], current => {
         const definition: LibraryExercise = { id: saved.id, name: saved.name, muscle: saved.muscle, description: saved.description ?? "", cues: saved.cues ?? [], steps: saved.steps ?? [], videoUrl: saved.videoUrl ?? "" };
         return current?.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? definition : item) : [...(current ?? []), definition];
       });
       setPlanDrafts(current => updatePlanExercises(current));
+      setWeekDraft(current => current.map(day => day.key === variables.dayKey ? { ...day, planId: variables.planId } : day));
       setExerciseLibraryDraft(current => {
         const definition: LibraryExercise = { id: saved.id, name: saved.name, muscle: saved.muscle, description: saved.description ?? "", cues: saved.cues ?? [], steps: saved.steps ?? [], videoUrl: saved.videoUrl ?? "" };
         return current.some(item => item.id === saved.id) ? current.map(item => item.id === saved.id ? definition : item) : [...current, definition];
@@ -458,17 +464,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       try { if (!["http:", "https:"].includes(new URL(exercise.videoUrl).protocol)) throw new Error(); }
       catch { toast.error("Use a valid HTTP or HTTPS demo link."); return; }
     }
-    const persistedPlan = plans.some(item => item.id === plan.id);
-    if (!persistedPlan) {
-      setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: item.exercises.map(row => row.id === exercise.id ? exercise : row) } : item));
-      setExerciseLibraryDraft(current => current.some(item => item.id === exercise.id)
-        ? current.map(item => item.id === exercise.id ? { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: exercise.description ?? "", cues: exercise.cues ?? [], steps: exercise.steps ?? [], videoUrl: exercise.videoUrl ?? "" } : item)
-        : [...current, { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: exercise.description ?? "", cues: exercise.cues ?? [], steps: exercise.steps ?? [], videoUrl: exercise.videoUrl ?? "" }]);
-      setEditingExercise(null);
-      toast.success("Exercise saved. Save workout changes to publish this new workout day.");
-      return;
-    }
-    try { await saveExerciseMutation.mutateAsync({ planId: plan.id, exercise }); }
+    try { await saveExerciseMutation.mutateAsync({ planId: plan.id, planName: plan.name, dayKey: selected?.key ?? selectedKey, exercise }); }
     catch (reason) { onError((reason as Error).message); }
   }
 
@@ -497,11 +493,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     const exerciseId = `exercise-${crypto.randomUUID()}`;
     const exercise: Exercise = { id: exerciseId, name: "New exercise", muscle: "General", sets: 3, reps: 10, rest: 60, tempo: "3-1-2", cues: [], description: "", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }], steps: [], videoUrl: "" };
     setAddExerciseOpen(false);
-    if (plans.some(item => item.id === plan.id)) void saveExerciseDraft(exercise);
-    else {
-      setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, exercise] } : item));
-      setExerciseLibraryDraft(current => [...current, { id: exercise.id, name: exercise.name, muscle: exercise.muscle, description: "", cues: [], steps: [], videoUrl: "" }]);
-    }
+    void saveExerciseDraft(exercise);
   }
 
   function addLibraryExercise(exerciseId: string) {
@@ -510,8 +502,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     if (!definition || plan.exercises.some(exercise => exercise.id === definition.id)) return;
     const exercise: Exercise = { ...definition, sets: 3, reps: 10, rest: 60, tempo: "3-1-2", setList: [{ id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }, { id: `set-${crypto.randomUUID()}`, reps: 10, weight: 0 }] };
     setAddExerciseOpen(false);
-    if (plans.some(item => item.id === plan.id)) void saveExerciseDraft(exercise);
-    else setPlanDrafts(current => current.map(item => item.id === plan.id ? { ...item, exercises: [...item.exercises, exercise] } : item));
+    void saveExerciseDraft(exercise);
   }
 
   function deleteExercise(exerciseId: string) {

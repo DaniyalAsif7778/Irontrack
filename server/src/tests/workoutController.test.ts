@@ -56,7 +56,7 @@ describe("workout controller error handling", () => {
 
     await savePlanExercise({ auth: { userId: "owner-1" }, params: { dayType: "day-pull", exerciseId: "row" }, body: exercise } as never, res as never, vi.fn());
 
-    expect(workout.savePlanExercise).toHaveBeenCalledWith("owner-1", "day-pull", expect.objectContaining({ id: "row", sets: 2, name: "Dumbbell Row" }));
+    expect(workout.savePlanExercise).toHaveBeenCalledWith("owner-1", "day-pull", expect.objectContaining({ id: "row", sets: 2, name: "Dumbbell Row" }), undefined, undefined);
     expect(res.json).toHaveBeenCalledWith(exercise);
   });
 

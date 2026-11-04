@@ -3,6 +3,7 @@ import { workoutExercisePayload, workoutLogLimit, workoutLogPayload, workoutPlan
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as workout from "../../services/workout/workout.service.js";
+import { WORKOUT_WEEKDAYS } from "../../models/workout/workout.model.js";
 
 export const listPlans: RequestHandler = async (req, res) => { res.json(await workout.listPlans(req.auth!.userId)); };
 export const listExerciseLibrary: RequestHandler = async (req, res) => { res.json(await workout.listExerciseLibrary(req.auth!.userId)); };
@@ -34,15 +35,19 @@ export const savePlanExercise: RequestHandler = async (req, res) => {
   const planId = routeParam(req.params.dayType);
   const exerciseId = routeParam(req.params.exerciseId);
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(planId)) { fail(res, "Invalid workout day ID"); return; }
+  const planName = typeof req.body?.planName === "string" ? req.body.planName.trim() : undefined;
+  const dayKey = typeof req.body?.dayKey === "string" ? req.body.dayKey : undefined;
+  if (req.body?.planName !== undefined && (!planName || planName.length > 80)) { fail(res, "Workout day name must contain 1 to 80 characters"); return; }
+  if (dayKey !== undefined && !WORKOUT_WEEKDAYS.includes(dayKey as typeof WORKOUT_WEEKDAYS[number])) { fail(res, "Invalid weekday"); return; }
   let exercise: ReturnType<typeof workoutExercisePayload>;
   try { exercise = workoutExercisePayload(req.body, exerciseId); }
   catch (error) { fail(res, error instanceof Error ? error.message : "Check the exercise details"); return; }
   try {
-    const saved = await workout.savePlanExercise(req.auth!.userId, planId, exercise);
+    const saved = await workout.savePlanExercise(req.auth!.userId, planId, exercise, planName, dayKey);
     if (!saved) { fail(res, "Workout day not found", 404); return; }
     res.json(saved);
   } catch (error) {
-    if (error instanceof Error && error.message === "A workout day can contain up to 40 exercises") { fail(res, error.message, 400); return; }
+    if (error instanceof Error && ["A workout day can contain up to 40 exercises", "You can save up to 20 workout days", "A new workout day needs a name and weekday"].includes(error.message)) { fail(res, error.message, 400); return; }
     throw error;
   }
 };
