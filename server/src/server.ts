@@ -5,7 +5,7 @@ import { logger } from "./utils/logger.js";
 import { startNotificationScheduler } from "./services/notifications/push.service.js";
 import mongoose from "mongoose";
 
-const port = Number(process.env.PORT || 4000);
+const port = Number(process.env.PORT || (process.env.NODE_ENV === "production" ? 5000 : 4000));
 const uri = process.env.MONGODB_URI;
 const authSecret = process.env.AUTH_JWT_SECRET;
 
