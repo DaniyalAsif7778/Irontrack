@@ -15,10 +15,18 @@ export const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : false);
 
 const apiLimiter = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
-const allowedOrigins = (process.env.CLIENT_ORIGIN ?? "")
+const normalizeOrigin = (value: string) => {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : "";
+  } catch {
+    return "";
+  }
+};
+const allowedOrigins = ["https://irontrack-nu.vercel.app", ...(process.env.CLIENT_ORIGIN ?? "")
   .split(",")
-  .map(origin => origin.trim())
-  .filter(Boolean);
+  .map(normalizeOrigin)
+  .filter(Boolean)];
 if (process.env.NODE_ENV !== "production") {
   allowedOrigins.push("http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174");
 }
@@ -33,7 +41,7 @@ app.use(cors({
   exposedHeaders: ["X-Request-Id"],
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-    else callback(new Error("Origin is not allowed by CORS"));
+    else callback(Object.assign(new Error("Origin is not allowed by CORS"), { statusCode: 403, code: "CORS_ORIGIN_DENIED" }));
   },
 }));
 app.use(cookieParser() as unknown as RequestHandler);

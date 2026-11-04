@@ -7,6 +7,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   if (error?.name === "CastError") return fail(res, "Invalid record ID");
   if (error?.type === "entity.too.large") return fail(res, "Request body is too large", 413);
   if (error?.type === "entity.parse.failed") return fail(res, "Request body must contain valid JSON", 400);
+  if (error?.code === "CORS_ORIGIN_DENIED") return fail(res, "This app origin is not allowed", 403);
   if (error?.statusCode === 503) return fail(res, error.message, 503);
   if (error?.statusCode === 400 || error?.statusCode === 409) return fail(res, error.message, error.statusCode);
   logger.error({

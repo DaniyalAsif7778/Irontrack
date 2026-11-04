@@ -13,6 +13,23 @@ function limitedApp(limiter: RequestHandler) {
 }
 
 describe("API abuse and error controls", () => {
+  it("allows the production app origin and rejects unknown origins without a server error", async () => {
+    const allowed = await request(app)
+      .options("/api/workout-plans")
+      .set("Origin", "https://irontrack-nu.vercel.app")
+      .set("Access-Control-Request-Method", "PUT")
+      .set("Access-Control-Request-Headers", "content-type")
+      .expect(204);
+    expect(allowed.headers["access-control-allow-origin"]).toBe("https://irontrack-nu.vercel.app");
+    expect(allowed.headers["access-control-allow-credentials"]).toBe("true");
+
+    const denied = await request(app)
+      .get("/api/health")
+      .set("Origin", "https://untrusted.example")
+      .expect(403);
+    expect(denied.body).toEqual({ error: "This app origin is not allowed" });
+  });
+
   it("returns a fast generic 503 for API requests while MongoDB is disconnected", async () => {
     const started = performance.now();
     const [health, api] = await Promise.all([
