@@ -55,6 +55,13 @@ describe("AuthGate sign-in entry", () => {
     expect(await screen.findByRole("heading", { name: "Welcome back" }, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again later.");
   });
+  it("lets the user retry account lookup and enter the app after recovery", async () => {
+    api.mockRejectedValueOnce(new Error("server unavailable")).mockResolvedValueOnce({ user: null });
+    renderGate("/workout");
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(api).toHaveBeenCalledTimes(2);
+  });
   it("sends signed-out visitors from a protected route to sign-in", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/workout");

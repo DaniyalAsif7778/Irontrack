@@ -12,10 +12,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
-function renderAuth() {
+function renderAuth(path = "/routine") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={queryClient}>
-    <MemoryRouter initialEntries={["/routine"]}>
+    <MemoryRouter initialEntries={[path]}>
       <AuthPage />
       <LocationProbe />
     </MemoryRouter>
@@ -59,6 +59,42 @@ describe("account access flow", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Check your inbox" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Resend verification email" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Return to sign in" })).toBeInTheDocument();
+  });
+
+  it("completes sign-in and returns to the app home", async () => {
+    api.mockResolvedValue({ user: { id: "user-1", name: "Daniyal", email: "daniyal@example.com", preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" } } } });
+    renderAuth("/login");
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "daniyal@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "existing-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/"));
+    expect(api).toHaveBeenCalledWith("/auth/login", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("verifies an email from the one-time link and offers a sign-in return", async () => {
+    api.mockResolvedValue({ message: "Your email has been verified." });
+    renderAuth("/verify-email#token=single-use-token");
+    expect(await screen.findByRole("heading", { name: "You’re all set" })).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/auth/verify-email", { method: "POST", body: JSON.stringify({ token: "single-use-token" }) });
+    fireEvent.click(screen.getByRole("button", { name: "Return to sign in" }));
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+  });
+
+  it("completes a password reset from its one-time link", async () => {
+    api.mockResolvedValue({ message: "Your password has been updated." });
+    renderAuth("/reset-password#token=reset-token");
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "a-new-password-longer-than-15" } });
+    fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "a-new-password-longer-than-15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update password" }));
+    expect(await screen.findByRole("heading", { name: "You’re all set" })).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/auth/password/reset", { method: "POST", body: JSON.stringify({ token: "reset-token", password: "a-new-password-longer-than-15" }) });
+  });
+
+  it("keeps an invalid verification link recoverable", async () => {
+    renderAuth("/verify-email");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This verification link is invalid or expired.");
+    fireEvent.click(screen.getByRole("button", { name: "Go to sign in" }));
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
   });
 
 });

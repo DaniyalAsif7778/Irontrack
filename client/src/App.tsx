@@ -16,6 +16,7 @@ import NotificationScheduler from "./components/NotificationScheduler";
 import WellnessPage from "./pages/wellness/WellnessPage";
 import ProfilePage from "./pages/profile/ProfilePage";
 import OfflineSyncStatus from "./components/OfflineSyncStatus";
+import NotFoundPage from "./pages/errors/NotFoundPage";
 
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
@@ -142,7 +143,7 @@ export default function App() {
     { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },
     { path: "/profile", element: <ProfilePage user={user} onNavigate={setView} onSignOut={signOut} /> },
-    { path: "*", element: <HomePage day={day} latest={latest} userName={user?.name} onRoutine={() => setView("routine")} /> },
+    { path: "*", element: <NotFoundPage /> },
   ]);
   return <AppShell view={view} setView={setView} user={user} signOut={signOut} focusMinutes={preferences.focusMinutes} breakMinutes={preferences.breakMinutes}>
     <OfflineSyncStatus accountId={user?.id} />

@@ -4,9 +4,20 @@
       "source": "/api/:path*",
       "destination": "https://tiu2ehpz4m5p-production-7szn6irv.australia-southeast1.suga.run/api/:path*"
     },
-    {
-      "source": "/:path*",
-      "destination": "/index.html"
-    }
+    { "source": "/home", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/signup", "destination": "/index.html" },
+    { "source": "/verify-email", "destination": "/index.html" },
+    { "source": "/reset-password", "destination": "/index.html" },
+    { "source": "/workout/stats", "destination": "/index.html" },
+    { "source": "/workout", "destination": "/index.html" },
+    { "source": "/exercise/:exerciseId", "destination": "/index.html" },
+    { "source": "/routine", "destination": "/index.html" },
+    { "source": "/analytics", "destination": "/index.html" },
+    { "source": "/weight", "destination": "/index.html" },
+    { "source": "/schedules", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" },
+    { "source": "/wellness", "destination": "/index.html" },
+    { "source": "/profile", "destination": "/index.html" }
   ]
 }

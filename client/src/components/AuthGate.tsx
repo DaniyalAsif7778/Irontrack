@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError, api, isRemoteApi } from "../lib/api/api";
 import type { AuthUser } from "../types";
+import { setPageMetadata } from "../utils/seo";
 
 const AuthPage = lazy(() => import("../pages/auth/AuthPage"));
 
@@ -60,8 +61,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       "/wellness": "Wellness reminders · IronTrack",
       "/profile": "Profile · IronTrack",
     };
-    document.title = titles[location.pathname] ?? "IronTrack · Fitness and routines";
-    document.querySelector('meta[name="robots"]')?.setAttribute("content", "noindex,nofollow");
+    setPageMetadata({ title: titles[location.pathname] ?? "IronTrack · Fitness and routines", robots: "noindex,nofollow" });
   }, [location.pathname, session.data, session.error, session.isError]);
 
   if (!isRemoteApi()) return <>{children}</>;

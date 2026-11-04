@@ -101,6 +101,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .account-menu button:hover, .mobile-sign-out:hover { color: var(--ink); background: var(--surface-raised); }
 .mobile-bar, .mobile-nav { display: none; }
 .auth-screen { display: grid; place-items: center; width: 100%; min-height: 100vh; margin: 0; padding: 24px; }
+.system-screen { display: grid; place-items: center; width: 100%; min-height: 100dvh; padding: 24px; background: var(--canvas); }
+.system-card { width: min(440px, 100%); padding: clamp(24px, 5vw, 38px); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 80px hsl(var(--background) / .3); }
+.system-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); font-size: 14px; text-decoration: none; }
+.system-brand svg { color: hsl(var(--primary)); }
+.system-code { margin: 36px 0 8px; color: hsl(var(--accent)); font-size: 13px; font-weight: 700; letter-spacing: .13em; }
+.system-card h1 { margin: 0; font-size: clamp(25px, 7vw, 32px); letter-spacing: -.045em; }
+.system-copy { margin: 12px 0 24px; max-width: 48ch; color: var(--quiet); font-size: 14px; line-height: 1.6; }
+.system-action { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 9px; padding: 0 15px; color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border: 0; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 650; text-decoration: none; cursor: pointer; }
+.system-action:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 3px; }
 .auth-card { width: min(430px, 100%); padding: clamp(20px, 4vw, 30px); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 80px hsl(var(--background) / .32); }
 .auth-brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 14px; font-weight: 600; }
 .auth-brand span { display: grid; place-items: center; width: 36px; height: 36px; color: hsl(var(--primary)); background: hsl(var(--primary) / .13); border-radius: 9px; }

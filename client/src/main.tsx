@@ -4,8 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "sonner";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
-import AuthGate from "./components/AuthGate";
+import AppEntry from "./AppEntry";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -23,7 +22,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthGate><App /></AuthGate>
+        <AppEntry />
         <Toaster theme="dark" position="top-right" richColors />
       </BrowserRouter>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
