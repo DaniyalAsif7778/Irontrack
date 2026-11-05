@@ -48,11 +48,15 @@ describe("SettingsPage", () => {
     expect(api).not.toHaveBeenCalledWith("/auth/me", expect.objectContaining({ method: "DELETE" }));
 
     fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: "correct-password" } });
-    fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: "delete" } });
+    fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: "no" } });
     fireEvent.click(deleteButton);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/type DELETE exactly/i);
-    fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: "DELETE" } });
-    expect(api).not.toHaveBeenCalledWith("/auth/me", expect.objectContaining({ method: "DELETE" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/type DELETE to confirm/i);
+    fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: " delete " } });
+    fireEvent.click(deleteButton);
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/auth/me", {
+      method: "DELETE",
+      body: JSON.stringify({ password: "correct-password", confirmation: "DELETE" }),
+    }));
   });
 
   it("keeps local state and the session when account deletion fails", async () => {

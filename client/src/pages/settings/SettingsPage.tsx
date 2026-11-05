@@ -166,13 +166,13 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
   async function deleteAccount() {
     if (!user) return;
     if (!deletePassword) { setDeleteError("Enter your current password to continue."); return; }
-    if (deleteConfirmation !== "DELETE") { setDeleteError('Type DELETE exactly to confirm account deletion.'); return; }
+    if (deleteConfirmation.trim().toUpperCase() !== "DELETE") { setDeleteError('Type DELETE to confirm account deletion.'); return; }
     setDeleteError("");
     setIsDeleting(true);
     try {
       await api("/auth/me", {
         method: "DELETE",
-        body: JSON.stringify({ password: deletePassword, confirmation: deleteConfirmation }),
+        body: JSON.stringify({ password: deletePassword, confirmation: "DELETE" }),
       });
       let cleanupFailed = false;
       try {
