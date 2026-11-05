@@ -4,7 +4,6 @@ const configuredBase = (import.meta.env.VITE_API_URL as string | undefined)?.tri
 const remoteBase = import.meta.env.DEV
   ? (configuredBase || "http://127.0.0.1:4000/api").replace(/\/$/, "")
   : "/api";
-export const isRemoteApi = () => true;
 const http = axios.create({
   baseURL: remoteBase,
   timeout: 15_000,

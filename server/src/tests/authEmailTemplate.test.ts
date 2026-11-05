@@ -32,11 +32,27 @@ describe("authentication email delivery", () => {
     vi.stubEnv("REDIS_URL", "");
     expect(isAuthEmailConfigured()).toBe(true);
     await deliverAuthEmail("verify_email", "person@example.com", "Person", "opaque-token");
-    expect(mocks.createTransport).toHaveBeenCalledWith(expect.objectContaining({ service: "gmail", auth: { user: "mailer@example.com", pass: "smtp-password" } }));
+    expect(mocks.createTransport).toHaveBeenCalledWith(expect.objectContaining({
+      service: "gmail",
+      auth: { user: "mailer@example.com", pass: "smtp-password" },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    }));
     expect(mocks.sendMail).toHaveBeenCalledWith(expect.objectContaining({
       to: "person@example.com",
       from: "IronTrack <mailer@example.com>",
       text: expect.stringContaining("https://irontrack.example/verify-email#token=opaque-token"),
     }));
+  });
+
+  it("returns a safe temporary-delivery error when SMTP fails", async () => {
+    vi.stubEnv("EMAIL_USER", "mailer@example.com");
+    vi.stubEnv("EMAIL_PASS", "smtp-password");
+    vi.stubEnv("CLIENT_URL", "https://irontrack.example");
+    mocks.sendMail.mockRejectedValueOnce(new Error("private SMTP host details"));
+
+    await expect(deliverAuthEmail("verify_email", "person@example.com", "Person", "opaque-token"))
+      .rejects.toMatchObject({ statusCode: 503, message: "Email delivery is temporarily unavailable. Try again shortly." });
   });
 });

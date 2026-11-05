@@ -30,6 +30,19 @@ describe("API abuse and error controls", () => {
     expect(denied.body).toEqual({ error: "This app origin is not allowed" });
   });
 
+  it("requires configured origin or referer for cookie-authenticated mutations", async () => {
+    const missingOrigin = await request(app)
+      .post("/api/workout-program")
+      .set("Cookie", "irontrack_session=opaque-session")
+      .expect(403);
+    expect(missingOrigin.body).toEqual({ error: "This app origin is not allowed" });
+
+    await request(app)
+      .post("/api/workout-program")
+      .set("Origin", "https://irontrack-nu.vercel.app")
+      .expect(503); // The origin guard passed; this test app intentionally has no database connection.
+  });
+
   it("returns a fast generic 503 for API requests while MongoDB is disconnected", async () => {
     const started = performance.now();
     const [health, api] = await Promise.all([

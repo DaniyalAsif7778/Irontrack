@@ -18,6 +18,10 @@ if (!authSecret || Buffer.byteLength(authSecret) < 32) {
   logger.error("AUTH_JWT_SECRET must contain at least 32 bytes. Generate one before starting the API.");
   process.exit(1);
 }
+if (process.env.NODE_ENV === "production" && (!process.env.AUTH_REFRESH_SECRET || Buffer.byteLength(process.env.AUTH_REFRESH_SECRET) < 32 || process.env.AUTH_REFRESH_SECRET === authSecret)) {
+  logger.error("AUTH_REFRESH_SECRET must be a separate secret containing at least 32 bytes in production.");
+  process.exit(1);
+}
 
 const httpServer = app.listen(port, () => logger.info({ port }, "IronTrack API listening"));
 

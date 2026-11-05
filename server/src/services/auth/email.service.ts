@@ -65,6 +65,9 @@ export async function deliverAuthEmail(kind: AuthEmailKind, to: string, name: st
       maxMessages: 100,
       rateDelta: 1000,
       rateLimit: 5,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
       auth: { user, pass },
     });
     const route = kind === "verify_email" ? "/verify-email" : "/reset-password";

@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { workoutExercisePayload, workoutLogLimit, workoutLogPayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
+import { workoutExercisePayload, workoutLogCursor, workoutLogLimit, workoutLogPayload, workoutPlanDataPayload, workoutProgramPayload, workoutWeekPayload } from "../../utils/workoutValidation.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as workout from "../../services/workout/workout.service.js";
@@ -70,9 +70,10 @@ export const putWeek: RequestHandler = async (req, res) => {
 };
 export const listLogs: RequestHandler = async (req, res) => {
   let limit: number;
-  try { limit = workoutLogLimit(req.query.limit); }
+  let cursor: ReturnType<typeof workoutLogCursor>;
+  try { limit = workoutLogLimit(req.query.limit); cursor = workoutLogCursor(req.query.cursor); }
   catch (error) { fail(res, error instanceof Error ? error.message : "Check the workout history limit"); return; }
-  res.json(await workout.listLogs(req.auth!.userId, limit));
+  res.json(await workout.listLogs(req.auth!.userId, limit, cursor));
 };
 export const saveLog: RequestHandler = async (req, res) => {
   let data: ReturnType<typeof workoutLogPayload>;

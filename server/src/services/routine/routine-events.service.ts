@@ -235,7 +235,6 @@ export async function extendRoutineTask(ownerId: string, taskId: string, date: s
       shifted = await shiftFollowingTasks(ownerId, date, taskId, EXTENSION_MINUTES, actionId, session);
       taskTitle = (await RoutineTask.findOne({ _id: taskId, ownerId }).select("title").session(session).lean())?.title ?? "Task";
       await markReminderResponded(ownerId, taskId, date, session);
-      const summary = shifted.length ? ` Moved ${shifted.length} later task${shifted.length === 1 ? "" : "s"}: ${shifted.slice(0, 4).join(", ")}${shifted.length > 4 ? ", and more" : ""}.` : " No later tasks needed to move.";
       await RoutineEvent.create([{ ownerId, eventId: actionId, idempotencyKey: actionId, parentEventId: actionId, taskId, occurrenceId: occurrence._id, date, type: "task_extended", occurredAt: new Date(), metadata: { taskTitle, extensionMinutes: EXTENSION_MINUTES, shiftedTaskTitles: shifted } }], { session });
       applied = true;
     });

@@ -7,6 +7,7 @@ import { ApiError, api } from "../../lib/api/api";
 import { enqueueOfflineAction } from "../../lib/api/offlineQueue";
 import { toast } from "sonner";
 import { ironToday } from "../../utils/date";
+import { useAppStore } from "../../stores/appStore";
 
 type DayType = string;
 type Exercise = { id: string; name: string; sets: number; reps: number; muscle: string; tempo: string; rest: number; cues: string[]; description?: string; setList?: { id?: string; reps: number; weight: number }[]; steps?: string[]; videoUrl?: string };
@@ -15,9 +16,10 @@ type Plan = { id: string; name: string; exercises: Exercise[] };
 type WorkoutLog = { _id: string; date: string; dayType: DayType; dayName?: string; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; totalSets: number; totalVolume: number; duration: number };
 type WeekDay = { key: string; label: string; planId: DayType | null };
 type SetEntry = { reps: number; weight: number; completed: boolean };
+type WorkoutLogPage = { items: WorkoutLog[]; nextCursor: string | null; hasMore: boolean };
 type ActiveWorkout = { date: string; dayType: DayType; dayName: string; startedAt: number; exerciseStartedAt?: number; elapsedBeforePause: number; pausedAt: number | null; pausedRestSeconds: number | null; entries: Record<string, SetEntry[]>; restUntil: number | null; repStartedAt?: number; repElapsedBeforePause?: number; currentExerciseIndex?: number; pendingExerciseIndex?: number | null; restMode?: "set" | "exercise" | "rep"; exerciseSnapshots?: Exercise[]; autoAdvance?: boolean; voiceCoach?: boolean; skippedExercises?: string[] };
 
-const activeKey = "irontrack_active_workout_v1";
+const activeKey = (accountId?: string) => `irontrack_active_workout_v1:${accountId ?? "local"}`;
 const workoutNameSuggestionsKey = (accountId?: string) => `irontrack_workout_name_suggestions_v1:${accountId ?? "local"}`;
 function readWorkoutNameSuggestions(accountId?: string): string[] {
   try {
@@ -31,8 +33,13 @@ function tempoParts(tempo: string): [number, number, number] {
 }
 const spokenCount = (count: number) => numberWords[count - 1] ?? String(count);
 const legacyDayLabels: Record<string, string> = { push: "Push", pull: "Pull", legs: "Legs", push_high: "Push · high rep", pull_high: "Pull · high rep", legs_high: "Legs · high rep" };
-const readActive = (): ActiveWorkout | null => {
-  try { const value = localStorage.getItem(activeKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; const coachEnabled = Boolean(parsed.autoAdvance || parsed.voiceCoach); return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, repElapsedBeforePause: parsed.repElapsedBeforePause ?? 0, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: coachEnabled, voiceCoach: coachEnabled, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
+const poundsPerKilogram = 2.2046226218;
+/** Workout weights stay stored in kg so logs and volume charts use one consistent unit. */
+const toDisplayWeight = (kilograms: number, unit: "kg" | "lb") => unit === "lb" ? Number((kilograms * poundsPerKilogram).toFixed(1)) : kilograms;
+const toStoredWeight = (weight: number, unit: "kg" | "lb") => unit === "lb" ? weight / poundsPerKilogram : weight;
+/** Restore only this account's saved session so a shared browser cannot show another user's workout. */
+const readActive = (storageKey: string): ActiveWorkout | null => {
+  try { const value = localStorage.getItem(storageKey); if (!value) return null; const parsed = JSON.parse(value) as Partial<ActiveWorkout> & Pick<ActiveWorkout, "date" | "dayType" | "startedAt" | "entries">; const coachEnabled = Boolean(parsed.autoAdvance || parsed.voiceCoach); return { ...parsed, dayName: parsed.dayName ?? legacyDayLabels[parsed.dayType] ?? "Workout day", exerciseStartedAt: parsed.exerciseStartedAt ?? parsed.startedAt, elapsedBeforePause: parsed.elapsedBeforePause ?? 0, pausedAt: parsed.pausedAt ?? null, pausedRestSeconds: parsed.pausedRestSeconds ?? null, restUntil: parsed.restUntil ?? null, repElapsedBeforePause: parsed.repElapsedBeforePause ?? 0, currentExerciseIndex: parsed.currentExerciseIndex ?? 0, pendingExerciseIndex: parsed.pendingExerciseIndex ?? null, restMode: parsed.restMode ?? "set", autoAdvance: coachEnabled, voiceCoach: coachEnabled, skippedExercises: parsed.skippedExercises ?? [] } as ActiveWorkout; } catch { return null; }
 };
 const todayWeekKey = () => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${ironToday()}T12:00:00`).getDay()];
 const elapsedText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -49,8 +56,10 @@ function tempoCountCues(exercise: Exercise, elapsedSeconds = 0) {
 
 export default function Workout({ onError, accountId }: { onError: (message: string) => void; accountId?: string }) {
   const navigate = useNavigate();
+  const workoutStorageKey = activeKey(accountId);
+  const weightUnit = useAppStore(state => state.preferences.weightUnit);
   const [selectedKey, setSelectedKey] = useState(todayWeekKey());
-  const [active, setActive] = useState<ActiveWorkout | null>(readActive);
+  const [active, setActive] = useState<ActiveWorkout | null>(() => readActive(workoutStorageKey));
   const [now, setNow] = useState(Date.now());
   const [editingProgram, setEditingProgram] = useState(false);
   const [weekDraft, setWeekDraft] = useState<WeekDay[]>([]);
@@ -67,11 +76,11 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const plansQuery = useQuery({ queryKey: ["workout", "plans"], queryFn: () => api<Plan[]>("/workout-plans") });
   const weekQuery = useQuery({ queryKey: ["workout", "week"], queryFn: () => api<WeekDay[]>("/workout-week") });
   const libraryQuery = useQuery({ queryKey: ["workout", "exercise-library"], queryFn: () => api<LibraryExercise[]>("/exercise-library") });
-  const logsQuery = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<WorkoutLog[]>("/workout-logs?limit=30") });
+  const logsQuery = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<WorkoutLogPage>("/workout-logs?limit=30") });
   const plans = plansQuery.data ?? [];
   const week = weekQuery.data ?? [];
   const exerciseLibrary = libraryQuery.data ?? [];
-  const logs = logsQuery.data ?? [];
+  const logs = logsQuery.data?.items ?? [];
   useEffect(() => { setSavedWorkoutNames(readWorkoutNameSuggestions(accountId)); }, [accountId]);
   const loaded = !plansQuery.isPending && !weekQuery.isPending && !libraryQuery.isPending && !logsQuery.isPending;
   const finishMutation = useMutation({
@@ -133,7 +142,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     if (error) onError(error.message);
   }, [plansQuery.error, weekQuery.error, libraryQuery.error, logsQuery.error, onError]);
   useEffect(() => { if (!active) return; const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, [active]);
-  useEffect(() => { if (active) localStorage.setItem(activeKey, JSON.stringify(active)); else localStorage.removeItem(activeKey); }, [active]);
+  useEffect(() => { if (active) localStorage.setItem(workoutStorageKey, JSON.stringify(active)); else localStorage.removeItem(workoutStorageKey); }, [active, workoutStorageKey]);
   useEffect(() => { setEditingExercise(null); setAddExerciseOpen(false); }, [selectedKey]);
   useEffect(() => {
     if (!active?.autoAdvance || active.pausedAt || active.pendingExerciseIndex == null) return;
@@ -177,7 +186,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const skippedSetCount = activePlan?.exercises.reduce((sum, exercise) => skippedExerciseIds.includes(exercise.id) ? sum + (active?.entries[exercise.id] ?? []).filter(entry => !entry.completed).length : sum, 0) ?? 0;
   const completedExerciseCount = activePlan?.exercises.filter(exercise => (active?.entries[exercise.id] ?? []).some(entry => entry.completed)).length ?? 0;
   const sessionProgressSets = completedSets + skippedSetCount;
-  const sessionDone = Boolean(active && completedSets > 0 && sessionProgressSets >= sessionTotalSets);
+  const sessionDone = Boolean(active && sessionTotalSets > 0 && sessionProgressSets >= sessionTotalSets);
   useEffect(() => {
     if (!(active?.voiceCoach || active?.autoAdvance) || active.pausedAt || !currentExercise || !voiceAvailable) return;
     const synthesis = window.speechSynthesis;
@@ -211,6 +220,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   }, [active?.voiceCoach, active?.autoAdvance, active?.pausedAt, active?.restMode, active?.restUntil, active?.repStartedAt, active?.repElapsedBeforePause, active?.startedAt, currentExercise?.id, currentExercise?.name, currentExercise?.tempo, activeSetIndex, restSeconds > 0, voiceAvailable]);
   const programIsDirty = editingProgram && (JSON.stringify(weekDraft) !== JSON.stringify(week) || JSON.stringify(planDrafts) !== JSON.stringify(plans) || JSON.stringify(exerciseLibraryDraft) !== JSON.stringify(exerciseLibrary));
 
+  /** Snapshot the chosen plan and seed each set from the latest saved performance. */
   function startWorkout() {
     if (!selected?.planId || !plan) return;
     const previous = [...logs].filter(log => log.dayType === selected.planId).sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -222,6 +232,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     setActive({ date: ironToday(), dayType: selected.planId, dayName: plan.name, exerciseSnapshots: structuredClone(plan.exercises), startedAt: Date.now(), exerciseStartedAt: Date.now(), elapsedBeforePause: 0, pausedAt: null, pausedRestSeconds: null, entries, restUntil: null, currentExerciseIndex: 0, pendingExerciseIndex: null, restMode: "set", autoAdvance: false, voiceCoach: false, skippedExercises: [] });
   }
 
+  /** Freeze workout, exercise, rep, and rest clocks together, then restore their remaining time. */
   function togglePause() {
     setActive(current => {
       if (!current) return null;
@@ -240,11 +251,12 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     setActive(current => {
       if (!current) return current;
       const entries = { ...current.entries, [exerciseId]: [...current.entries[exerciseId]] };
-      entries[exerciseId][setIndex] = { ...entries[exerciseId][setIndex], [field]: value };
+      entries[exerciseId][setIndex] = { ...entries[exerciseId][setIndex], [field]: field === "weight" ? toStoredWeight(value, weightUnit) : value };
       return { ...current, entries };
     });
   }
 
+  /** Mark one set complete and calculate the next exercise, rest, and auto-advance state. */
   function completeSet(exercise: Exercise, setIndex: number) {
     setActive(current => {
       if (!current) return current;
@@ -301,6 +313,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
     } : null);
   }
 
+  /** Save only completed sets; the API makes the action idempotent and queues offline saves. */
   async function finishWorkout() {
     if (!active || finishMutation.isPending) return;
     const sessionPlan = activePlan;
@@ -309,6 +322,12 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       exerciseId: exercise.id, name: exercise.name, muscle: exercise.muscle,
       sets: (active.entries[exercise.id] ?? []).filter(entry => entry.completed).map(({ reps, weight }) => ({ reps, weight }))
     })).filter(exercise => exercise.sets.length);
+    if (exercises.length === 0) {
+      // Skipping every exercise ends the timer without creating a misleading empty workout log.
+      setActive(null);
+      toast.info("No completed sets to save.");
+      return;
+    }
     try {
       const result = await finishMutation.mutateAsync({ date: active.date, dayType: active.dayType, dayName: active.dayName, exercises, duration: elapsed, actionId: crypto.randomUUID() }) as { queuedOffline?: boolean };
       setActive(null);
@@ -366,7 +385,8 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   }
 
   function updateDraftSet(setIndex: number, field: "reps" | "weight", value: number) {
-    setEditingExercise(current => current ? { ...current, setList: (current.setList ?? []).map((set, index) => index === setIndex ? { ...set, [field]: value } : set) } : current);
+    const storedValue = field === "weight" ? toStoredWeight(value, weightUnit) : value;
+    setEditingExercise(current => current ? { ...current, setList: (current.setList ?? []).map((set, index) => index === setIndex ? { ...set, [field]: storedValue } : set) } : current);
   }
 
   function updateDraftSetCount(count: number) {
@@ -505,16 +525,16 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       {!activePlan ? <p className="empty-workouts">Loading workout plan…</p> : sessionDone ? (
         <section className="session-done"><span>🏆</span><h2>Workout Complete!</h2><div><article><b>{completedSets}</b><small>Sets</small></article><article><b>{elapsedText(elapsed)}</b><small>Duration</small></article><article><b>{completedExerciseCount}</b><small>Exercises</small></article><article><b>{activePlan.exercises.reduce((sum, exercise) => sum + (active.entries[exercise.id] ?? []).reduce((total, set) => total + set.reps * set.weight, 0), 0).toLocaleString()} kg</b><small>Volume</small></article></div>
           {skippedExerciseCount > 0 && <><p>{skippedExerciseCount} exercise{skippedExerciseCount === 1 ? " has" : "s have"} skipped sets. Only completed sets will be saved.</p><div className="session-skipped-actions">{activePlan.exercises.map((exercise, index) => skippedExerciseIds.includes(exercise.id) && <button type="button" key={exercise.id} onClick={() => resumeSkippedExercise(exercise.id, index)}>Resume {exercise.name}</button>)}</div></>}
-          <button type="button" className="finish-workout" disabled={finishMutation.isPending || Boolean(active.pausedAt)} onClick={() => void finishWorkout()}><Square size={15} />{finishMutation.isPending ? "Saving workout…" : "Save workout and return"}</button>
+          <button type="button" className="finish-workout" disabled={finishMutation.isPending || Boolean(active.pausedAt)} onClick={() => void finishWorkout()}><Square size={15} />{finishMutation.isPending ? "Saving workout…" : completedSets > 0 ? "Save workout and return" : "Return without saving"}</button>
         </section>
       ) : currentExercise ? <article className="session-exercise session-current-exercise">
         <div className="session-exercise-title"><div><p className="session-muscle">{currentExercise.muscle}</p><h3>{currentExercise.name}</h3></div><strong>{(active.entries[currentExercise.id] ?? []).filter(entry => entry.completed).length + 1}<small>/{currentExercise.sets} set</small></strong></div>
         {currentExercise.description && <p className="exercise-cue">{currentExercise.description}</p>}
         <div className="session-rep-grid"><div><b>{currentExercise.reps}</b><small>reps</small></div><div><b>{currentExercise.tempo}</b><small>tempo</small></div><div><b>{currentExercise.rest || 60}s</b><small>rest</small></div></div>
         {currentExercise.cues.length > 0 && <div className="session-cues"><b>Cues</b>{currentExercise.cues.map((cue, index) => <p key={index}><ChevronRight size={13} />{cue}</p>)}</div>}
-        <div className="session-exercises"><div className="set-head"><span>Set</span><span>Reps</span><span>Load</span><span /></div>
+        <div className="session-exercises"><div className="set-head"><span>Set</span><span>Reps</span><span>Load ({weightUnit})</span><span /></div>
         {(active.entries[currentExercise.id] ?? []).map((entry, index) => <div className={`set-row ${entry.completed ? "set-done" : ""}`} key={`${currentExercise.id}-${index}`}>
-          <span className="set-number">{index + 1}</span><input type="number" min="1" max="1000" value={entry.reps || ""} placeholder="Reps" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} reps`} onChange={event => editSet(currentExercise.id, index, "reps", Number(event.target.value))} /><input type="number" min="0" step="0.5" max="10000" value={entry.weight || ""} placeholder="0" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} weight`} onChange={event => editSet(currentExercise.id, index, "weight", Number(event.target.value))} /><span>{entry.completed && <Check size={15} />}</span>
+          <span className="set-number">{index + 1}</span><input type="number" min="1" max="1000" value={entry.reps || ""} placeholder="Reps" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} reps`} onChange={event => editSet(currentExercise.id, index, "reps", Number(event.target.value))} /><input type="number" min="0" step="0.5" max="10000" value={entry.weight ? toDisplayWeight(entry.weight, weightUnit) : ""} placeholder="0" disabled={entry.completed || Boolean(active.pausedAt)} aria-label={`${currentExercise.name} set ${index + 1} weight (${weightUnit})`} onChange={event => editSet(currentExercise.id, index, "weight", Number(event.target.value))} /><span>{entry.completed && <Check size={15} />}</span>
         </div>)}</div>
         <button type="button" className="finish-workout" disabled={!currentEntries.some(entry => !entry.completed) || (currentEntries[activeSetIndex]?.reps ?? 0) < 1 || restSeconds > 0 || Boolean(active.pausedAt)} onClick={() => completeSet(currentExercise, activeSetIndex)}><Check size={16} /> Done — Set {currentEntries.filter(entry => entry.completed).length + 1} of {currentExercise.sets}</button>
         <div className="session-bottom-actions"><button type="button" disabled={Boolean(active.pausedAt) || !tempoParts(currentExercise.tempo).some(Boolean)} onClick={() => startRepTimer(currentExercise)}><TimerReset size={14} /> Start tempo count</button><button type="button" disabled={Boolean(active.pausedAt)} onClick={skipExercise}><ChevronRight size={14} /> Skip Exercise</button></div>
@@ -543,8 +563,8 @@ export default function Workout({ onError, accountId }: { onError: (message: str
                     <label>Rest seconds<input type="number" min={0} max={600} value={draft.rest} onChange={event => updateExerciseDraft({ rest: Number(event.target.value) || 0 })} /></label>
                     <fieldset className="exercise-tempo-fields exercise-edit-wide"><legend>Tempo per rep (seconds)</legend><div>{(["Lower", "Hold", "Lift"] as const).map((phase, phaseIndex) => <label key={phase}>{phase}<input aria-label={`${phase} tempo seconds`} type="number" min={0} max={10} value={tempoParts(draft.tempo)[phaseIndex]} onChange={event => updateTempoPhase(phaseIndex, event.target.value)} /></label>)}</div><small>The voice coach counts each phase when you start the tempo count.</small></fieldset>
                   </div>
-                  <div className="exercise-edit-sets"><div className="exercise-edit-set-head"><b>Set</b><b>Reps</b><b>Weight (kg)</b><span /></div>
-                    {(draft.setList ?? []).map((set, setIndex) => <div className="exercise-edit-set-row" key={set.id ?? setIndex}><span>{setIndex + 1}</span><input aria-label={`Set ${setIndex + 1} reps`} type="number" min={1} max={1000} value={set.reps || ""} onChange={event => updateDraftSet(setIndex, "reps", Number(event.target.value))} /><input aria-label={`Set ${setIndex + 1} weight`} type="number" min={0} max={10000} step={0.5} value={set.weight || ""} onChange={event => updateDraftSet(setIndex, "weight", Number(event.target.value))} /><button type="button" className="exercise-remove-set" disabled={(draft.setList?.length ?? 0) <= 1} onClick={() => removeDraftSet(setIndex)}>Remove</button></div>)}
+                  <div className="exercise-edit-sets"><div className="exercise-edit-set-head"><b>Set</b><b>Reps</b><b>Weight ({weightUnit})</b><span /></div>
+                    {(draft.setList ?? []).map((set, setIndex) => <div className="exercise-edit-set-row" key={set.id ?? setIndex}><span>{setIndex + 1}</span><input aria-label={`Set ${setIndex + 1} reps`} type="number" min={1} max={1000} value={set.reps || ""} onChange={event => updateDraftSet(setIndex, "reps", Number(event.target.value))} /><input aria-label={`Set ${setIndex + 1} weight (${weightUnit})`} type="number" min={0} max={10000} step={0.5} value={set.weight ? toDisplayWeight(set.weight, weightUnit) : ""} onChange={event => updateDraftSet(setIndex, "weight", Number(event.target.value))} /><button type="button" className="exercise-remove-set" disabled={(draft.setList?.length ?? 0) <= 1} onClick={() => removeDraftSet(setIndex)}>Remove</button></div>)}
                     <button type="button" className="exercise-add-set" disabled={(draft.setList?.length ?? 0) >= 20} onClick={addDraftSet}>＋ Add set</button>
                   </div>
                   <div className="exercise-edit-fields exercise-edit-extra">
@@ -558,7 +578,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
                   <div className="exercise-card-heading"><div><h3>{exercise.name}</h3><p>{exercise.muscle} · {volume.toLocaleString()} kg volume</p></div><button type="button" className="exercise-edit-button" disabled={Boolean(editingExercise) || active !== null} onClick={() => beginExerciseEdit(exercise)}><Pencil size={14} />Edit</button></div>
                   <div className="exercise-stats"><span><b>{exercise.sets}</b> sets</span><span><b>{exercise.reps}</b> reps</span><span><b>{exercise.rest}</b> sec rest</span><span><b>{exercise.tempo}</b> tempo</span></div>
                   {exercise.description && <p className="exercise-description">{exercise.description}</p>}
-                  <div className="exercise-plan-sets"><b>Set</b><b>Reps × Weight</b>{setList.map((set, setIndex) => <Fragment key={set.id ?? setIndex}><span>{setIndex + 1}</span><span>{set.reps} reps × {set.weight}kg</span></Fragment>)}</div>
+                  <div className="exercise-plan-sets"><b>Set</b><b>Reps × Weight ({weightUnit})</b>{setList.map((set, setIndex) => <Fragment key={set.id ?? setIndex}><span>{setIndex + 1}</span><span>{set.reps} reps × {toDisplayWeight(set.weight, weightUnit)}{weightUnit}</span></Fragment>)}</div>
                   {exercise.steps?.length ? <ol className="exercise-steps">{exercise.steps.map((step, stepIndex) => <li key={stepIndex}><span>{stepIndex + 1}</span>{step}</li>)}</ol> : exercise.cues?.[0] && <small>{exercise.cues[0]}</small>}
                   {exercise.videoUrl && <a className="exercise-video" href={exercise.videoUrl} target="_blank" rel="noreferrer">↗ Watch demo</a>}
                   {editingProgram && <button type="button" className="text-button danger-text" onClick={() => deleteExercise(exercise.id)}>Remove from day</button>}

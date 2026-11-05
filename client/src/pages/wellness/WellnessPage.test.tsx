@@ -23,7 +23,7 @@ describe("WellnessPage", () => {
 
   it("saves water and movement check-ins at the configured goals", async () => {
     render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Waiting for server VAPID configuration");
+    await screen.findByText("Background delivery is unavailable until the server is configured");
     fireEvent.click(screen.getByRole("button", { name: "Add one glass of water" }));
     fireEvent.click(screen.getByRole("button", { name: "Add one movement break" }));
 
@@ -34,7 +34,7 @@ describe("WellnessPage", () => {
 
   it("persists reminder preferences locally without requiring push configuration", async () => {
     render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Waiting for server VAPID configuration");
+    await screen.findByText("Background delivery is unavailable until the server is configured");
     fireEvent.click(screen.getByRole("checkbox", { name: /Water check-in/ }));
 
     expect(JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}"))
@@ -44,7 +44,7 @@ describe("WellnessPage", () => {
 
   it("allows prayer reminders to be enabled from the configured prayer times", async () => {
     render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Waiting for server VAPID configuration");
+    await screen.findByText("Background delivery is unavailable until the server is configured");
     fireEvent.click(screen.getByRole("checkbox", { name: /Prayer-time reminders/ }));
 
     expect(JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}"))
@@ -58,7 +58,7 @@ describe("WellnessPage", () => {
       save: { mutateAsync: vi.fn().mockRejectedValue(new Error("Save failed")), isPending: false }, isPending: false,
     });
     render(<WellnessPage onError={onError} />);
-    await screen.findByText("Waiting for server VAPID configuration");
+    await screen.findByText("Background delivery is unavailable until the server is configured");
 
     expect(screen.getByRole("button", { name: "Remove one glass of water" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove one movement break" })).toBeDisabled();

@@ -1,4 +1,4 @@
-import { Bell, BellRing, Check, Droplet, Footprints, Minus, Plus, Volume2 } from "lucide-react";
+import { BellRing, Check, Droplet, Footprints, Minus, Plus, Volume2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWellness } from "../../hooks/hooks";
 import { ironToday } from "../../utils/date";
@@ -13,12 +13,6 @@ const pushSubscribedKey = "irontrack_push_subscribed_v1";
 type PushConfig = { enabled: boolean; publicKey: string | null };
 type PushStatus = { configured: boolean; subscribed: boolean; preferences: ReminderPreferences | null };
 
-function applicationServerKey(value: string) {
-  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
-  return Uint8Array.from(raw, character => character.charCodeAt(0));
-}
-
 function readPreferences(): ReminderPreferences {
   try { return { ...defaultReminderPreferences, ...JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}") }; }
   catch { return defaultReminderPreferences; }
@@ -28,12 +22,10 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
   const date = ironToday();
   const wellness = useWellness(date);
   const today = wellness.data?.find(item => item.date === date) ?? { date, waterGlasses: 0, movementBreaks: 0 };
-  const [permission, setPermission] = useState(() => typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const [preferences, setPreferences] = useState(readPreferences);
   const [testing, setTesting] = useState(false);
   const [pushConfig, setPushConfig] = useState<PushConfig | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(() => localStorage.getItem(pushSubscribedKey) === "true");
-  const [pushBusy, setPushBusy] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(isNotificationSoundEnabled);
   const waterGoal = 8;
   const movementGoal = 6;
@@ -89,46 +81,11 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
     }
   }
 
-  async function enableNotifications() {
-    if (typeof Notification === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) { setPermission("unsupported"); return; }
-    if (!pushConfig?.enabled || !pushConfig.publicKey) { onError("Background notifications need VAPID keys configured on the IronTrack server."); return; }
-    setPushBusy(true);
-    try {
-      const granted = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
-      setPermission(granted);
-      if (granted !== "granted") return;
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(pushConfig.publicKey) });
-      const pushKeys = subscription.toJSON().keys;
-      if (!pushKeys?.p256dh || !pushKeys.auth) throw new Error("This browser returned an incomplete push subscription. Try enabling notifications again.");
-      await api("/notifications/subscriptions", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint, keys: pushKeys, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", preferences }) });
-      setPushSubscribed(true);
-      localStorage.setItem(pushSubscribedKey, "true");
-      window.dispatchEvent(new Event("irontrack-reminders-updated"));
-    } catch (error) { onError(error instanceof Error ? error.message : "Could not enable background notifications on this device."); }
-    finally { setPushBusy(false); }
-  }
-
-  async function disableNotifications() {
-    setPushBusy(true);
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await api("/notifications/subscriptions", { method: "DELETE", body: JSON.stringify({ endpoint: subscription.endpoint }) });
-        await subscription.unsubscribe();
-      }
-      setPushSubscribed(false);
-      localStorage.setItem(pushSubscribedKey, "false");
-      window.dispatchEvent(new Event("irontrack-reminders-updated"));
-    } catch (error) { onError(error instanceof Error ? error.message : "Could not disable push notifications."); }
-    finally { setPushBusy(false); }
-  }
-
   async function sendTest() {
     setTesting(true);
     try {
-      if (Notification.permission !== "granted") { setPermission(await Notification.requestPermission()); return; }
+      if (localStorage.getItem("irontrack_notifications_enabled_v1") !== "true") { onError("Enable notifications in Settings first."); return; }
+      if (Notification.permission !== "granted") { onError("Enable notifications in Settings first."); return; }
       if (pushSubscribed) {
         await api("/notifications/test", { method: "POST" });
         return;
@@ -155,7 +112,7 @@ export default function WellnessPage({ onError }: { onError: (message: string) =
     </div>
     <section className="wellness-history"><div className="section-heading"><h2>Last 7 days</h2><span>Daily check-ins</span></div>{wellness.isPending ? <p>Loading wellness history…</p> : <div className="wellness-days">{(wellness.data ?? []).map(day => <div className="wellness-day" key={day.date}><div className="wellness-bars"><i className="water-bar" style={{ height: `${Math.max(4, Math.min(100, day.waterGlasses / waterGoal * 100))}%` }} /><i className="movement-bar" style={{ height: `${Math.max(4, Math.min(100, day.movementBreaks / movementGoal * 100))}%` }} /></div><b>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</b><small>{day.date === date ? "Today" : new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { day: "numeric" })}</small></div>)}</div>}<div className="wellness-legend"><span><i className="water-dot" /> Water</span><span><i className="movement-dot" /> Movement</span></div></section>
     <section className="notification-card"><div className="section-heading"><div><h2>Reminders</h2><p>Server push can reach this device when IronTrack is closed.</p></div><BellRing /></div>
-      <div className="permission-row"><div><b>Background notification service</b><small>{pushSubscribed ? "This device is connected to the server" : pushConfig?.enabled ? permission === "denied" ? "Blocked in browser settings" : "Available once enabled on this device" : "Waiting for server VAPID configuration"}</small></div>{!pushSubscribed && <button type="button" disabled={pushBusy || !pushConfig?.enabled || permission === "denied" || permission === "unsupported"} onClick={() => void enableNotifications()}><Bell size={15} /> {pushBusy ? "Connecting…" : "Enable background"}</button>}{pushSubscribed && <><button type="button" className="notification-test" disabled={testing || pushBusy} onClick={() => void sendTest()}>{testing ? "Sending…" : "Send server test"}</button><button type="button" className="notification-test" disabled={pushBusy} onClick={() => void disableNotifications()}>Disable</button></>}</div>
+      <div className="permission-row"><div><b>Background notification service</b><small>{pushSubscribed ? "This device is connected to the server" : pushConfig?.enabled ? "Manage notification access in Settings" : "Background delivery is unavailable until the server is configured"}</small></div>{pushSubscribed && <button type="button" className="notification-test" disabled={testing} onClick={() => void sendTest()}>{testing ? "Sending…" : "Send server test"}</button>}</div>
       <div className="reminder-options"><label><span><b>Notification sound</b><small>Play a short chime while IronTrack is open. Closed-app push uses your device’s notification sound.</small></span><input type="checkbox" checked={soundEnabled} onChange={event => { const enabled = event.target.checked; setSoundEnabled(enabled); localStorage.setItem(notificationSoundKey, String(enabled)); if (enabled) void playNotificationSound(); }} /></label><button className="notification-test notification-sound-test" type="button" onClick={() => void testSound()}><Volume2 size={15} /> Test sound</button>{([
         ["taskTimes", "Routine task reminders", "Notify at the reminder time set on an incomplete task."],
         ["workoutAtNine", "Workout reminder", "A morning reminder on training days when a session is still due."],

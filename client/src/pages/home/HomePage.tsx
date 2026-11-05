@@ -9,6 +9,7 @@ import { ironToday } from "../../utils/date";
 type DayType = "push" | "pull" | "legs" | "push_high" | "pull_high" | "legs_high";
 type WeekDay = { key: string; label: string; dayType: DayType | null };
 type WorkoutLog = { _id: string; date: string; dayType: DayType; totalSets: number; totalVolume: number; duration: number; exercises: unknown[] };
+type WorkoutLogPage = { items: WorkoutLog[]; nextCursor: string | null; hasMore: boolean };
 const labels: Record<DayType, string> = { push: "Push", pull: "Pull", legs: "Legs", push_high: "Push · high rep", pull_high: "Pull · high rep", legs_high: "Legs · high rep" };
 const dayKey = (date: string) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${date}T12:00:00`).getDay()];
 const greeting = () => { const hour = new Date().getHours(); return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"; };
@@ -17,9 +18,9 @@ export default function HomePage({ day, latest, userName = "", onRoutine }: { da
   const navigate = useNavigate();
   const today = ironToday();
   const weekQuery = useQuery({ queryKey: ["workout", "week"], queryFn: () => api<WeekDay[]>("/workout-week") });
-  const logsQuery = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<WorkoutLog[]>("/workout-logs?limit=30") });
+  const logsQuery = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<WorkoutLogPage>("/workout-logs?limit=30") });
   const week = weekQuery.data ?? [];
-  const logs = logsQuery.data ?? [];
+  const logs = logsQuery.data?.items ?? [];
   const todayPlan = week.find(item => item.key === dayKey(today));
   const todayLog = logs.find(log => log.date === today && log.dayType === todayPlan?.dayType);
   const upcoming = useMemo(() => {

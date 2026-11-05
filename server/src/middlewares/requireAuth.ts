@@ -89,7 +89,8 @@ function sessionSecret() {
 }
 
 function refreshSecret() {
-  const secret = process.env.AUTH_REFRESH_SECRET || process.env.AUTH_JWT_SECRET;
-  if (!secret || Buffer.byteLength(secret) < 32) throw new Error("AUTH_REFRESH_SECRET must contain at least 32 bytes.");
+  const secret = process.env.AUTH_REFRESH_SECRET ?? (process.env.NODE_ENV === "production" ? undefined : process.env.AUTH_JWT_SECRET);
+  if (!secret || Buffer.byteLength(secret) < 32) throw new Error("AUTH_REFRESH_SECRET must contain at least 32 bytes in production.");
+  if (process.env.NODE_ENV === "production" && secret === process.env.AUTH_JWT_SECRET) throw new Error("AUTH_REFRESH_SECRET must be different from AUTH_JWT_SECRET in production.");
   return secret;
 }

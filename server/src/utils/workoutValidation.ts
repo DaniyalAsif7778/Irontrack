@@ -142,3 +142,19 @@ export function workoutLogLimit(input: unknown) {
   if (!Number.isSafeInteger(parsed)) throw new Error("limit must be a whole number");
   return Math.min(Math.max(parsed, 1), 200);
 }
+
+export type WorkoutLogCursor = { date: string; completedAt: string; id: string };
+
+export function workoutLogCursor(input: unknown): WorkoutLogCursor | null {
+  if (input === undefined || input === null || input === "") return null;
+  if (typeof input !== "string" || input.length > 512) throw new Error("cursor is invalid");
+  try {
+    const parsed = JSON.parse(Buffer.from(input, "base64url").toString("utf8")) as Partial<WorkoutLogCursor>;
+    if (!isValidDateKey(parsed.date) || typeof parsed.completedAt !== "string" || !Number.isFinite(Date.parse(parsed.completedAt)) || typeof parsed.id !== "string" || !/^[a-f0-9]{24}$/i.test(parsed.id)) {
+      throw new Error("invalid cursor fields");
+    }
+    return { date: parsed.date, completedAt: new Date(parsed.completedAt).toISOString(), id: parsed.id };
+  } catch {
+    throw new Error("cursor is invalid");
+  }
+}

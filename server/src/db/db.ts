@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { RoutineEvent } from "../models/routine/routine.model.js";
 import { WorkoutLog, WorkoutPlan } from "../models/workout/workout.model.js";
 import { WeightLog } from "../models/weight/weight.model.js";
+import { ScheduledNotification } from "../models/notifications/notification.model.js";
 import { logger } from "../utils/logger.js";
 
 const monitoredClients = new WeakSet<object>();
@@ -18,6 +19,14 @@ export async function connectDatabase(uri: string) {
     dropLegacyIndex(WorkoutPlan.collection, "dayType_1"),
     dropLegacyIndex(WorkoutLog.collection, "date_1_dayType_1"),
     ensureRoutineEventTimelineIndex(),
+    ensureNotificationAndWorkoutHistoryIndexes(),
+  ]);
+}
+
+async function ensureNotificationAndWorkoutHistoryIndexes() {
+  await Promise.all([
+    WorkoutLog.collection.createIndex({ ownerId: 1, date: -1, completedAt: -1, _id: -1 }, { name: "workout_logs_owner_history_cursor" }),
+    ScheduledNotification.createIndexes(),
   ]);
 }
 

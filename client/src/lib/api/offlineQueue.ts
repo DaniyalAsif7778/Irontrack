@@ -15,8 +15,58 @@ type StoredAction = OfflineAction & { key: string };
 const legacyKey = (accountId: string) => `irontrack_sync_queue_v1_${accountId}`;
 const actionKey = (action: Pick<OfflineAction, "accountId" | "id">) => `${action.accountId}:${action.id}`;
 const safeKinds = new Set<OfflineAction["kind"]>(["routine_completion", "workout_log"]);
+const queueActionMaxAgeMs = 30 * 24 * 60 * 60_000;
 let databasePromise: Promise<IDBDatabase | null> | undefined;
 const activeFlushes = new Map<string, Promise<void>>();
+const queueChannel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("irontrack-sync-queue-v1");
+queueChannel?.addEventListener("message", event => {
+  if (!event.data?.accountId) return;
+  window.dispatchEvent(new CustomEvent("irontrack:sync-queue", { detail: event.data }));
+});
+
+async function withFallbackQueueLock(accountId: string, task: () => Promise<void>, skipIfBusy: boolean) {
+  const lockKey = `irontrack_sync_lock_v1_${encodeURIComponent(accountId)}`;
+  const token = crypto.randomUUID();
+  let acquired = false;
+  try {
+    for (let attempt = 0; attempt < (skipIfBusy ? 3 : 600) && !acquired; attempt += 1) {
+      const current = JSON.parse(localStorage.getItem(lockKey) ?? "null") as { token?: string; expiresAt?: number } | null;
+      if (current?.expiresAt && current.expiresAt > Date.now()) {
+        await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 60));
+        continue;
+      }
+      localStorage.setItem(lockKey, JSON.stringify({ token, expiresAt: Date.now() + 60_000 }));
+      acquired = (JSON.parse(localStorage.getItem(lockKey) ?? "null") as { token?: string } | null)?.token === token;
+    }
+  } catch { /* Browsers with blocked localStorage continue using server-side idempotency. */ }
+  if (!acquired) {
+    if (skipIfBusy) return;
+    throw new Error("Could not acquire the offline sync lock. Please try again.");
+  }
+  const renew = window.setInterval(() => {
+    try {
+      const current = JSON.parse(localStorage.getItem(lockKey) ?? "null") as { token?: string } | null;
+      if (current?.token === token) localStorage.setItem(lockKey, JSON.stringify({ token, expiresAt: Date.now() + 60_000 }));
+    } catch { /* The current owner still finishes this flush. */ }
+  }, 20_000);
+  try { await task(); }
+  finally {
+    window.clearInterval(renew);
+    try {
+      const current = JSON.parse(localStorage.getItem(lockKey) ?? "null") as { token?: string } | null;
+      if (current?.token === token) localStorage.removeItem(lockKey);
+    } catch { /* Expiration releases a lock that storage would not let us clear. */ }
+  }
+}
+
+async function withQueueLock(accountId: string, task: () => Promise<void>, skipIfBusy = false) {
+  // Serialize queue edits and flushes per account across tabs; server action IDs remain the final dedupe guard.
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    await navigator.locks.request(`irontrack-offline-sync:${accountId}`, { mode: "exclusive", ...(skipIfBusy ? { ifAvailable: true } : {}) }, lock => lock ? task() : Promise.resolve());
+    return;
+  }
+  await withFallbackQueueLock(accountId, task, skipIfBusy);
+}
 
 function openDatabase(): Promise<IDBDatabase | null> {
   if (databasePromise) return databasePromise;
@@ -112,41 +162,60 @@ async function writeQueue(accountId: string, queue: OfflineAction[]) {
 
 async function announce(accountId: string) {
   const queue = await readQueue(accountId);
-  window.dispatchEvent(new CustomEvent("irontrack:sync-queue", { detail: { accountId, count: queue.filter(item => item.state === "pending").length } }));
+  const detail = { accountId, count: queue.filter(item => item.state === "pending").length };
+  window.dispatchEvent(new CustomEvent("irontrack:sync-queue", { detail }));
+  queueChannel?.postMessage(detail);
 }
 
 export async function enqueueOfflineAction(input: Omit<OfflineAction, "createdAt" | "state">) {
   if (!input.accountId || !safeKinds.has(input.kind)) throw new Error("This change cannot be saved for offline sync.");
-  const queue = await readQueue(input.accountId);
-  if (!queue.some(item => item.id === input.id)) queue.push({ ...input, createdAt: new Date().toISOString(), state: "pending" });
-  await writeQueue(input.accountId, queue);
-  await announce(input.accountId);
+  await withQueueLock(input.accountId, async () => {
+    const queue = await readQueue(input.accountId);
+    if (!queue.some(item => item.id === input.id)) queue.push({ ...input, createdAt: new Date().toISOString(), state: "pending" });
+    await writeQueue(input.accountId, queue);
+    await announce(input.accountId);
+  });
 }
 
 export function getOfflineQueue(accountId: string) { return readQueue(accountId); }
 
 export async function clearOfflineQueue(accountId: string) {
   if (!accountId) return;
-  await writeQueue(accountId, []);
-  try { localStorage.removeItem(legacyKey(accountId)); } catch { /* Ignore blocked browser storage. */ }
-  await announce(accountId);
+  await withQueueLock(accountId, async () => {
+    await writeQueue(accountId, []);
+    try { localStorage.removeItem(legacyKey(accountId)); } catch { /* Ignore blocked browser storage. */ }
+    await announce(accountId);
+  });
 }
 
 export async function retryOfflineAction(accountId: string, id: string) {
-  const queue = await readQueue(accountId);
-  const item = queue.find(candidate => candidate.id === id);
-  if (!item) return;
-  item.state = "pending";
-  delete item.error;
-  await writeQueue(accountId, queue);
-  await announce(accountId);
+  await withQueueLock(accountId, async () => {
+    const queue = await readQueue(accountId);
+    const item = queue.find(candidate => candidate.id === id);
+    if (!item) return;
+    item.state = "pending";
+    item.createdAt = new Date().toISOString();
+    delete item.error;
+    await writeQueue(accountId, queue);
+    await announce(accountId);
+  });
+}
+
+export async function discardOfflineAction(accountId: string, id: string) {
+  await withQueueLock(accountId, async () => {
+    const queue = await readQueue(accountId);
+    const updated = queue.filter(item => item.id !== id);
+    if (updated.length === queue.length) return;
+    await writeQueue(accountId, updated);
+    await announce(accountId);
+  });
 }
 
 export function flushOfflineQueue(accountId: string): Promise<void> {
   if (!accountId || !navigator.onLine) return Promise.resolve();
   const active = activeFlushes.get(accountId);
   if (active) return active;
-  const flush = flushQueue(accountId).finally(() => activeFlushes.delete(accountId));
+  const flush = withQueueLock(accountId, () => flushQueue(accountId), true).finally(() => activeFlushes.delete(accountId));
   activeFlushes.set(accountId, flush);
   return flush;
 }
@@ -156,6 +225,12 @@ async function flushQueue(accountId: string) {
   let changed = false;
   for (const item of [...queue]) {
     if (item.state !== "pending") continue;
+    if (!Number.isFinite(Date.parse(item.createdAt)) || Date.now() - Date.parse(item.createdAt) > queueActionMaxAgeMs) {
+      item.state = "needs_attention";
+      item.error = "This saved change is over 30 days old. Retry it or discard it after checking the server.";
+      changed = true;
+      continue;
+    }
     try {
       await api(item.path, { method: item.kind === "routine_completion" ? "PUT" : "POST", body: JSON.stringify(item.body) });
       queue.splice(queue.findIndex(candidate => candidate.id === item.id), 1);

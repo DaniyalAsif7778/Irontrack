@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { ComponentProps } from "react";
 import { api } from "../../lib/api/api";
 
-vi.mock("../../lib/api/api", () => ({ api: vi.fn(async (path: string) => path.includes("routine/events") ? { counts: {} } : []) }));
+vi.mock("../../lib/api/api", () => ({ api: vi.fn(async (path: string) => path.includes("routine/events") ? { counts: {} } : path.startsWith("/workout-logs") ? { items: [], nextCursor: null, hasMore: false } : []) }));
 
 function renderPage(data: ComponentProps<typeof AnalyticsPage>["data"], onRange: ComponentProps<typeof AnalyticsPage>["onRange"], accountId = "account-a", period: ComponentProps<typeof AnalyticsPage>["period"] = "7d") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -60,7 +60,7 @@ describe("AnalyticsPage", () => {
         failedOnce = true;
         throw new Error("Network unavailable");
       }
-      return path.includes("routine/events") ? { counts: {} } as never : [] as never;
+      return path.includes("routine/events") ? { counts: {} } as never : path.startsWith("/workout-logs") ? { items: [], nextCursor: null, hasMore: false } as never : [] as never;
     });
     renderPage(null, vi.fn());
 

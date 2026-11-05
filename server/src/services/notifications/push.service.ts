@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import webpush, { type PushSubscription as WebPushSubscription } from "web-push";
-import { PushDelivery, PushSubscription } from "../../models/notifications/notification.model.js";
+import { NotificationSchedulerLease, PushDelivery, PushSubscription, ScheduledNotification } from "../../models/notifications/notification.model.js";
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
 import { WorkoutLog, WorkoutProgram } from "../../models/workout/workout.model.js";
 import { WellnessLog } from "../../models/wellness/wellness.model.js";
@@ -22,6 +23,173 @@ export function localCalendarParts(date: Date, timezone: string) {
     dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
     time: `${values.hour}:${values.minute}`,
   };
+}
+
+const notificationGraceMs = 15 * 60_000;
+const maxNotificationAttempts = 4;
+const retryDelayMs = [60_000, 2 * 60_000, 5 * 60_000];
+type DueMinute = { dueAt: Date; dateKey: string; calendarDate: string; time: string; weekday: number; ironDayType: string };
+
+/** Build the bounded catch-up window so scheduler restarts can recover recent minute-based reminders. */
+export function dueMinuteSlots(now: Date, timezone: string, graceMs = notificationGraceMs, after: Date | null = null): DueMinute[] {
+  const latestMinute = Math.floor(now.getTime() / 60_000) * 60_000;
+  const earliest = now.getTime() - graceMs;
+  const slots: DueMinute[] = [];
+  for (let at = latestMinute; at >= earliest; at -= 60_000) {
+    if (after && at <= after.getTime()) continue;
+    const instant = new Date(at);
+    const local = localCalendarParts(instant, timezone);
+    const day = dayParts(instant, timezone);
+    slots.push({ dueAt: instant, dateKey: day.dateKey, calendarDate: local.dateKey, time: local.time, weekday: day.weekday, ironDayType: day.ironDayType });
+  }
+  return slots;
+}
+
+async function materializeScheduledNotification(input: {
+  ownerId: unknown; subscriptionId: unknown; scheduleKey: string; category: string; title: string; body: string; url: string; dueAt: Date; timezone: string; scheduleDate: string; workoutDayType?: string; sourceEventId?: string; taskId?: unknown; taskDate?: string;
+}) {
+  try {
+    // A stable per-subscription key makes a repeated scheduler scan safe to upsert.
+    await ScheduledNotification.updateOne(
+      { ownerId: input.ownerId, scheduleKey: input.scheduleKey },
+      { $setOnInsert: { ...input, deliveryDeadline: new Date(input.dueAt.getTime() + notificationGraceMs), expiresAt: new Date(input.dueAt.getTime() + 60 * 86400_000), nextAttemptAt: input.dueAt, status: "pending" } },
+      { upsert: true },
+    );
+  } catch (error: any) {
+    if (error?.code !== 11000) throw error;
+  }
+}
+
+async function scheduleDueNotifications(subscriptions: any[], now: Date, after: Date | null) {
+  const groups = new Map<string, { ownerId: string; timezone: string; subscriptions: any[] }>();
+  for (const subscription of subscriptions) {
+    const ownerId = String(subscription.ownerId);
+    const timezone = subscription.timezone || "UTC";
+    const key = `${ownerId}:${timezone}`;
+    const group: { ownerId: string; timezone: string; subscriptions: any[] } = groups.get(key) ?? { ownerId, timezone, subscriptions: [] };
+    group.subscriptions.push(subscription);
+    groups.set(key, group);
+  }
+
+  for (const group of groups.values()) {
+    const { ownerId, timezone } = group;
+    const dueSlots = dueMinuteSlots(now, timezone, notificationGraceMs, after);
+    const times = [...new Set(dueSlots.map(slot => slot.time))];
+    const needsTasks = group.subscriptions.some(subscription => subscription.preferences?.taskTimes);
+    const needsWorkout = group.subscriptions.some(subscription => subscription.preferences?.workoutAtNine);
+    const taskDays = [...new Set(dueSlots.map(slot => slot.ironDayType))];
+    const [tasks, program] = await Promise.all([
+      needsTasks && times.length ? RoutineTask.find({ ownerId, dayType: { $in: taskDays }, reminderTime: { $in: times } }).select("_id title dueDate reminderTime dayType").lean() : [],
+      needsWorkout ? WorkoutProgram.findOne({ ownerId }).select("days").lean() : null,
+    ]);
+    const prayerTimes = group.subscriptions.some(subscription => subscription.preferences?.prayerTimes)
+      ? (await User.findById(ownerId).select("preferences.prayerTimes").lean())?.preferences?.prayerTimes
+      : undefined;
+
+    for (const subscription of group.subscriptions) {
+      const preferences = subscription.preferences;
+      const subscriptionId = subscription._id;
+      for (const slot of dueSlots) {
+        if (preferences?.taskTimes) for (const task of tasks as any[]) {
+          if (task.reminderTime !== slot.time || task.dayType !== slot.ironDayType || (task.dueDate && task.dueDate !== slot.dateKey)) continue;
+          const scheduleKey = `task:${slot.dateKey}:${task._id}:${subscriptionId}`;
+          await materializeScheduledNotification({ ownerId: subscription.ownerId, subscriptionId, scheduleKey, category: "task", title: "Routine reminder", body: task.title, url: "/routine", dueAt: slot.dueAt, timezone, scheduleDate: slot.dateKey, taskId: task._id, taskDate: slot.dateKey });
+        }
+
+        if (preferences?.prayerTimes) for (const prayer of prayersDueAt(prayerTimes, slot.time)) {
+          const scheduleKey = `prayer:${slot.calendarDate}:${prayer.key}:${subscriptionId}`;
+          await materializeScheduledNotification({ ownerId: subscription.ownerId, subscriptionId, scheduleKey, category: "prayer", title: `Time for ${prayer.label}`, body: `Your scheduled ${prayer.label} prayer time is here.`, url: "/routine", dueAt: slot.dueAt, timezone, scheduleDate: slot.calendarDate });
+        }
+
+        if (preferences?.workoutAtNine && slot.time === "09:00") {
+          const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][slot.weekday];
+          const dayType = program?.days.find((day: any) => day.key === weekKey)?.planId;
+          if (dayType) await materializeScheduledNotification({ ownerId: subscription.ownerId, subscriptionId, scheduleKey: `workout:${slot.dateKey}:${subscriptionId}`, category: "workout", title: "Workout day", body: "Your training session is ready when you are.", url: "/workout", dueAt: slot.dueAt, timezone, scheduleDate: slot.dateKey, workoutDayType: dayType });
+        }
+
+        if ((preferences?.hydration || preferences?.movement) && ["10:00", "14:00", "18:00"].includes(slot.time)) {
+          if (preferences.hydration) await materializeScheduledNotification({ ownerId: subscription.ownerId, subscriptionId, scheduleKey: `water:${slot.dateKey}:${slot.time}:${subscriptionId}`, category: "hydration", title: "Water check-in", body: "Take a moment for a glass of water.", url: "/wellness", dueAt: slot.dueAt, timezone, scheduleDate: slot.dateKey });
+          if (preferences.movement) await materializeScheduledNotification({ ownerId: subscription.ownerId, subscriptionId, scheduleKey: `movement:${slot.dateKey}:${slot.time}:${subscriptionId}`, category: "movement", title: "Movement break", body: "Stand, stretch, and reset for a minute.", url: "/wellness", dueAt: slot.dueAt, timezone, scheduleDate: slot.dateKey });
+        }
+      }
+    }
+  }
+}
+
+async function claimScheduledNotification(now: Date) {
+  const leaseToken = randomUUID();
+  // Claim one event atomically so overlapping scheduler ticks cannot send the same event concurrently.
+  return ScheduledNotification.findOneAndUpdate({
+    dueAt: { $lte: now }, deliveryDeadline: { $gt: now },
+    $or: [
+      { status: "pending", nextAttemptAt: { $lte: now } },
+      { status: "processing", leaseExpiresAt: { $lte: now } },
+    ],
+  }, {
+    $set: { status: "processing", leaseToken, leaseExpiresAt: new Date(now.getTime() + 60_000), lastAttemptAt: now },
+    $inc: { attempts: 1 },
+  }, { sort: { dueAt: 1 }, new: true }).lean();
+}
+
+async function deliverScheduledNotification(event: any, now: Date) {
+  const update = (fields: Record<string, unknown>) => ScheduledNotification.updateOne({ _id: event._id, status: "processing", leaseToken: event.leaseToken }, { $set: fields, $unset: { leaseToken: "", leaseExpiresAt: "" } });
+  try {
+    const subscription = await PushSubscription.findOne({ _id: event.subscriptionId, ownerId: event.ownerId }).lean();
+    if (!subscription) { await update({ status: "skipped" }); return; }
+    const preferenceKey = ({ task: "taskTimes", prayer: "prayerTimes", workout: "workoutAtNine", hydration: "hydration", movement: "movement" } as const)[event.category as "task" | "prayer" | "workout" | "hydration" | "movement"];
+    if (preferenceKey && !subscription.preferences?.[preferenceKey]) { await update({ status: "skipped" }); return; }
+    if (event.category === "task") {
+      if (await RoutineCompletion.exists({ taskId: event.taskId, date: event.taskDate, completed: true })) {
+        await update({ status: "skipped" });
+        await RoutineReminder.updateOne({ ownerId: event.ownerId, taskId: event.taskId, date: event.taskDate, status: "scheduled" }, { $set: { status: "responded", respondedAt: now } });
+        return;
+      }
+      const task = await RoutineTask.findOne({ _id: event.taskId, ownerId: event.ownerId }).select("title").lean();
+      if (!task) { await update({ status: "skipped" }); return; }
+      const reminder = await RoutineReminder.findOneAndUpdate(
+        { ownerId: event.ownerId, taskId: event.taskId, date: event.taskDate },
+        { $setOnInsert: { ownerId: event.ownerId, taskId: event.taskId, date: event.taskDate, timezone: event.timezone, status: "scheduled", sentAt: null } },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+      if (reminder.status !== "scheduled" && reminder.status !== "sent") { await update({ status: "skipped" }); return; }
+    }
+    if (event.category === "workout") {
+      const hasWorkout = await WorkoutLog.exists({ ownerId: event.ownerId, date: event.scheduleDate, dayType: event.workoutDayType });
+      if (hasWorkout) { await update({ status: "skipped" }); return; }
+    }
+    if (event.category === "hydration" || event.category === "movement") {
+      const wellness = await WellnessLog.findOne({ ownerId: event.ownerId, date: event.scheduleDate }).lean();
+      if (event.category === "hydration" && (wellness?.waterGlasses ?? 0) >= 8) { await update({ status: "skipped" }); return; }
+      if (event.category === "movement" && (wellness?.movementBreaks ?? 0) >= 6) { await update({ status: "skipped" }); return; }
+    }
+    await send(subscription, `scheduled:${event.scheduleKey}`, event.title, event.body, event.url);
+    if (event.category === "task") {
+      const marked = await RoutineReminder.updateOne({ ownerId: event.ownerId, taskId: event.taskId, date: event.taskDate, status: "scheduled" }, { $set: { status: "sent", sentAt: now, timezone: event.timezone } });
+      if (marked.modifiedCount) await recordReminderEvent(event.ownerId, event.taskId, event.taskDate, "push_sent", `reminder-sent:${event.taskDate}:${String(event.taskId)}`, { taskTitle: event.body, reminderTime: localCalendarParts(event.dueAt, event.timezone).time });
+    }
+    await update({ status: "sent", sentAt: now, lastError: "" });
+    if (event.sourceEventId) await RoutineEvent.updateOne({ ownerId: event.ownerId, idempotencyKey: event.sourceEventId }, { $set: { pushStatus: "sent", pushSentAt: now } });
+  } catch (error) {
+    const attempts = Number(event.attempts) || 1;
+    const nextAttemptAt = new Date(now.getTime() + (retryDelayMs[attempts - 1] ?? retryDelayMs.at(-1)!));
+    const retry = attempts < maxNotificationAttempts && nextAttemptAt < event.deliveryDeadline;
+    await update({
+      status: retry ? "pending" : "failed",
+      ...(retry ? { nextAttemptAt } : {}),
+      lastError: error instanceof Error ? error.message.slice(0, 300) : "Notification delivery failed",
+    });
+    if (event.sourceEventId) await RoutineEvent.updateOne({ ownerId: event.ownerId, idempotencyKey: event.sourceEventId }, { $set: { pushStatus: retry ? "retrying" : "failed" } });
+    logger.warn({ event: "scheduled_notification_attempt_failed", category: event.category, attempts, retry, errorName: error instanceof Error ? error.name : "UnknownError" }, "Scheduled notification delivery attempt failed");
+  }
+}
+
+async function dispatchScheduledNotifications(now: Date) {
+  await ScheduledNotification.updateMany({ status: { $in: ["pending", "processing"] }, deliveryDeadline: { $lte: now } }, { $set: { status: "expired" }, $unset: { leaseToken: "", leaseExpiresAt: "" } });
+  for (let count = 0; count < 100; count += 1) {
+    const event = await claimScheduledNotification(now);
+    if (!event) break;
+    await deliverScheduledNotification(event, now);
+  }
 }
 
 function dayParts(date: Date, timezone: string) {
@@ -135,92 +303,84 @@ export async function sendTestPush(ownerId: string) {
 }
 
 let checking = false;
+const schedulerOwnerToken = randomUUID();
+// The process-local guard prevents overlap here; this Mongo lease extends that protection across API instances.
+async function acquireSchedulerLease(now: Date) {
+  try {
+    const lease = await NotificationSchedulerLease.findOneAndUpdate(
+      { _id: "push-scheduler", $or: [{ expiresAt: { $lte: now } }, { ownerToken: schedulerOwnerToken }] },
+      { $set: { ownerToken: schedulerOwnerToken, expiresAt: new Date(now.getTime() + 120_000) } },
+      { upsert: true, new: true },
+    ).lean();
+    return lease?.ownerToken === schedulerOwnerToken ? { lastProcessedAt: lease.lastProcessedAt ?? null } : null;
+  } catch (error: any) {
+    if (error?.code === 11000) return null;
+    throw error;
+  }
+}
+
+async function releaseSchedulerLease(lastProcessedAt?: Date) {
+  await NotificationSchedulerLease.updateOne(
+    { _id: "push-scheduler", ownerToken: schedulerOwnerToken },
+    { $set: { ownerToken: "", expiresAt: new Date(0), ...(lastProcessedAt ? { lastProcessedAt } : {}) } },
+  );
+}
+
 async function dispatchRoutineBlockPrompts(now: Date) {
   const due = await RoutineTaskOccurrence.find({ status: "active", endAt: { $lte: now }, $expr: { $ne: ["$promptedForEndAt", "$endAt"] } }).limit(100);
   for (const occurrence of due) {
     const endAt = occurrence.endAt;
     if (!endAt) continue;
-    const claimed = await RoutineTaskOccurrence.updateOne({ _id: occurrence._id, status: "active", promptedForEndAt: { $ne: endAt } }, { $set: { promptedForEndAt: endAt } });
-    if (!claimed.modifiedCount) continue;
     const task = await RoutineTask.findOne({ _id: occurrence.taskId, ownerId: occurrence.ownerId }).select("title").lean();
     const eventId = `extension-prompt:${String(occurrence._id)}:${endAt.getTime()}`;
     try {
       await RoutineEvent.create({ ownerId: occurrence.ownerId, eventId, idempotencyKey: eventId, parentEventId: eventId, taskId: occurrence.taskId, occurrenceId: occurrence._id, date: occurrence.date, type: "extension_prompted", occurredAt: now, metadata: { taskTitle: task?.title ?? "Task", endAt } });
-    } catch (error: any) { if (error?.code !== 11000) throw error; else continue; }
-    const subscriptions = await PushSubscription.find({ ownerId: occurrence.ownerId });
-    const outcomes = await Promise.allSettled(subscriptions.map(subscription => send(subscription, eventId, "45-minute block complete", `${task?.title ?? "Task"} is at its time limit. Open Routine to complete it or add 15 minutes.`, "/routine")));
-    await RoutineEvent.updateOne({ ownerId: occurrence.ownerId, idempotencyKey: eventId }, { $set: { pushStatus: !configured || !subscriptions.length ? "unavailable" : outcomes.some(item => item.status === "rejected") ? "failed" : "sent", pushSentAt: outcomes.some(item => item.status === "fulfilled") ? now : null } });
+    } catch (error: any) { if (error?.code !== 11000) throw error; }
+    const subscriptions = await PushSubscription.find({ ownerId: occurrence.ownerId }).select("_id timezone").lean();
+    if (!subscriptions.length) {
+      await RoutineEvent.updateOne({ ownerId: occurrence.ownerId, idempotencyKey: eventId }, { $set: { pushStatus: "unavailable", pushSentAt: null } });
+      await RoutineTaskOccurrence.updateOne({ _id: occurrence._id, status: "active", promptedForEndAt: { $ne: endAt } }, { $set: { promptedForEndAt: endAt } });
+      continue;
+    }
+    for (const subscription of subscriptions) await materializeScheduledNotification({
+      ownerId: occurrence.ownerId,
+      subscriptionId: subscription._id,
+      scheduleKey: `${eventId}:${subscription._id}`,
+      category: "routine_block",
+      title: "45-minute block complete",
+      body: `${task?.title ?? "Task"} is at its time limit. Open Routine to complete it or add 15 minutes.`,
+      url: "/routine",
+      dueAt: endAt,
+      timezone: subscription.timezone || "UTC",
+      scheduleDate: occurrence.date,
+      sourceEventId: eventId,
+    });
+    await RoutineEvent.updateOne({ ownerId: occurrence.ownerId, idempotencyKey: eventId }, { $set: { pushStatus: "pending", pushSentAt: null } });
+    await RoutineTaskOccurrence.updateOne({ _id: occurrence._id, status: "active", promptedForEndAt: { $ne: endAt } }, { $set: { promptedForEndAt: endAt } });
   }
 }
 
 export async function dispatchDueNotifications(now = new Date()) {
   if (!configured || checking) return;
   checking = true;
+  let leaseState: { lastProcessedAt: Date | null } | null = null;
+  let completedAt: Date | undefined;
   try {
+    leaseState = await acquireSchedulerLease(now);
+    if (!leaseState) return;
     await dispatchRoutineBlockPrompts(now);
-    const subscriptions = await PushSubscription.find().select("ownerId timezone preferences endpoint keys").lean();
-    const prayerOwnerIds = [...new Set(subscriptions.filter(subscription => subscription.preferences?.prayerTimes).map(subscription => String(subscription.ownerId)))];
-    const prayerUsers = prayerOwnerIds.length
-      ? await User.find({ _id: { $in: prayerOwnerIds } }).select("preferences.prayerTimes").lean()
-      : [];
-    const prayerTimesByOwner = new Map(prayerUsers.map(user => [String(user._id), user.preferences?.prayerTimes]));
-    for (const subscription of subscriptions) {
-      const { dateKey, time, weekday, ironDayType } = dayParts(now, subscription.timezone || "UTC");
-      const prefs = subscription.preferences;
-      const ownerId = String(subscription.ownerId);
-      if (prefs.prayerTimes) {
-        const prayerDate = localCalendarParts(now, subscription.timezone || "UTC").dateKey;
-        const prayerTimes = prayerTimesByOwner.get(ownerId);
-        for (const prayer of prayersDueAt(prayerTimes, time)) {
-          try {
-            await send(subscription, `prayer:${prayerDate}:${prayer.key}`, `Time for ${prayer.label}`, `Your scheduled ${prayer.label} prayer time is here.`, "/routine");
-          } catch (error) {
-            logger.warn({ err: error, ownerId, prayer: prayer.key }, "Prayer notification delivery failed");
-          }
-        }
-      }
-      if (prefs.taskTimes) {
-        const tasks = await RoutineTask.find({ ownerId, dayType: ironDayType, reminderTime: time }).lean();
-        for (const task of tasks) {
-          if (task.dueDate && task.dueDate !== dateKey) continue;
-          const done = await RoutineCompletion.exists({ taskId: task._id, date: dateKey, completed: true });
-          if (!done) {
-            let reminder = await RoutineReminder.findOne({ ownerId: subscription.ownerId, taskId: task._id, date: dateKey });
-            if (!reminder) {
-              try { reminder = await RoutineReminder.create({ ownerId: subscription.ownerId, taskId: task._id, date: dateKey, timezone: subscription.timezone || "UTC", status: "scheduled", sentAt: null }); }
-              catch (error: any) { if (error?.code === 11000) reminder = await RoutineReminder.findOne({ ownerId: subscription.ownerId, taskId: task._id, date: dateKey }); else throw error; }
-            }
-            if (reminder && (reminder.status === "scheduled" || reminder.status === "sent")) {
-              try {
-                await send(subscription, `task:${dateKey}:${task._id}`, "Routine reminder", task.title, "/routine");
-                const marked = await RoutineReminder.updateOne({ _id: reminder._id, status: "scheduled" }, { $set: { status: "sent", sentAt: now, timezone: subscription.timezone || "UTC" } });
-                if (marked.modifiedCount) await recordReminderEvent(subscription.ownerId, task._id, dateKey, "push_sent", `reminder-sent:${dateKey}:${String(task._id)}`, { taskTitle: task.title, reminderTime: time });
-              } catch (error) {
-                logger.warn({ event: "routine_reminder_delivery_failed", errorName: error instanceof Error ? error.name : "UnknownError", errorCode: typeof error === "object" && error !== null && "code" in error ? error.code : undefined }, "Routine reminder delivery failed");
-              }
-            }
-          }
-        }
-      }
-      if (prefs.workoutAtNine && time === "09:00") {
-        const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][weekday];
-        const program = await WorkoutProgram.findOne({ ownerId }).lean();
-        const dayType = program?.days.find(day => day.key === weekKey)?.planId;
-        if (dayType && !await WorkoutLog.exists({ ownerId, date: dateKey, dayType })) {
-          await send(subscription, `workout:${dateKey}`, "Workout day", "Your training session is ready when you are.", "/workout").catch(() => undefined);
-        }
-      }
-      if ((prefs.hydration || prefs.movement) && ["10:00", "14:00", "18:00"].includes(time)) {
-        const wellness = await WellnessLog.findOne({ ownerId, date: dateKey }).lean();
-        if (prefs.hydration && (wellness?.waterGlasses ?? 0) < 8) await send(subscription, `water:${dateKey}:${time}`, "Water check-in", "Take a moment for a glass of water.", "/wellness").catch(() => undefined);
-        if (prefs.movement && (wellness?.movementBreaks ?? 0) < 6) await send(subscription, `movement:${dateKey}:${time}`, "Movement break", "Stand, stretch, and reset for a minute.", "/wellness").catch(() => undefined);
-      }
-    }
+    const subscriptions = await PushSubscription.find().select("_id ownerId timezone preferences").lean();
+    await scheduleDueNotifications(subscriptions, now, leaseState.lastProcessedAt);
+    await dispatchScheduledNotifications(now);
     await dispatchReminderFollowups(now);
+    completedAt = now;
   } catch (error) {
     logger.warn({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Unknown scheduler error", errorCode: typeof error === "object" && error !== null && "code" in error ? error.code : undefined }, "Background notification schedule check failed");
   }
-  finally { checking = false; }
+  finally {
+    if (leaseState) await releaseSchedulerLease(completedAt).catch(error => logger.warn({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Could not release notification scheduler lease"));
+    checking = false;
+  }
 }
 
 export function startNotificationScheduler() {

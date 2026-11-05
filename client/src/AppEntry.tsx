@@ -1,6 +1,5 @@
 import { useLocation } from "react-router-dom";
 import App from "./App";
-import { isRemoteApi } from "./lib/api/api";
 import AuthGate from "./components/AuthGate";
 import GlobalErrorBoundary from "./components/GlobalErrorBoundary";
 import NotFoundPage from "./pages/errors/NotFoundPage";
@@ -17,6 +16,6 @@ export function isKnownAppPath(pathname: string) {
 
 export default function AppEntry() {
   const { pathname } = useLocation();
-  if (!isRemoteApi() || isKnownAppPath(pathname)) return <GlobalErrorBoundary><AuthGate><App /></AuthGate></GlobalErrorBoundary>;
+  if (isKnownAppPath(pathname)) return <GlobalErrorBoundary><AuthGate><App /></AuthGate></GlobalErrorBoundary>;
   return <GlobalErrorBoundary><NotFoundPage /></GlobalErrorBoundary>;
 }

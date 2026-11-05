@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Cloud, CloudOff, RefreshCw } from "lucide-react";
-import { flushOfflineQueue, getOfflineQueue, retryOfflineAction, type OfflineAction } from "../lib/api/offlineQueue";
+import { discardOfflineAction, flushOfflineQueue, getOfflineQueue, retryOfflineAction, type OfflineAction } from "../lib/api/offlineQueue";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function OfflineSyncStatus({ accountId }: { accountId?: string }) {
@@ -45,6 +45,6 @@ export default function OfflineSyncStatus({ accountId }: { accountId?: string })
   return <aside className={`offline-sync-status ${online ? "is-online" : "is-offline"}`} aria-label="Offline sync status">
     <div className="offline-sync-heading" role="status" aria-live="polite">{online ? <Cloud size={16} /> : <CloudOff size={16} />}<span>{!online ? "Offline" : blocked ? `${blocked} change${blocked === 1 ? "" : "s"} need attention` : `${pending} change${pending === 1 ? "" : "s"} waiting to sync`}</span>
       {online && pending > 0 && <button type="button" aria-label="Sync queued changes" onClick={() => void flushOfflineQueue(accountId)}><RefreshCw size={14} /> Sync</button>}</div>
-    {online && blockedActions.length > 0 && <ul>{blockedActions.map(item => <li key={item.id}><span>{item.kind === "workout_log" ? "Workout save" : "Routine completion"}: {item.error}</span><button type="button" onClick={() => { void retryOfflineAction(accountId, item.id).then(() => flushOfflineQueue(accountId)); }}>Retry</button></li>)}</ul>}
+    {online && blockedActions.length > 0 && <ul>{blockedActions.map(item => <li key={item.id}><span>{item.kind === "workout_log" ? "Workout save" : "Routine completion"}: {item.error}</span><button type="button" onClick={() => { void retryOfflineAction(accountId, item.id).then(() => flushOfflineQueue(accountId)); }}>Retry</button><button type="button" onClick={() => { void discardOfflineAction(accountId, item.id); }}>Discard</button></li>)}</ul>}
   </aside>;
 }

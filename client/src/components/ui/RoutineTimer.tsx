@@ -85,12 +85,12 @@ export default function RoutineTimer({ focusMinutes = 45, breakMinutes = 15, use
       if (remaining(timer, tick) > 0) return;
       if (timer.taskBlock && timer.phase === "focus") {
         setTimer({ ...timer, remainingMs: 0, startedAt: null });
-        if ("Notification" in window && Notification.permission === "granted") { new Notification("Focus block complete", { body: `${timer.taskTitle} needs a finish or 15-minute extension.`, tag: `irontrack-task-${timer.taskId}`, silent: false }); void playNotificationSound(); }
+        if ("Notification" in window && Notification.permission === "granted" && localStorage.getItem("irontrack_notifications_enabled_v1") === "true") { new Notification("Focus block complete", { body: `${timer.taskTitle} needs a finish or 15-minute extension.`, tag: `irontrack-task-${timer.taskId}`, silent: false }); void playNotificationSound(); }
         return;
       }
       const phase: Phase = timer.phase === "focus" ? "break" : "focus";
       setTimer({ ...timer, phase, remainingMs: phase === "focus" ? timer.focusLengthMs : timer.breakLengthMs, startedAt: tick });
-      if ("Notification" in window && Notification.permission === "granted") {
+      if ("Notification" in window && Notification.permission === "granted" && localStorage.getItem("irontrack_notifications_enabled_v1") === "true") {
         new Notification(phase === "break" ? "Focus session complete" : "Break finished", {
           body: phase === "break" ? `Take a ${Math.round(timer.breakLengthMs / 60_000)} minute break.` : "Ready for another focus session?",
           tag: "irontrack-routine-timer",

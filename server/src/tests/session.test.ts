@@ -16,6 +16,22 @@ beforeEach(() => {
 });
 
 describe("rotating cookie sessions", () => {
+  it("requires a distinct refresh secret in production", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalRefreshSecret = process.env.AUTH_REFRESH_SECRET;
+    process.env.NODE_ENV = "production";
+    delete process.env.AUTH_REFRESH_SECRET;
+    try {
+      expect(() => signRefreshSession("507f1f77bcf86cd799439011", "refresh-id")).toThrow(/AUTH_REFRESH_SECRET/);
+      process.env.AUTH_REFRESH_SECRET = process.env.AUTH_JWT_SECRET;
+      expect(() => signRefreshSession("507f1f77bcf86cd799439011", "refresh-id")).toThrow(/different from AUTH_JWT_SECRET/);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      if (originalRefreshSecret === undefined) delete process.env.AUTH_REFRESH_SECRET;
+      else process.env.AUTH_REFRESH_SECRET = originalRefreshSecret;
+    }
+  });
+
   it("persists a refresh session and issues a short-lived access token", async () => {
     const tokens = await issueSession("507f1f77bcf86cd799439011");
     expect(AuthSession.create).toHaveBeenCalledOnce();

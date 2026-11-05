@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Bell, BellOff, CircleUserRound, Clock3, Scale, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -13,6 +13,8 @@ import { DEFAULT_PRAYER_TIMES } from "../../types";
 import type { AuthUser } from "../../types";
 
 const sessionKey = ["auth", "me"] as const;
+const notificationsEnabledKey = "irontrack_notifications_enabled_v1";
+const pushSubscribedKey = "irontrack_push_subscribed_v1";
 type AuthSessionEntry = { id: string; userAgent: string; ipAddress: string; createdAt: string; lastSeenAt: string; current: boolean };
 
 function deviceName(userAgent: string) {
@@ -32,6 +34,29 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
   const [notificationPermission, setNotificationPermission] = useState(() =>
     typeof Notification === "undefined" ? "unsupported" : Notification.permission,
   );
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem(notificationsEnabledKey) === "true");
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted" && notificationsEnabled) {
+      setNotificationsEnabled(false);
+      localStorage.setItem(notificationsEnabledKey, "false");
+    }
+  }, [notificationsEnabled]);
+  useEffect(() => {
+    if (!user || localStorage.getItem(notificationsEnabledKey) === "true" || !("serviceWorker" in navigator)) return;
+    let active = true;
+    void navigator.serviceWorker.ready.then(async registration => {
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription || !active) return;
+      try { await api("/notifications/subscriptions", { method: "DELETE", body: JSON.stringify({ endpoint: subscription.endpoint }) }); }
+      finally {
+        await subscription.unsubscribe();
+        localStorage.setItem(pushSubscribedKey, "false");
+        window.dispatchEvent(new Event("irontrack-reminders-updated"));
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id]);
   const sessionsQuery = useQuery({
     queryKey: ["auth", "sessions", user?.id],
     queryFn: async () => (await api<{ sessions: AuthSessionEntry[] }>("/auth/sessions")).sessions,
@@ -69,26 +94,62 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
     }
   }
 
-  async function enableNotifications() {
-    if (typeof Notification === "undefined") {
-      setNotificationPermission("unsupported");
+  async function toggleNotifications() {
+    setNotificationBusy(true);
+    if (notificationsEnabled) {
+      // Turn off local delivery immediately; server cleanup must not control the master switch.
+      localStorage.setItem(notificationsEnabledKey, "false");
+      setNotificationsEnabled(false);
+      localStorage.setItem(pushSubscribedKey, "false");
+      window.dispatchEvent(new Event("irontrack-reminders-updated"));
+      try {
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration();
+          const subscription = await registration?.pushManager.getSubscription();
+          if (subscription) {
+            await api("/notifications/subscriptions", { method: "DELETE", body: JSON.stringify({ endpoint: subscription.endpoint }) }).catch(() => undefined);
+            await subscription.unsubscribe();
+          }
+        }
+      } catch { toast.error("Notifications are off on this device; server cleanup will retry when Settings is opened again."); }
+      finally { setNotificationBusy(false); }
       return;
     }
-    if (Notification.permission === "granted") {
-      setNotificationPermission("granted");
+    if (typeof Notification === "undefined") {
+      setNotificationPermission("unsupported");
+      setNotificationBusy(false);
       return;
     }
     try {
-      const permission = await Notification.requestPermission();
+      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
       setNotificationPermission(permission);
       if (permission === "granted") {
-        toast.success("Focus timer notifications enabled");
+        localStorage.setItem(notificationsEnabledKey, "true");
+        setNotificationsEnabled(true);
+        // Attach background push when the server supports it; local reminders still work otherwise.
+        try {
+          const config = user ? await api<{ enabled: boolean; publicKey: string | null }>("/notifications/config") : null;
+          if (user && config?.enabled && config.publicKey && "serviceWorker" in navigator && "PushManager" in window) {
+            const registration = await navigator.serviceWorker.ready;
+            const encoded = config.publicKey.replace(/-/g, "+").replace(/_/g, "/");
+            const raw = window.atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "="));
+            const applicationServerKey = Uint8Array.from(raw, character => character.charCodeAt(0));
+            const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+            const keys = subscription.toJSON().keys;
+            if (!keys?.p256dh || !keys.auth) throw new Error("Could not create a complete background notification subscription");
+            let preferences = { taskTimes: true, workoutAtNine: true, hydration: false, movement: false, prayerTimes: false };
+            try { preferences = { ...preferences, ...JSON.parse(localStorage.getItem("irontrack_reminder_preferences_v1") ?? "{}") }; } catch { /* Use safe defaults for damaged local settings. */ }
+            await api("/notifications/subscriptions", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint, keys, preferences, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }) });
+            localStorage.setItem(pushSubscribedKey, "true");
+          }
+        } catch { toast.error("Local notifications are enabled, but background push could not connect. Check the server configuration."); }
+        toast.success("Notifications enabled for this device");
         window.dispatchEvent(new Event("irontrack-reminders-updated"));
       }
       else if (permission === "denied") toast.error("Notifications are blocked in browser settings");
     } catch {
       toast.error("Your browser could not request notification permission");
-    }
+    } finally { setNotificationBusy(false); }
   }
 
   async function revokeSession(session: AuthSessionEntry) {
@@ -119,9 +180,11 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         }
         for (const key of [
           "irontrack_active_workout_v1",
+          `irontrack_active_workout_v1:${user.id}`,
           `irontrack_task_timer:${user.id}`,
           "irontrack_reminder_preferences_v1",
           "irontrack_push_subscribed_v1",
+          notificationsEnabledKey,
           "irontrack_hydration_reminder_last",
           "irontrack_movement_reminder_last",
           "irontrack_weekly_focus_v1",
@@ -193,8 +256,8 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
       </section>
 
       <section className="settings-card">
-        <div className="settings-heading"><span>{notificationPermission === "granted" ? <Bell size={18} /> : <BellOff size={18} />}</span><div><h2>Notifications</h2><p>Get a browser alert when a focus or break timer ends.</p></div></div>
-        <div className="settings-notification"><div><strong>{permissionText}</strong><span>Permission is controlled by your browser and this device.</span></div><button className="settings-secondary" type="button" disabled={notificationPermission === "granted" || notificationPermission === "denied" || notificationPermission === "unsupported"} onClick={() => void enableNotifications()}>{notificationPermission === "granted" ? "Enabled" : notificationPermission === "denied" ? "Blocked" : "Enable notifications"}</button></div>
+        <div className="settings-heading"><span>{notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}</span><div><h2>Notifications</h2><p>One control for focus timers, routine, workout, wellness, and prayer reminders.</p></div></div>
+        <div className="settings-notification"><div><strong>{notificationsEnabled ? "Enabled for this device" : permissionText}</strong><span>{notificationPermission === "denied" ? "Allow notifications in your browser’s site settings, then try again." : "Background delivery is enabled automatically when the server supports it."}</span></div><button className="settings-secondary" type="button" role="switch" aria-checked={notificationsEnabled} disabled={notificationBusy || notificationPermission === "denied" || notificationPermission === "unsupported"} onClick={() => void toggleNotifications()}>{notificationBusy ? "Updating…" : notificationsEnabled ? "Turn off" : "Enable notifications"}</button></div>
       </section>
 
       {user && <section className="settings-security"><ShieldCheck size={17} /><span><b>Private account data</b> Your routines, weight logs, workouts, and analytics are tied to your account.</span></section>}

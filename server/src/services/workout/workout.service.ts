@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { ExerciseLibrary, WorkoutLog, WorkoutPlan, WorkoutProgram, WORKOUT_WEEKDAYS, WORKOUT_WEEKDAY_LABELS } from "../../models/workout/workout.model.js";
 import { legacyWorkoutNames, legacyWorkoutWeek, type Exercise } from "./workoutData.js";
-import type { workoutProgramPayload } from "../../utils/workoutValidation.js";
+import type { WorkoutLogCursor, workoutProgramPayload } from "../../utils/workoutValidation.js";
 
 type ExerciseReference = { exerciseId: string; sets: number; reps: number; rest: number; tempo: string; setList: { id?: string; reps: number; weight: number }[] };
 type ExerciseDefinition = { id: string; name: string; muscle: string; description?: string; cues?: string[]; steps?: string[]; videoUrl?: string };
@@ -182,25 +182,33 @@ export async function savePlanExercise(ownerId: string, planId: string, exercise
 
 export async function saveWorkoutProgram(ownerId: string, data: ReturnType<typeof workoutProgramPayload>) {
   const owner = new Types.ObjectId(ownerId);
-  if (data.exerciseLibrary.length) await ExerciseLibrary.bulkWrite(data.exerciseLibrary.map((definition: ExerciseDefinition) => ({
+  const session = await mongoose.startSession();
+  try {
+    // Library, plans, and weekday assignments form one logical save; partial writes would leave broken plans.
+    await session.withTransaction(async () => {
+      if (data.exerciseLibrary.length) await ExerciseLibrary.bulkWrite(data.exerciseLibrary.map((definition: ExerciseDefinition) => ({
         updateOne: {
           filter: { ownerId: owner, exerciseId: definition.id },
           update: { $set: { ownerId: owner, exerciseId: definition.id, name: definition.name, muscle: definition.muscle, description: definition.description, cues: definition.cues, steps: definition.steps, videoUrl: definition.videoUrl } },
           upsert: true,
         },
-      })), { ordered: true });
-  if (data.plans.length) await WorkoutPlan.bulkWrite(data.plans.map((plan: { id: string; name: string; exercises: ExerciseReference[] }) => ({
+      })), { ordered: true, session });
+      if (data.plans.length) await WorkoutPlan.bulkWrite(data.plans.map((plan: { id: string; name: string; exercises: ExerciseReference[] }) => ({
         updateOne: {
           filter: { ownerId: owner, dayType: plan.id },
           update: { $set: { ownerId: owner, dayType: plan.id, name: plan.name, exercises: plan.exercises } },
           upsert: true,
         },
-      })) as any, { ordered: true });
-  await WorkoutPlan.deleteMany({ ownerId: owner, dayType: { $nin: data.plans.map((plan: { id: string }) => plan.id) } });
-  await WorkoutProgram.findOneAndUpdate(
-    { ownerId: owner }, { $set: { ownerId: owner, days: data.days } },
-    { upsert: true, setDefaultsOnInsert: true, runValidators: true },
-  );
+      })) as any, { ordered: true, session });
+      await WorkoutPlan.deleteMany({ ownerId: owner, dayType: { $nin: data.plans.map((plan: { id: string }) => plan.id) } }, { session });
+      await WorkoutProgram.findOneAndUpdate(
+        { ownerId: owner }, { $set: { ownerId: owner, days: data.days } },
+        { upsert: true, setDefaultsOnInsert: true, runValidators: true, session },
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
 }
 
 export async function deletePlan(ownerId: string, planId: string) {
@@ -239,8 +247,24 @@ export async function ownerHasPlan(ownerId: string, planId: string) {
   return Boolean(await WorkoutPlan.exists({ ownerId, dayType: planId }));
 }
 
-export async function listLogs(ownerId: string, limit: number) {
-  return WorkoutLog.find({ ownerId }).sort({ date: -1, completedAt: -1 }).limit(limit).lean();
+export async function listLogs(ownerId: string, limit: number, cursor: WorkoutLogCursor | null = null) {
+  // The compound sort key gives stable keyset pages even when many logs share a workout date.
+  const filter = cursor ? {
+    ownerId,
+    $or: [
+      { date: { $lt: cursor.date } },
+      { date: cursor.date, completedAt: { $lt: new Date(cursor.completedAt) } },
+      { date: cursor.date, completedAt: new Date(cursor.completedAt), _id: { $lt: new Types.ObjectId(cursor.id) } },
+    ],
+  } : { ownerId };
+  const page = await WorkoutLog.find(filter).sort({ date: -1, completedAt: -1, _id: -1 }).limit(limit + 1).lean();
+  const hasMore = page.length > limit;
+  const items = hasMore ? page.slice(0, limit) : page;
+  const last = items.at(-1);
+  const nextCursor = hasMore && last
+    ? Buffer.from(JSON.stringify({ date: last.date, completedAt: new Date(last.completedAt).toISOString(), id: String(last._id) })).toString("base64url")
+    : null;
+  return { items, nextCursor, hasMore };
 }
 
 export async function saveLog(ownerId: string, data: ReturnType<typeof import("../../utils/workoutValidation.js").workoutLogPayload>) {

@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { queryKeys } from "../../hooks/queryKeys";
 
 type WorkoutReviewLog = { date: string; totalSets: number; totalVolume: number };
+type WorkoutReviewPage = { items: WorkoutReviewLog[]; nextCursor: string | null; hasMore: boolean };
 type EventReview = { counts: Record<string, { count: number; avgResponseMs: number | null }> };
 
 function savedFocus(key: string) {
@@ -25,7 +26,7 @@ export default function AnalyticsPage({ data, period, onRange, accountId }: { da
   const latestRate = activity.length ? activity[activity.length - 1].rate : 0;
   const chartColor = "hsl(var(--accent))";
   const axisColor = "hsl(var(--muted-foreground))";
-  const workouts = useQuery({ queryKey: ["weekly-review", "workouts"], queryFn: () => api<WorkoutReviewLog[]>("/workout-logs?limit=200") });
+  const workouts = useQuery({ queryKey: ["weekly-review", "workouts"], queryFn: () => api<WorkoutReviewPage>("/workout-logs?limit=200") });
   const events = useQuery({ queryKey: ["weekly-review", "events", "7d", ironToday()], queryFn: () => api<EventReview>(`/routine/events/analytics?period=7d&page=1&today=${ironToday()}`) });
   const wellness = useQuery({ queryKey: ["weekly-review", "wellness"], queryFn: () => api<Array<{ date: string; waterGlasses: number; movementBreaks: number }>>(`/wellness?days=7&through=${ironToday()}`) });
   const weeklyRoutine = useQuery({ queryKey: [...queryKeys.analytics, "7d", ironToday()], queryFn: () => api<AnalyticsData>(`/analytics?period=7d&today=${ironToday()}`), staleTime: 5 * 60_000, gcTime: 30 * 60_000 });
@@ -38,7 +39,7 @@ export default function AnalyticsPage({ data, period, onRange, accountId }: { da
   const weekStartDate = new Date(`${ironToday()}T12:00:00`);
   weekStartDate.setDate(weekStartDate.getDate() - 6);
   const weekStart = `${weekStartDate.getFullYear()}-${String(weekStartDate.getMonth() + 1).padStart(2, "0")}-${String(weekStartDate.getDate()).padStart(2, "0")}`;
-  const weekLogs = (workouts.data ?? []).filter(log => log.date >= weekStart && log.date <= ironToday());
+  const weekLogs = (workouts.data?.items ?? []).filter(log => log.date >= weekStart && log.date <= ironToday());
   const wellnessDays = wellness.data ?? [];
   const reviewLoading = workouts.isPending || events.isPending || wellness.isPending || weeklyRoutine.isPending;
   const reviewHasError = workouts.isError || events.isError || wellness.isError || weeklyRoutine.isError;

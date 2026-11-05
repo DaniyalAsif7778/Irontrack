@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api/api";
-import type { Day, WellnessDay } from "../types";
+import type { Day } from "../types";
 import { ironToday } from "../utils/date";
 import { defaultReminderPreferences, reminderStorageKey, type ReminderPreferences } from "../pages/wellness/WellnessPage";
 import { useAppStore } from "../stores/appStore";
@@ -11,7 +11,9 @@ import { playNotificationSound } from "../utils/notificationSound";
 
 type WeekDay = { key: string; dayType: string | null };
 type Session = { date: string; dayType: string };
+type SessionPage = { items: Session[]; nextCursor: string | null; hasMore: boolean };
 const sentKey = (date: string) => `irontrack_notification_sent_${date}`;
+const notificationsEnabledKey = "irontrack_notifications_enabled_v1";
 
 function readPreferences(): ReminderPreferences {
   try { return { ...defaultReminderPreferences, ...JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}") }; }
@@ -41,11 +43,11 @@ export default function NotificationScheduler() {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const prayerTimes = useAppStore(state => state.preferences.prayerTimes);
   const [localNotificationsEnabled, setLocalNotificationsEnabled] = useState(() =>
-    typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
+    typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem(notificationsEnabledKey) === "true" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
   );
   const routine = useQuery({ queryKey: [...queryKeys.routine.day(date), timezone], queryFn: () => api<Day>(`/routine/days/${date}?timezone=${encodeURIComponent(timezone)}`), staleTime: 30_000, refetchInterval: 60_000, enabled: localNotificationsEnabled });
   const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000, enabled: localNotificationsEnabled });
-  const logs = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<Session[]>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000, enabled: localNotificationsEnabled });
+  const logs = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<SessionPage>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000, enabled: localNotificationsEnabled });
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -59,7 +61,7 @@ export default function NotificationScheduler() {
   useEffect(() => {
     if (typeof Notification === "undefined") return;
     const refreshNotificationMode = () => setLocalNotificationsEnabled(
-      Notification.permission === "granted" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
+      Notification.permission === "granted" && localStorage.getItem(notificationsEnabledKey) === "true" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
     );
     window.addEventListener("irontrack-reminders-updated", refreshNotificationMode);
     window.addEventListener("storage", refreshNotificationMode);
@@ -91,7 +93,7 @@ export default function NotificationScheduler() {
         const weekKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getDay()];
         const dayType = week.data?.find(day => day.key === weekKey)?.dayType;
         if (dayType) {
-          if (!logs.data?.some(session => session.date === today && session.dayType === dayType)) {
+          if (!logs.data?.items.some(session => session.date === today && session.dayType === dayType)) {
             try { await notify("Workout day", "Your training session is ready when you are.", "workout-reminder"); } catch { return; }
           }
           markSent(today, "workout");

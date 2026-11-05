@@ -49,6 +49,19 @@ app.use(cors({
   },
 }));
 app.use(cookieParser() as unknown as RequestHandler);
+app.use("/api", (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) { next(); return; }
+  const suppliedOrigin = req.get("origin");
+  const suppliedReferer = req.get("referer");
+  const requestOrigin = suppliedOrigin ? normalizeOrigin(suppliedOrigin) : suppliedReferer ? normalizeOrigin(suppliedReferer) : "";
+  const hasSessionCookie = Boolean(req.cookies?.irontrack_session || req.cookies?.irontrack_refresh);
+  // Browser cookie mutations must come from the configured app origin; reject sibling and missing origins.
+  if ((suppliedOrigin || suppliedReferer || hasSessionCookie) && (!requestOrigin || !allowedOrigins.includes(requestOrigin))) {
+    res.status(403).json({ error: "This app origin is not allowed" });
+    return;
+  }
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 app.use(mongoSanitize() as unknown as RequestHandler);
 morgan.token("request-id", (_req, res) => String(res.getHeader("X-Request-Id") ?? "-"));

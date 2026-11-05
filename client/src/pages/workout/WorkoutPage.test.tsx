@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WorkoutPage from "./WorkoutPage";
+import { useAppStore } from "../../stores/appStore";
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock("../../lib/api/api", () => ({ api }));
@@ -18,9 +19,9 @@ const library = [{ id: "row", name: "Dumbbell Row", muscle: "Back", cues: ["Keep
 const weekdays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const week = weekdays.map(key => ({ key, label: key[0].toUpperCase() + key.slice(1), planId: key === dayKey ? plan.id : null }));
 
-function renderWorkout() {
+function renderWorkout(accountId?: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={queryClient}><MemoryRouter><WorkoutPage onError={vi.fn()} /></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={queryClient}><MemoryRouter><WorkoutPage onError={vi.fn()} accountId={accountId} /></MemoryRouter></QueryClientProvider>);
 }
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -28,6 +29,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("WorkoutPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    useAppStore.getState().setPreferences({ ...useAppStore.getState().preferences, weightUnit: "kg" });
     vi.clearAllMocks();
     vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
     api.mockImplementation(async (path: string, options?: RequestInit) => {
@@ -40,11 +42,33 @@ describe("WorkoutPage", () => {
       if (/^\/workout-plans\/[^/]+\/exercises\/[^/]+$/.test(path) && options?.method === "PUT") return JSON.parse(String(options.body));
       if (path === "/workout-week" && options?.method === "PUT") return JSON.parse(String(options.body)).days;
       if (path === "/workout-week") return week;
-      if (path.startsWith("/workout-logs")) return [];
+      if (path.startsWith("/workout-logs")) return { items: [], nextCursor: null, hasMore: false };
       if (path === "/workout-plans/day-pull" && options?.method === "PUT") return { ...plan, ...JSON.parse(String(options.body)) };
       if (path === "/workout-logs" && options?.method === "POST") return { _id: "log-1" };
       throw new Error(`Unexpected API call: ${path}`);
     });
+  });
+
+  it("keeps active workout data isolated between signed-in accounts", async () => {
+    const first = renderWorkout("account-one");
+    fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
+    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1:account-one")).toContain('"dayType":"day-pull"'));
+    first.unmount();
+
+    renderWorkout("account-two");
+    await screen.findByRole("button", { name: "Start workout" });
+    expect(screen.queryByRole("button", { name: "End workout" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("irontrack_active_workout_v1:account-two")).toBeNull();
+  });
+
+  it("lets a user finish after skipping every exercise", async () => {
+    renderWorkout();
+    fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip Exercise" }));
+    expect(await screen.findByRole("heading", { name: "Workout Complete!" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Return without saving" }));
+    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1:local")).toBeNull());
+    expect(api).not.toHaveBeenCalledWith("/workout-logs", expect.objectContaining({ method: "POST" }));
   });
 
   it("starts, pauses, resumes, and safely discards an unfinished session", async () => {
@@ -52,7 +76,7 @@ describe("WorkoutPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
 
     expect(await screen.findByRole("heading", { name: "Pull" })).toBeInTheDocument();
-    expect(localStorage.getItem("irontrack_active_workout_v1")).toContain('"dayType":"day-pull"');
+    expect(localStorage.getItem("irontrack_active_workout_v1:local")).toContain('"dayType":"day-pull"');
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Done — Set 1 of 1/i })).toBeDisabled();
@@ -60,7 +84,7 @@ describe("WorkoutPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "End" }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("discard its uncompleted session"));
-    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1")).toBeNull());
+    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1:local")).toBeNull());
     expect(screen.getByRole("button", { name: "Start workout" })).toBeInTheDocument();
     expect(api).not.toHaveBeenCalledWith("/workout-logs", expect.objectContaining({ method: "POST" }));
   });
@@ -68,14 +92,28 @@ describe("WorkoutPage", () => {
   it("saves a finished workout with only completed set details", async () => {
     renderWorkout();
     fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
-    fireEvent.change(screen.getByLabelText("Dumbbell Row set 1 weight"), { target: { value: "20" } });
+    fireEvent.change(screen.getByLabelText("Dumbbell Row set 1 weight (kg)"), { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: /Done — Set 1 of 1/i }));
     fireEvent.click(await screen.findByRole("button", { name: /Save workout and return/i }));
 
     await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-logs", expect.objectContaining({ method: "POST" })));
     const payload = JSON.parse(api.mock.calls.find(([path, options]) => path === "/workout-logs" && options?.method === "POST")![1].body as string);
     expect(payload).toMatchObject({ dayType: "day-pull", dayName: "Pull", exercises: [{ exerciseId: "row", sets: [{ reps: 8, weight: 20 }] }] });
-    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1")).toBeNull());
+    await waitFor(() => expect(localStorage.getItem("irontrack_active_workout_v1:local")).toBeNull());
+  });
+
+  it("shows the selected unit while saving workout weights in kilograms", async () => {
+    useAppStore.getState().setPreferences({ ...useAppStore.getState().preferences, weightUnit: "lb" });
+    renderWorkout();
+    fireEvent.click(await screen.findByRole("button", { name: "Start workout" }));
+    const load = screen.getByLabelText("Dumbbell Row set 1 weight (lb)");
+    fireEvent.change(load, { target: { value: "44.1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Done — Set 1 of 1/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Save workout and return/i }));
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/workout-logs", expect.objectContaining({ method: "POST" })));
+    const payload = JSON.parse(api.mock.calls.find(([path, options]) => path === "/workout-logs" && options?.method === "POST")![1].body as string);
+    expect(payload.exercises[0].sets[0].weight).toBeCloseTo(20, 1);
   });
 
   it("lets a user replace a live set rep value with 3 or 4", async () => {
@@ -314,7 +352,7 @@ describe("WorkoutPage", () => {
       }
       if (path === "/workout-week" && options?.method === "PUT") return JSON.parse(String(options.body)).days;
       if (path === "/workout-week") return weekdays.map(key => ({ key, label: key[0].toUpperCase() + key.slice(1), planId: null }));
-      if (path.startsWith("/workout-logs")) return [];
+      if (path.startsWith("/workout-logs")) return { items: [], nextCursor: null, hasMore: false };
       if (path.startsWith("/workout-plans/") && options?.method === "PUT") return { id: path.split("/").at(-1), ...JSON.parse(String(options.body)) };
       throw new Error(`Unexpected API call: ${path}`);
     });

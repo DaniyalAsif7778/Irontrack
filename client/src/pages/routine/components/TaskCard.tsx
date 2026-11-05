@@ -103,14 +103,6 @@ export default function TaskCard({
 
   const todayKey = getLocalDateKey(now);
   const todayDate = formatDisplayDate(todayKey);
-  const dueDateKey = task.dueDate?.slice(0, 10);
-
-  const isOverdue = Boolean(
-    dueDateKey &&
-      dueDateKey < todayKey &&
-      !task.completed,
-  );
-
   const completedSubtaskCount = subtasks.filter(
     (subtask) => subtask.completed,
   ).length;

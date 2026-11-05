@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import mongoose from "mongoose";
 
 const mocks = vi.hoisted(() => ({
   findPlan: vi.fn(), findPlans: vi.fn(), planUpdate: vi.fn(), planUpsert: vi.fn(), countPlans: vi.fn(),
   findProgram: vi.fn(), saveProgram: vi.fn(), exerciseUpdate: vi.fn(), libraryBulk: vi.fn(), plansBulk: vi.fn(), deletePlans: vi.fn(),
+  session: { withTransaction: vi.fn(), endSession: vi.fn() },
 }));
 vi.mock("../models/workout/workout.model.js", () => ({
   ExerciseLibrary: { findOneAndUpdate: mocks.exerciseUpdate, bulkWrite: mocks.libraryBulk },
@@ -19,6 +21,8 @@ const ownerId = "507f1f77bcf86cd799439011";
 const exercise = { id: "row", name: "Dumbbell Row", muscle: "Back", sets: 2, reps: 8, rest: 60, tempo: "3-1-2", cues: [], description: "", setList: [{ id: "set-1", reps: 8, weight: 20 }, { id: "set-2", reps: 8, weight: 20 }], steps: [], videoUrl: "" };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(mongoose, "startSession").mockResolvedValue(mocks.session as never);
+  mocks.session.withTransaction.mockImplementation(async (callback: () => Promise<void>) => callback());
   mocks.findPlan.mockReturnValue({ lean: vi.fn().mockResolvedValue({ dayType: "day-pull", exercises: [] }) });
   mocks.findProgram.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.findPlans.mockReturnValue({ select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) });
@@ -83,7 +87,7 @@ describe("focused workout exercise saves", () => {
     );
   });
 
-  it("persists workout name and schedule changes without requiring MongoDB transactions", async () => {
+  it("persists the complete workout program in one MongoDB transaction", async () => {
     const data = {
       plans: [{ id: "day-pull", name: "Back day", exercises: [{ exerciseId: "row", sets: 2, reps: 8, rest: 60, tempo: "4-2-3", setList: [] }] }],
       exerciseLibrary: [{ id: "row", name: "Dumbbell Row", muscle: "Back", description: "", cues: [], steps: [], videoUrl: "" }],
@@ -96,8 +100,26 @@ describe("focused workout exercise saves", () => {
     expect(mocks.plansBulk).toHaveBeenCalledOnce();
     expect(mocks.deletePlans).toHaveBeenCalledOnce();
     expect(mocks.saveProgram).toHaveBeenCalledOnce();
+    expect(mocks.session.withTransaction).toHaveBeenCalledOnce();
+    expect(mocks.session.endSession).toHaveBeenCalledOnce();
+    expect(mocks.libraryBulk).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ session: mocks.session }));
+    expect(mocks.plansBulk).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ session: mocks.session }));
+    expect(mocks.deletePlans).toHaveBeenCalledWith(expect.any(Object), { session: mocks.session });
+    expect(mocks.saveProgram).toHaveBeenCalledWith(expect.any(Object), expect.any(Object), expect.objectContaining({ session: mocks.session }));
     expect(mocks.libraryBulk.mock.invocationCallOrder[0]).toBeLessThan(mocks.plansBulk.mock.invocationCallOrder[0]);
     expect(mocks.plansBulk.mock.invocationCallOrder[0]).toBeLessThan(mocks.deletePlans.mock.invocationCallOrder[0]);
     expect(mocks.deletePlans.mock.invocationCallOrder[0]).toBeLessThan(mocks.saveProgram.mock.invocationCallOrder[0]);
+  });
+
+  it("ends the session and propagates a failed program write for transaction rollback", async () => {
+    const failure = new Error("weekly program write failed");
+    mocks.session.withTransaction.mockImplementation(async (callback: () => Promise<void>) => {
+      mocks.saveProgram.mockRejectedValueOnce(failure);
+      return callback();
+    });
+    const data = { plans: [], exerciseLibrary: [], days: [] };
+
+    await expect(saveWorkoutProgram(ownerId, data as never)).rejects.toBe(failure);
+    expect(mocks.session.endSession).toHaveBeenCalledOnce();
   });
 });

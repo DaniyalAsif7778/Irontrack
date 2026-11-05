@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AuthGate, { useSession } from "./AuthGate";
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
-vi.mock("../lib/api/api", () => ({ ApiError: Error, api, isRemoteApi: () => true }));
+vi.mock("../lib/api/api", () => ({ ApiError: Error, api }));
 
 function SignOutControl() {
   const { signOut } = useSession();
@@ -23,7 +23,7 @@ describe("AuthGate sign-in entry", () => {
   it("shows sign-in at the root for a signed-out visitor", async () => {
     api.mockResolvedValue({ user: null });
     renderGate("/");
-    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Welcome back" }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
   });

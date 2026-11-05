@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, type ReactNode } 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ApiError, api, isRemoteApi } from "../lib/api/api";
+import { ApiError, api } from "../lib/api/api";
 import type { AuthUser } from "../types";
 import { setPageMetadata } from "../utils/seo";
 
@@ -39,7 +39,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    enabled: isRemoteApi(),
+    enabled: true,
     retry: false,
     staleTime: 60_000,
   });
@@ -64,7 +64,6 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     setPageMetadata({ title: titles[location.pathname] ?? "IronTrack · Fitness and routines", robots: "noindex,nofollow" });
   }, [location.pathname, session.data, session.error, session.isError]);
 
-  if (!isRemoteApi()) return <>{children}</>;
   if (session.isPending && (authAction || signInHome)) return <Suspense fallback={<main className="auth-screen"><p role="status">Loading account access…</p></main>}><AuthPage /></Suspense>;
   if (session.isPending) return <main className="auth-screen"><p role="status">Checking your account…</p></main>;
   if (session.isError) {
