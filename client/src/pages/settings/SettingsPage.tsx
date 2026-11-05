@@ -113,7 +113,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
       });
       let cleanupFailed = false;
       try {
-        clearOfflineQueue(user.id);
+        await clearOfflineQueue(user.id);
         for (const key of Object.keys(localStorage)) {
           if (key.startsWith("irontrack_notification_sent_")) localStorage.removeItem(key);
         }

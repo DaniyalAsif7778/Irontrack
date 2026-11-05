@@ -1,11 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api/api";
 import type { WeightFormValues } from "../schemas/weight";
 import type { Weight } from "../types";
 import { queryKeys } from "./queryKeys";
 
 export function useWeightLogs() {
-  return useQuery({ queryKey: queryKeys.weights, queryFn: () => api<Weight[]>("/weight-logs") });
+  return useInfiniteQuery({
+    queryKey: queryKeys.weights,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api<Weight[]>(`/weight-logs?limit=100${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ""}`),
+    getNextPageParam: lastPage => lastPage.length === 100 ? lastPage[lastPage.length - 1]?.date : undefined,
+  });
 }
 
 export function useWeightMutations() {

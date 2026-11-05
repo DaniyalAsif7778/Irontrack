@@ -1,10 +1,18 @@
 import type { RequestHandler } from "express";
-import { weightPayload } from "../../utils/validation.js";
+import { weightLogLimit, weightPayload } from "../../utils/validation.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as weights from "../../services/weight/weight.service.js";
+import { isValidDateKey } from "../../utils/dateValidation.js";
 
-export const list: RequestHandler = async (req, res) => { res.json(await weights.listWeights(req.auth!.userId)); };
+export const list: RequestHandler = async (req, res) => {
+  let limit: number;
+  try { limit = weightLogLimit(req.query.limit); }
+  catch (error) { fail(res, error instanceof Error ? error.message : "Check the weight history limit"); return; }
+  const before = req.query.before === undefined ? undefined : req.query.before;
+  if (before !== undefined && (typeof before !== "string" || !isValidDateKey(before))) { fail(res, "before must be a real YYYY-MM-DD calendar date"); return; }
+  res.json(await weights.listWeights(req.auth!.userId, limit, before));
+};
 function parseWeight(input: unknown) {
   try { return { value: weightPayload(input), error: "" }; }
   catch (error) { return { value: null, error: error instanceof Error ? error.message : "Check the weight entry" }; }

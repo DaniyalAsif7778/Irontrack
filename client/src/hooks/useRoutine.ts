@@ -24,7 +24,7 @@ export function useRoutineMutations(date: string, accountId?: string) {
       try { return await api(path, { method: "PUT", body: JSON.stringify(body) }); }
       catch (error) {
         if (!accountId || !(error instanceof ApiError && error.status === 0)) throw error;
-        enqueueOfflineAction({ id: body.actionId, accountId, kind: "routine_completion", path, body });
+        await enqueueOfflineAction({ id: body.actionId, accountId, kind: "routine_completion", path, body });
         return { queuedOffline: true };
       }
     },

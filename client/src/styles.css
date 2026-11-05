@@ -1299,59 +1299,6 @@ p { font-size: 15px; line-height: 1.6; }
   .week-strip:not(.week-strip-editing) > button b { font-size: 12px; }
 }
 
-/* Public entry page: the prayer rail is the product's organizing idea. */
-.public-page { width: min(1080px, 100%); min-height: 100vh; margin: 0 auto; padding: 26px clamp(20px, 5vw, 64px) 24px; color: var(--ink); }
-.public-nav, .public-brand, .public-nav nav, .public-actions, .public-footer { display: flex; align-items: center; }
-.public-nav, .public-footer { justify-content: space-between; gap: 18px; }
-.public-nav { min-height: 42px; }
-.public-brand { gap: 10px; color: var(--ink); text-decoration: none; }
-.public-brand > span { display: grid; place-items: center; width: 34px; height: 34px; color: var(--orange); background: var(--orange-soft); border: 1px solid hsl(var(--primary) / .2); border-radius: 10px; }
-.public-brand b { font-size: 15px; letter-spacing: -.03em; }
-.public-nav nav { gap: 17px; }
-.public-nav nav a, .public-secondary, .public-footer > a:last-child { color: var(--quiet); font-size: 13px; text-decoration: none; }
-.public-nav nav a:hover, .public-secondary:hover, .public-footer > a:last-child:hover { color: var(--ink); }
-.public-cta { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 0 16px; color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / .72); border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background .16s ease, transform .16s ease; }
-.public-cta:hover { background: hsl(var(--primary) / .88); transform: translateY(-1px); }
-.public-cta:focus-visible, .public-secondary:focus-visible, .public-nav a:focus-visible, .public-footer a:focus-visible { outline: 2px solid var(--sage); outline-offset: 4px; }
-.public-cta-small { min-height: 36px; padding-inline: 13px; font-size: 13px; }
-.public-hero { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(310px, .88fr); align-items: center; gap: clamp(34px, 7vw, 82px); padding: clamp(70px, 10vw, 126px) 0 90px; }
-.public-copy { max-width: 570px; }
-.public-kicker { display: flex; align-items: center; gap: 9px; margin: 0 0 17px; color: var(--sage); font-size: 13px; font-weight: 500; }
-.public-kicker > span { width: 7px; height: 7px; background: var(--sage); border-radius: 50%; box-shadow: 0 0 14px hsl(var(--accent) / .45); }
-.public-copy h1 { max-width: 12ch; margin: 0; color: var(--ink); font-size: clamp(38px, 5.4vw, 64px); font-weight: 600; letter-spacing: -.06em; line-height: 1.02; }
-.public-intro { max-width: 50ch; margin: 20px 0 0; color: var(--quiet); font-size: 16px; line-height: 1.7; }
-.public-actions { flex-wrap: wrap; gap: 18px; margin-top: 27px; }
-.public-secondary { padding: 9px 0; }
-.public-privacy { display: flex; align-items: center; gap: 7px; margin: 19px 0 0; color: var(--subtle); font-size: 12px; }
-.public-privacy svg { flex: 0 0 auto; color: var(--sage); }
-.prayer-preview { position: relative; overflow: hidden; padding: 22px 22px 17px; background: linear-gradient(145deg, hsl(var(--card) / .96), hsl(var(--card) / .76)); border: 1px solid hsl(var(--foreground) / .11); border-radius: 16px; box-shadow: 0 20px 60px hsl(var(--background) / .3), inset 0 1px hsl(var(--foreground) / .04); }
-.prayer-preview-heading { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
-.prayer-preview-heading > div { display: grid; gap: 5px; }
-.prayer-preview-heading small { color: var(--quiet); font-size: 12px; }
-.prayer-preview-heading b { color: var(--ink); font-size: 16px; font-weight: 600; }
-.prayer-preview-heading > svg { color: var(--sage); }
-.prayer-preview ol { position: relative; display: grid; gap: 0; margin: 8px 0 0; padding: 0; list-style: none; }
-.prayer-preview li { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 47px; color: var(--quiet); font-size: 13px; }
-.prayer-rail { position: absolute; z-index: 1; top: 100px; bottom: 72px; left: 41px; width: 1px; background: linear-gradient(hsl(var(--primary) / .15), hsl(var(--accent) / .6), hsl(var(--primary) / .15)); }
-.prayer-dot { z-index: 2; display: grid; place-items: center; width: 17px; height: 17px; color: hsl(var(--background)); background: hsl(var(--primary) / .65); border: 3px solid hsl(var(--card)); border-radius: 50%; }
-.prayer-preview li.has-example .prayer-dot { background: var(--sage); }
-.prayer-preview li b { color: var(--ink); font-size: 13px; font-weight: 500; }
-.prayer-time { color: var(--subtle); font-size: 11px; }
-.prayer-preview li small { grid-column: 2 / 4; margin-top: -12px; padding-bottom: 7px; color: var(--sage); font-size: 11px; }
-.prayer-note { margin: 10px 0 0; padding-top: 13px; color: var(--quiet); border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; }
-.public-features { display: grid; grid-template-columns: minmax(220px, .7fr) 1.3fr; gap: clamp(32px, 7vw, 90px); padding: 30px 0 72px; border-top: 1px solid var(--line); }
-.public-section-heading > p { margin: 2px 0 10px; color: var(--sage); font-size: 13px; }
-.public-section-heading h2 { max-width: 28ch; font-size: clamp(22px, 2.4vw, 29px); font-weight: 500; letter-spacing: -.04em; line-height: 1.2; }
-.public-feature-list { display: grid; }
-.public-feature-list article { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.public-feature-list article:first-child { padding-top: 0; }
-.public-feature-list article > span { display: grid; place-items: center; width: 32px; height: 32px; color: var(--sage); background: hsl(var(--accent) / .09); border-radius: 9px; }
-.public-feature-list h3 { margin: 1px 0 5px; color: var(--ink); font-size: 14px; font-weight: 600; }
-.public-feature-list p { max-width: 56ch; margin: 0; color: var(--quiet); font-size: 13px; line-height: 1.6; }
-.public-footer { min-height: 54px; border-top: 1px solid var(--line); }
-.public-footer .public-brand > span { width: 30px; height: 30px; }
-.public-footer .public-brand b { font-size: 13px; }
-.public-footer > span { color: var(--subtle); font-size: 12px; }
 .settings-prayer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 11px; margin-top: 16px; }
 .settings-prayer-grid input[type="time"] { min-width: 0; width: 100%; }
 
@@ -1406,24 +1353,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
-@media (max-width: 760px) {
-  .public-page { padding: 15px 18px 18px; }
-  .public-hero { grid-template-columns: minmax(0, 1fr); gap: 34px; padding: 66px 0 56px; }
-  .public-copy { max-width: 620px; }
-  .public-copy h1 { max-width: 13ch; font-size: clamp(39px, 11vw, 56px); }
-  .public-intro { font-size: 15px; }
-  .prayer-preview { max-width: 520px; }
-  .public-features { grid-template-columns: 1fr; gap: 20px; padding: 26px 0 48px; }
-}
-@media (max-width: 420px) {
-  .public-page { padding-inline: 15px; }
-  .public-nav nav { gap: 11px; }
-  .public-nav nav a { font-size: 12px; }
-  .public-cta-small { min-height: 34px; padding-inline: 10px; }
-  .public-actions { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .public-footer { flex-wrap: wrap; gap: 10px; padding: 11px 0; }
-  .public-footer > span { display: none; }
-}
 @media (max-width: 700px) {
   .workout-page-header { display:flex; align-items:flex-start; flex-direction:row; flex-wrap:wrap; gap:8px 12px; }
   .workout-page-header > div:first-child { flex:1 1 100%; min-width:0; }

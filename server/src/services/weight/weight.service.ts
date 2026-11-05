@@ -1,6 +1,10 @@
 import { WeightLog } from "../../models/weight/weight.model.js";
 
-export const listWeights = (ownerId: string) => WeightLog.find({ ownerId }).sort({ date: -1 });
+export const listWeights = (ownerId: string, limit: number, before?: string) =>
+  WeightLog.find({ ownerId, ...(before ? { date: { $lt: before } } : {}) })
+    .sort({ date: -1 })
+    .limit(limit)
+    .lean();
 
 export function saveWeight(ownerId: string, data: { date: string; weight: number; unit: string }) {
   return WeightLog.findOneAndUpdate({ ownerId, date: data.date }, { ...data, ownerId }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });

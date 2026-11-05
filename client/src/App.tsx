@@ -46,7 +46,7 @@ export default function App() {
   const { saveWeight: saveWeightMutation, removeWeight: removeWeightMutation } = useWeightMutations();
   const day = dayQuery.data ?? null;
   const selectedDayType = day?.dayType ?? ([0, 6].includes(new Date(`${date}T12:00:00`).getDay()) ? "weekend" : "weekday");
-  const weights = weightsQuery.data ?? [];
+  const weights = weightsQuery.data?.pages.flat() ?? [];
   const analytics = analyticsQuery.data ?? null;
   const latest = weights[0];
 
@@ -138,7 +138,7 @@ export default function App() {
     { path: "/exercise/:exerciseId", element: <Suspense fallback={<p>Loading exercise history…</p>}><ExerciseDetailPage onError={setError} /></Suspense> },
     { path: "/routine", element: <RoutinePage date={date} title={title} day={day} dayType={selectedDayType} dayLoading={dayQuery.isPending} dayError={dayQuery.error instanceof Error ? dayQuery.error.message : null} setDate={setDate} complete={complete} edit={setEditing} remove={removeTask} saveSubtasks={saveSubtasks} onError={setError} startTask={startRoutineTask} queueTask={queueRoutineTask} extendTask={extendRoutineTask} snoozeTask={snoozeRoutineTask} analyticsPeriod={analyticsPeriod} setAnalyticsPeriod={setAnalyticsPeriod} /> },
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} accountId={user?.id} period={analyticsPeriod} onRange={setAnalyticsPeriod} /></Suspense> },
-    { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} loading={weightsQuery.isPending} /> },
+    { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} loading={weightsQuery.isPending} hasMore={weightsQuery.hasNextPage} loadingMore={weightsQuery.isFetchingNextPage} loadMore={() => void weightsQuery.fetchNextPage()} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} prayerTimes={preferences.prayerTimes} /> },
     { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },

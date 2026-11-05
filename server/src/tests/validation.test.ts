@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { taskPayload, weightPayload } from "../utils/validation.js";
+import { taskPayload, weightLogLimit, weightPayload } from "../utils/validation.js";
 import { isValidRoutineDate, nextPrayerBlockForShift, shouldCarryAfterCutoff } from "../services/routine/routine-events.service.js";
 
 describe("request validation", () => {
@@ -23,6 +23,19 @@ describe("request validation", () => {
     expect(() => weightPayload({ date: "2026-02-30", weight: 70, unit: "kg" })).toThrow(/real.*calendar/i);
     expect(() => weightPayload(null)).toThrow();
     expect(() => weightPayload({ date: "today", weight: -1, unit: "kg" })).toThrow();
+  });
+  it("bounds routine task fields and validates due dates and subtasks", () => {
+    expect(() => taskPayload(null)).toThrow(/object/i);
+    expect(() => taskPayload({ dayType: "weekday", block: "fajr", title: "x".repeat(161) })).toThrow(/1 to 160/i);
+    expect(() => taskPayload({ dayType: "weekday", block: "fajr", title: "Task", dueDate: "2026-02-30" })).toThrow(/real.*calendar/i);
+    expect(() => taskPayload({ dayType: "weekday", block: "fajr", title: "Task", subtasks: [{ title: "Step", completed: "yes" }] })).toThrow(/completion values/i);
+    expect(() => taskPayload({ dayType: "weekday", block: "fajr", title: "Task", subtasks: Array.from({ length: 21 }, (_, index) => ({ title: `Step ${index}` })) })).toThrow(/up to 20/i);
+  });
+  it("requires a bounded weight history page size", () => {
+    expect(weightLogLimit(undefined)).toBe(100);
+    expect(weightLogLimit("50")).toBe(50);
+    expect(() => weightLogLimit("101")).toThrow(/between 1 and 100/i);
+    expect(() => weightLogLimit("1.5")).toThrow(/whole number/i);
   });
   it("accepts only real ISO routine dates", () => { expect(isValidRoutineDate("2026-10-20")).toBe(true); expect(isValidRoutineDate("2026-02-30")).toBe(false); expect(isValidRoutineDate("today")).toBe(false); });
   it("moves a shifted task only across configured fixed prayer boundaries", () => {

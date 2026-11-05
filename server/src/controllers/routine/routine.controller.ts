@@ -17,6 +17,7 @@ export const getSchedule: RequestHandler = async (req, res) => {
 };
 
 export const copySchedule: RequestHandler = async (req, res) => {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) { fail(res, "Provide the source and target schedule types"); return; }
   const { sourceDayType, targetDayType } = req.body;
   if (!isDayType(sourceDayType) || !isDayType(targetDayType) || sourceDayType === targetDayType) { fail(res, "Provide two different valid schedule types"); return; }
   const result = await routine.copySchedule(req.auth!.userId, sourceDayType, targetDayType);
@@ -47,6 +48,7 @@ export const createTask: RequestHandler = async (req, res) => {
 };
 
 export const updateTask: RequestHandler = async (req, res) => {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) { fail(res, "Provide routine task fields to update"); return; }
   const id = routeParam(req.params.id);
   const current = await routine.findTask(req.auth!.userId, id);
   if (!current) { fail(res, "Task not found", 404); return; }
@@ -72,7 +74,7 @@ export const deleteTask: RequestHandler = async (req, res) => {
 
 export const setCompletion: RequestHandler = async (req, res) => {
   const date = routeParam(req.params.date);
-  if (!validDate(date) || typeof req.body.completed !== "boolean") { fail(res, "Provide a valid date and completed boolean"); return; }
+  if (!validDate(date) || !req.body || typeof req.body !== "object" || Array.isArray(req.body) || typeof req.body.completed !== "boolean") { fail(res, "Provide a valid date and completed boolean"); return; }
   const completion = await completeRoutineOccurrence(req.auth!.userId, routeParam(req.params.id), date, req.body.completed, newActionId(req.body.actionId));
   if (!completion) { fail(res, "Task not found", 404); return; }
   res.json(completion);

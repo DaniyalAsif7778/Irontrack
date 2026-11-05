@@ -79,7 +79,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       try { return await api("/workout-logs", { method: "POST", body: JSON.stringify(payload) }); }
       catch (error) {
         if (!accountId || !(error instanceof ApiError && error.status === 0)) throw error;
-        enqueueOfflineAction({ id: payload.actionId, accountId, kind: "workout_log", path: "/workout-logs", body: payload });
+        await enqueueOfflineAction({ id: payload.actionId, accountId, kind: "workout_log", path: "/workout-logs", body: payload });
         return { queuedOffline: true };
       }
     },

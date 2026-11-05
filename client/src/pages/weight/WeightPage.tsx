@@ -7,7 +7,7 @@ import { ironToday } from "../../utils/date";
 import { weightSchema, type WeightFormValues } from "../../schemas/weight";
 import { weightTrendPoints } from "../../utils/weightTrend";
 
-export default function WeightPage({ latest, weights, save, remove, defaultUnit = "kg", loading = false }: { latest: Weight | undefined; weights: Weight[]; save: (value: WeightFormValues) => Promise<void>; remove: (id: string) => Promise<void>; defaultUnit?: "kg" | "lb"; loading?: boolean }) {
+export default function WeightPage({ latest, weights, save, remove, defaultUnit = "kg", loading = false, hasMore = false, loadingMore = false, loadMore }: { latest: Weight | undefined; weights: Weight[]; save: (value: WeightFormValues) => Promise<void>; remove: (id: string) => Promise<void>; defaultUnit?: "kg" | "lb"; loading?: boolean; hasMore?: boolean; loadingMore?: boolean; loadMore?: () => void }) {
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<WeightFormValues>({ resolver: zodResolver(weightSchema), defaultValues: { date: ironToday(), weight: undefined, unit: defaultUnit } });
   const chartData = weightTrendPoints(weights, defaultUnit);
   const axisColor = "hsl(var(--muted-foreground))";
@@ -32,6 +32,6 @@ export default function WeightPage({ latest, weights, save, remove, defaultUnit 
           </ResponsiveContainer>
         </div>}
     </section>
-    <section className="weight-list"><h2>History</h2>{weights.map(weight => <div key={weight._id}><span>{weight.date}</span><b>{weight.weight} {weight.unit}</b><button type="button" onClick={() => void remove(weight._id)}>Remove</button></div>)}{!loading && !weights.length && <p>No weight logs yet.</p>}</section>
+    <section className="weight-list"><h2>History</h2>{weights.map(weight => <div key={weight._id}><span>{weight.date}</span><b>{weight.weight} {weight.unit}</b><button type="button" onClick={() => void remove(weight._id)}>Remove</button></div>)}{!loading && !weights.length && <p>No weight logs yet.</p>}{hasMore && <button type="button" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading…" : "Load older entries"}</button>}</section>
   </>;
 }
