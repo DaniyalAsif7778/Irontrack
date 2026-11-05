@@ -164,7 +164,9 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
   }
 
   async function deleteAccount() {
-    if (!user || deleteConfirmation !== "DELETE" || !deletePassword) return;
+    if (!user) return;
+    if (!deletePassword) { setDeleteError("Enter your current password to continue."); return; }
+    if (deleteConfirmation !== "DELETE") { setDeleteError('Type DELETE exactly to confirm account deletion.'); return; }
     setDeleteError("");
     setIsDeleting(true);
     try {
@@ -269,7 +271,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         <label className="settings-field">Type DELETE to confirm<input autoComplete="off" value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} aria-describedby="delete-account-hint" /></label>
         <small id="delete-account-hint">Deletion starts immediately after the server verifies your password.</small>
         {deleteError && <div className="auth-error" role="alert">{deleteError}</div>}
-        <button className="settings-delete-button" type="button" disabled={isDeleting || !deletePassword || deleteConfirmation !== "DELETE"} onClick={() => void deleteAccount()}>
+        <button className="settings-delete-button" type="button" disabled={isDeleting} onClick={() => void deleteAccount()}>
           <Trash2 size={16} />{isDeleting ? "Deleting account…" : "Permanently delete account"}
         </button>
       </section></section>}
