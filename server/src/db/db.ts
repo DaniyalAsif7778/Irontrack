@@ -10,6 +10,7 @@ const configuredSlowQueryMs = Number(process.env.MONGO_SLOW_QUERY_MS);
 const slowQueryMs = Number.isFinite(configuredSlowQueryMs) && configuredSlowQueryMs > 0 ? configuredSlowQueryMs : 250;
 
 export async function connectDatabase(uri: string) {
+  // Keep the app's established database name independent of a cluster host.
   await mongoose.connect(uri, { dbName: "irontrack", monitorCommands: true });
   monitorDatabaseCommands();
   // Replace the pre-account global unique indexes with per-owner uniqueness.
@@ -40,7 +41,7 @@ function monitorDatabaseCommands() {
   });
   client.on("commandFailed", event => {
     const errorCode = (event.failure as Error & { code?: number } | undefined)?.code;
-    if (errorCode === 27) return;
+    if (errorCode === 26 || errorCode === 27) return;
     logger.error({ command: event.commandName, durationMs: event.duration, mongoRequestId: event.requestId, errorName: event.failure?.name ?? "MongoCommandError", errorCode }, "MongoDB command failed");
   });
 }
@@ -54,6 +55,7 @@ async function dropLegacyIndex(collection: mongoose.mongo.Collection, indexName:
   try {
     await collection.dropIndex(indexName);
   } catch (error) {
-    if (!(error instanceof mongoose.mongo.MongoServerError) || error.code !== 27) throw error;
+    // Fresh databases have no namespace yet; both missing namespace and missing index are safe.
+    if (!(error instanceof mongoose.mongo.MongoServerError) || (error.code !== 26 && error.code !== 27)) throw error;
   }
 }

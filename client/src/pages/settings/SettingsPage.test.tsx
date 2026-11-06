@@ -25,7 +25,7 @@ describe("SettingsPage", () => {
 
   it("saves local demo preferences and exposes the settings controls", async () => {
     const queryClient = new QueryClient();
-    render(<QueryClientProvider client={queryClient}><SettingsPage user={null} /></QueryClientProvider>);
+    render(<QueryClientProvider client={queryClient}><SettingsPage user={null} onError={vi.fn()} /></QueryClientProvider>);
 
     fireEvent.change(screen.getByLabelText(/default weight unit/i), { target: { value: "lb" } });
     fireEvent.change(screen.getByLabelText(/focus session/i), { target: { value: "55" } });
@@ -39,7 +39,7 @@ describe("SettingsPage", () => {
 
   it("explains the account deletion requirements without sending an incomplete request", async () => {
     const queryClient = new QueryClient();
-    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} /></QueryClientProvider>);
+    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} onError={vi.fn()} /></QueryClientProvider>);
 
     const deleteButton = screen.getByRole("button", { name: /permanently delete account/i });
     expect(deleteButton).toBeEnabled();
@@ -66,7 +66,7 @@ describe("SettingsPage", () => {
       if (path === "/auth/sessions") return { sessions: [] } as never;
       throw new Error("The current password is incorrect");
     });
-    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} /></QueryClientProvider>);
+    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} onError={vi.fn()} /></QueryClientProvider>);
 
     fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: "wrong-password" } });
     fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: "DELETE" } });
@@ -83,7 +83,7 @@ describe("SettingsPage", () => {
     localStorage.setItem("irontrack_active_workout_v1", "{}");
     localStorage.setItem("irontrack_task_timer:account-123", "{}");
     localStorage.setItem("irontrack_settings", "{}");
-    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} /></QueryClientProvider>);
+    render(<QueryClientProvider client={queryClient}><SettingsPage user={user} onError={vi.fn()} /></QueryClientProvider>);
 
     fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: "correct-password" } });
     fireEvent.change(screen.getByLabelText(/type delete to confirm/i), { target: { value: "DELETE" } });

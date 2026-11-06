@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api/api";
 import type { Day } from "../types";
 import { ironToday } from "../utils/date";
-import { defaultReminderPreferences, reminderStorageKey, type ReminderPreferences } from "../pages/wellness/WellnessPage";
+import { readReminderPreferences } from "../lib/reminderPreferences";
 import { useAppStore } from "../stores/appStore";
 import { prayersDueAt } from "../utils/prayers";
 import { queryKeys } from "../hooks/queryKeys";
@@ -14,11 +14,6 @@ type Session = { date: string; dayType: string };
 type SessionPage = { items: Session[]; nextCursor: string | null; hasMore: boolean };
 const sentKey = (date: string) => `irontrack_notification_sent_${date}`;
 const notificationsEnabledKey = "irontrack_notifications_enabled_v1";
-
-function readPreferences(): ReminderPreferences {
-  try { return { ...defaultReminderPreferences, ...JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}") }; }
-  catch { return defaultReminderPreferences; }
-}
 
 async function notify(title: string, body: string, tag: string) {
   const options = { body, tag, icon: "/icon.svg", data: { url: "/wellness" } };
@@ -45,6 +40,35 @@ export default function NotificationScheduler() {
   const [localNotificationsEnabled, setLocalNotificationsEnabled] = useState(() =>
     typeof Notification !== "undefined" && Notification.permission === "granted" && localStorage.getItem(notificationsEnabledKey) === "true" && localStorage.getItem("irontrack_push_subscribed_v1") !== "true",
   );
+
+  // Reconcile the cached flag with this device's actual browser and server subscription.
+  // Expired server subscriptions are deleted after provider 404/410 responses; without this
+  // check the stale local flag permanently disables the foreground fallback scheduler.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (typeof Notification === "undefined") return;
+      let endpoint = "";
+      try {
+        if ("serviceWorker" in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration();
+          endpoint = (await registration?.pushManager.getSubscription())?.endpoint ?? "";
+        }
+        const query = endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : "?endpoint=none";
+        const status = await api<{ configured: boolean; subscribed: boolean }>(`/notifications/status${query}`);
+        if (!active) return;
+        const serverPushEnabled = status.configured && status.subscribed;
+        localStorage.setItem("irontrack_push_subscribed_v1", String(serverPushEnabled));
+        setLocalNotificationsEnabled(Notification.permission === "granted" && localStorage.getItem(notificationsEnabledKey) === "true" && !serverPushEnabled);
+      } catch {
+        if (!active) return;
+        // If the server cannot confirm status, use foreground fallback only when this browser
+        // has no push subscription; this avoids duplicating reminders on a possibly live push.
+        setLocalNotificationsEnabled(Notification.permission === "granted" && localStorage.getItem(notificationsEnabledKey) === "true" && !endpoint);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
   const routine = useQuery({ queryKey: [...queryKeys.routine.day(date), timezone], queryFn: () => api<Day>(`/routine/days/${date}?timezone=${encodeURIComponent(timezone)}`), staleTime: 30_000, refetchInterval: 60_000, enabled: localNotificationsEnabled });
   const week = useQuery({ queryKey: ["notifications", "week"], queryFn: () => api<WeekDay[]>("/workout-week"), staleTime: 10 * 60_000, refetchInterval: 10 * 60_000, enabled: localNotificationsEnabled });
   const logs = useQuery({ queryKey: ["workout", "logs", 30], queryFn: () => api<SessionPage>("/workout-logs?limit=30"), staleTime: 60_000, refetchInterval: 5 * 60_000, enabled: localNotificationsEnabled });
@@ -78,7 +102,7 @@ export default function NotificationScheduler() {
       const now = new Date();
       const today = ironToday(now);
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      const prefs = readPreferences();
+      const prefs = readReminderPreferences();
       const serverPushEnabled = localStorage.getItem("irontrack_push_subscribed_v1") === "true";
       if (!serverPushEnabled && prefs.taskTimes && routine.data?.date === today) {
         const tasks = routine.data.blocks.flatMap(block => block.tasks);

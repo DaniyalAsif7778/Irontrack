@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { BLOCKS } from "../../constant.js";
 import { User } from "../../models/auth/user.model.js";
 import { RoutineCompletion, RoutineEvent, RoutineReminder, RoutineTask, RoutineTaskOccurrence } from "../../models/routine/routine.model.js";
-import { sendOwnerPush } from "../notifications/push.service.js";
+import { evaluateRoutineStreak } from "../notifications/performance-alerts.service.js";
 import { isValidDateKey } from "../../utils/dateValidation.js";
 import { analyticsPeriodLabel, analyticsRange, type AnalyticsPeriod } from "../../utils/analyticsPeriod.js";
 
@@ -84,7 +84,7 @@ async function ensureOccurrences(ownerId: string, date: string, timezone: string
   return merged.map(task => { const occurrence = byTask.get(String(task._id)); return { ...task, ...(occurrence?.block ? { block: occurrence.block } : {}), occurrence: occurrence ?? null }; });
 }
 
-async function notifyChange(ownerId: string, occurrence: any, type: string, actionId: string, title: string, body: string, metadata: Record<string, unknown> = {}) {
+async function notifyChange(ownerId: string, occurrence: any, type: string, actionId: string, _title: string, _body: string, metadata: Record<string, unknown> = {}) {
   const existing = await RoutineEvent.findOne({ ownerId, idempotencyKey: actionId }).lean();
   if (existing) return existing;
   const eventId = actionId;
@@ -97,13 +97,9 @@ async function notifyChange(ownerId: string, occurrence: any, type: string, acti
     if (error?.code !== 11000) throw error;
     return RoutineEvent.findOne({ ownerId, idempotencyKey: actionId }).lean();
   }
-  await deliverParentEventPush(ownerId, eventId, title, body);
+  // Routine mutations are recorded for history and analytics, but routine CRUD/state changes
+  // are not push-worthy; the scheduled reminder and meaningful milestones handle notifications.
   return event;
-}
-
-async function deliverParentEventPush(ownerId: string, eventId: string, title: string, body: string) {
-  const delivery = await sendOwnerPush(ownerId, eventId, title, body, "/routine").catch(() => ({ configured: false, subscribed: false, sent: 0, failed: 1 }));
-  await RoutineEvent.updateOne({ ownerId, eventId }, { $set: { pushStatus: !delivery.configured || !delivery.subscribed ? "unavailable" : delivery.failed ? "failed" : "sent", pushSentAt: delivery.sent ? new Date() : null } });
 }
 
 export async function recordRoutineParentChange(ownerId: string, taskId: string | null, actionId: string, type: string, title: string, body: string, metadata: Record<string, unknown> = {}) {
@@ -244,8 +240,7 @@ export async function extendRoutineTask(ownerId: string, taskId: string, date: s
     if (!prior) throw error;
     return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
   } finally { await session.endSession(); }
-  if (applied) await deliverParentEventPush(ownerId, actionId, "15 minutes added", `${taskTitle} has 15 more minutes.${shifted.length ? ` Moved ${shifted.length} later task${shifted.length === 1 ? "" : "s"}: ${shifted.slice(0, 4).join(", ")}${shifted.length > 4 ? ", and more" : ""}.` : " No later tasks needed to move."}`);
-  else return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
+  if (!applied) return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
   return { occurrence, shiftedTaskTitles: shifted };
 }
 
@@ -276,8 +271,7 @@ export async function snoozeRoutineTask(ownerId: string, taskId: string, date: s
     if (!prior) throw error;
     return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
   } finally { await session.endSession(); }
-  if (applied) await deliverParentEventPush(ownerId, actionId, "Task snoozed", `${taskTitle} snoozed for ${minutes} minutes. ${shifted.length ? `${shifted.length} later task${shifted.length === 1 ? "" : "s"} moved: ${shifted.slice(0, 4).join(", ")}${shifted.length > 4 ? ", and more" : ""}.` : "No later tasks needed to move."}`);
-  else return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
+  if (!applied) return { occurrence: await RoutineTaskOccurrence.findOne({ ownerId, taskId, date }), shiftedTaskTitles: [] };
   return { occurrence, shiftedTaskTitles: shifted };
 }
 
@@ -300,6 +294,7 @@ export async function completeRoutineOccurrence(ownerId: string, taskId: string,
   const queuedTask = queued ? await RoutineTask.findOne({ _id: queued.taskId, ownerId }).select("title").lean() : null;
   const body = queuedTask ? `${task?.title ?? "Task"} complete. ${queuedTask.title} is ready when you start it.` : `${task?.title ?? "Task"} marked complete.`;
   await notifyChange(ownerId, occurrence, "task_completed", actionId, "Task complete", body, { taskTitle: task?.title, queuedTaskTitle: queuedTask?.title ?? null });
+  void evaluateRoutineStreak(ownerId, date).catch(() => undefined);
   return result;
 }
 

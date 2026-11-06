@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PushSubscription } from "../../models/notifications/notification.model.js";
 import { fail } from "../../middlewares/errorHandler.js";
 import { pushConfiguration, sendTestPush } from "../../services/notifications/push.service.js";
+import { trackNotificationEvent } from "../../services/notifications/notification-telemetry.service.js";
 
 const prefsSchema = z.object({
   taskTimes: z.boolean(),
@@ -10,6 +11,7 @@ const prefsSchema = z.object({
   hydration: z.boolean(),
   movement: z.boolean(),
   prayerTimes: z.boolean().default(false),
+  performanceAlerts: z.boolean().default(true),
 }).strict();
 const timezoneSchema = z.string().min(1).max(100).refine(value => {
   try { new Intl.DateTimeFormat("en-US", { timeZone: value }); return true; }
@@ -46,12 +48,14 @@ export const subscribe: RequestHandler = async (req, res) => {
     }
     throw error;
   }
+  trackNotificationEvent("notification_subscription_updated", { channel: "web_push" });
   res.json({ subscribed: true });
 };
 export const updatePreferences: RequestHandler = async (req, res) => {
   const parsed = z.object({ endpoint: z.string().url().max(2048), preferences: prefsSchema, timezone: timezoneSchema }).strict().safeParse(req.body);
   if (!parsed.success) { fail(res, parsed.error.issues[0]?.message ?? "Invalid reminder preferences"); return; }
   const result = await PushSubscription.updateOne({ ownerId: req.auth!.userId, endpoint: parsed.data.endpoint }, { $set: { preferences: parsed.data.preferences, timezone: parsed.data.timezone } });
+  if (result.matchedCount) trackNotificationEvent("notification_preferences_updated", { channel: "web_push", performance_alerts: parsed.data.preferences.performanceAlerts });
   res.json({ updated: result.modifiedCount, matched: result.matchedCount });
 };
 export const unsubscribe: RequestHandler = async (req, res) => {

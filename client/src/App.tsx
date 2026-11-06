@@ -100,21 +100,20 @@ export default function App() {
   async function snoozeRoutineTask(task: Task, minutes: number) { try { const result = await snoozeTaskMutation.mutateAsync({ task, minutes }) as { shiftedTaskTitles?: string[] }; const shifted = result.shiftedTaskTitles ?? []; toast.success(`${task.title} snoozed for ${minutes} minutes.${shifted.length ? ` ${shifted.length} later task${shifted.length === 1 ? "" : "s"} shifted.` : ""}`); } catch (value) { setError((value as Error).message); } }
 
   async function saveSubtasks(task: Task, subtasks: Task["subtasks"]) {
-    try { await saveSubtasksMutation.mutateAsync({ task, subtasks }); toast.success(`${task.title} subtasks updated.`); }
+    try { await saveSubtasksMutation.mutateAsync({ task, subtasks }); }
     catch (value) { setError((value as Error).message); }
   }
 
   async function saveTask(value: TaskFormValues) {
     try {
       await saveTaskMutation.mutateAsync({ current: editing, value, dayType: selectedDayType });
-      toast.success(editing?.task ? "Routine task updated." : "Routine task added.");
       setEditing(null);
     } catch (reason) { setError((reason as Error).message); }
   }
 
   async function removeTask(id: string) {
     if (!confirm("Delete this routine task?")) return;
-    try { await removeTaskMutation.mutateAsync(id); toast.success("Routine task removed."); }
+    try { await removeTaskMutation.mutateAsync(id); }
     catch (reason) { setError((reason as Error).message); }
   }
 
@@ -139,7 +138,7 @@ export default function App() {
     { path: "/analytics", element: <Suspense fallback={<p>Loading analytics…</p>}><AnalyticsPage data={analytics} accountId={user?.id} period={analyticsPeriod} onRange={setAnalyticsPeriod} /></Suspense> },
     { path: "/weight", element: <WeightPage latest={latest} weights={weights} save={saveWeightEntry} remove={removeWeight} defaultUnit={preferences.weightUnit} loading={weightsQuery.isPending} hasMore={weightsQuery.hasNextPage} loadingMore={weightsQuery.isFetchingNextPage} loadMore={() => void weightsQuery.fetchNextPage()} /> },
     { path: "/schedules", element: <ScheduleManager onError={setError} prayerTimes={preferences.prayerTimes} /> },
-    { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} /></Suspense> },
+    { path: "/settings", element: <Suspense fallback={<p>Loading settings…</p>}><SettingsPage user={user} onError={setError} /></Suspense> },
     { path: "/wellness", element: <WellnessPage onError={setError} /> },
     { path: "/profile", element: <ProfilePage user={user} onNavigate={setView} onSignOut={signOut} /> },
     { path: "*", element: <NotFoundPage /> },

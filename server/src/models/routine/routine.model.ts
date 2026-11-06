@@ -73,7 +73,7 @@ export const RoutineEvent = model("RoutineEvent", new Schema({
   taskId: { type: Schema.Types.ObjectId, ref: "RoutineTask", default: null },
   occurrenceId: { type: Schema.Types.ObjectId, ref: "RoutineTaskOccurrence", default: null },
   date: { type: String, default: "" },
-  type: { type: String, required: true, enum: ["task_started", "task_queued", "task_completed", "task_reopened", "task_created", "task_updated", "task_deleted", "schedule_copied", "task_snoozed", "extension_prompted", "task_extended", "reminder_ignored", "task_deferred", "push_sent", "push_failed", "notification_shown", "notification_clicked", "notification_dismissed", "notification_followup"] },
+  type: { type: String, required: true, enum: ["task_started", "task_queued", "task_completed", "task_reopened", "task_created", "task_updated", "task_deleted", "schedule_copied", "task_snoozed", "extension_prompted", "task_extended", "reminder_ignored", "task_deferred", "push_sent", "push_failed", "notification_shown", "notification_clicked", "notification_dismissed", "notification_followup", "gentle_nudge"] },
   occurredAt: { type: Date, required: true, default: Date.now },
   responseTimeMs: { type: Number, default: null, min: 0 },
   metadata: { type: Schema.Types.Mixed, default: () => ({}) },

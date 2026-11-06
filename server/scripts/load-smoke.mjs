@@ -1,30 +1,44 @@
 import { createServer } from "node:http";
 import { performance } from "node:perf_hooks";
+import mongoose from "mongoose";
 
 process.env.NODE_ENV = "production";
 process.env.LOG_LEVEL = "silent";
 process.env.TRUST_PROXY = "1";
 process.env.AUTH_JWT_SECRET = `local-load-test-${crypto.randomUUID()}-${crypto.randomUUID()}-irontrack`;
 
-const [{ app }, { signSession }] = await Promise.all([
+const [{ app }, { signSession }, { User }] = await Promise.all([
   import("../dist/app.js"),
   import("../dist/middlewares/requireAuth.js"),
+  import("../dist/models/auth/user.model.js"),
 ]);
 
-const server = createServer(app);
-await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
-const address = server.address();
-const baseUrl = `http://127.0.0.1:${address.port}`;
+const mongoUri = process.env.LOAD_MONGO_URI;
+if (!mongoUri) throw new Error("Set LOAD_MONGO_URI to a temporary MongoDB database URI.");
 const iterationsPerUser = Number(process.env.LOAD_ITERATIONS ?? 50);
 const levels = (process.env.LOAD_USERS ?? "5,20,50,100").split(",").map(Number).filter(value => Number.isInteger(value) && value > 0);
 const results = [];
 let userOffset = 0;
+let server;
+let baseUrl;
 
 function percentile(sorted, fraction) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)] ?? 0;
 }
 
 try {
+  await mongoose.connect(mongoUri, { dbName: "irontrack_loadtest", serverSelectionTimeoutMS: 5000 });
+  const totalUsers = levels.reduce((total, value) => total + value, 0);
+  await User.insertMany(Array.from({ length: totalUsers }, (_, index) => {
+    const userId = `64${String(index + 1).padStart(22, "0")}`;
+    return { _id: new mongoose.Types.ObjectId(userId), name: `Smoke User ${index + 1}`, email: `smoke-${index + 1}@irontrack.invalid`, passwordHash: "not-a-real-password-hash", emailVerified: true };
+  }));
+  server = createServer(app);
+  await new Promise((resolve, reject) => server.listen(0, "127.0.0.1", error => error ? reject(error) : resolve()));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Could not bind smoke-test server to a TCP port.");
+  baseUrl = `http://127.0.0.1:${address.port}`;
+
   for (const userCount of levels) {
     const samples = [];
     let failures = 0;
@@ -78,7 +92,10 @@ try {
     });
     userOffset += userCount;
   }
-  console.log(JSON.stringify({ target: "local Express app; authenticated non-database route", iterationsPerUser, results }, null, 2));
+  console.log(JSON.stringify({ target: "local Express app; authenticated notification config route with isolated database readiness", database: mongoose.connection.name, iterationsPerUser, results }, null, 2));
+  if (results.some(result => result.errors > 0)) process.exitCode = 1;
 } finally {
-  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  if (server?.listening) await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  if (mongoose.connection.readyState === 1 && mongoose.connection.name === "irontrack_loadtest") await mongoose.connection.dropDatabase();
+  await mongoose.disconnect();
 }

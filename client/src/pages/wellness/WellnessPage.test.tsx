@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { ironToday } from "../../utils/date";
-import WellnessPage, { defaultReminderPreferences, reminderStorageKey } from "./WellnessPage";
+import WellnessPage from "./WellnessPage";
 
-const { api, mutateAsync, useWellness } = vi.hoisted(() => ({ api: vi.fn(), mutateAsync: vi.fn(), useWellness: vi.fn() }));
-vi.mock("../../lib/api/api", () => ({ api }));
+const { mutateAsync, useWellness } = vi.hoisted(() => ({ mutateAsync: vi.fn(), useWellness: vi.fn() }));
 vi.mock("../../hooks/hooks", () => ({ useWellness }));
 
 describe("WellnessPage", () => {
@@ -12,9 +12,6 @@ describe("WellnessPage", () => {
     localStorage.clear();
     vi.clearAllMocks();
     mutateAsync.mockResolvedValue(undefined);
-    api.mockImplementation(async path => path === "/notifications/config"
-      ? { enabled: false, publicKey: null }
-      : { configured: false, subscribed: false, preferences: null });
     useWellness.mockReturnValue({
       data: [{ date: ironToday(), waterGlasses: 7, movementBreaks: 5 }],
       save: { mutateAsync, isPending: false }, isPending: false,
@@ -22,8 +19,9 @@ describe("WellnessPage", () => {
   });
 
   it("saves water and movement check-ins at the configured goals", async () => {
-    render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Background delivery is unavailable until the server is configured");
+    render(<MemoryRouter><WellnessPage onError={vi.fn()} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Configure reminders in Settings." })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("heading", { name: "Reminders" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add one glass of water" }));
     fireEvent.click(screen.getByRole("button", { name: "Add one movement break" }));
 
@@ -32,34 +30,13 @@ describe("WellnessPage", () => {
     expect(screen.getAllByText("1 to your daily target")).toHaveLength(2);
   });
 
-  it("persists reminder preferences locally without requiring push configuration", async () => {
-    render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Background delivery is unavailable until the server is configured");
-    fireEvent.click(screen.getByRole("checkbox", { name: /Water check-in/ }));
-
-    expect(JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}"))
-      .toEqual({ ...defaultReminderPreferences, hydration: true });
-    expect(api).not.toHaveBeenCalledWith("/notifications/preferences", expect.anything());
-  });
-
-  it("allows prayer reminders to be enabled from the configured prayer times", async () => {
-    render(<WellnessPage onError={vi.fn()} />);
-    await screen.findByText("Background delivery is unavailable until the server is configured");
-    fireEvent.click(screen.getByRole("checkbox", { name: /Prayer-time reminders/ }));
-
-    expect(JSON.parse(localStorage.getItem(reminderStorageKey) ?? "{}"))
-      .toEqual({ ...defaultReminderPreferences, prayerTimes: true });
-  });
-
   it("reports failed wellness saves and keeps decrement controls disabled at zero", async () => {
     const onError = vi.fn();
     useWellness.mockReturnValue({
       data: [{ date: ironToday(), waterGlasses: 0, movementBreaks: 0 }],
       save: { mutateAsync: vi.fn().mockRejectedValue(new Error("Save failed")), isPending: false }, isPending: false,
     });
-    render(<WellnessPage onError={onError} />);
-    await screen.findByText("Background delivery is unavailable until the server is configured");
-
+    render(<MemoryRouter><WellnessPage onError={onError} /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Remove one glass of water" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove one movement break" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Add one glass of water" }));

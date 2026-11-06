@@ -3,6 +3,7 @@ import { workoutExercisePayload, workoutLogCursor, workoutLogLimit, workoutLogPa
 import { fail } from "../../middlewares/errorHandler.js";
 import { routeParam } from "../../utils/routeParam.js";
 import * as workout from "../../services/workout/workout.service.js";
+import { evaluateWorkoutPerformance } from "../../services/notifications/performance-alerts.service.js";
 import { WORKOUT_WEEKDAYS } from "../../models/workout/workout.model.js";
 
 export const listPlans: RequestHandler = async (req, res) => { res.json(await workout.listPlans(req.auth!.userId)); };
@@ -83,5 +84,8 @@ export const saveLog: RequestHandler = async (req, res) => {
   if (!await workout.ownerHasPlan(req.auth!.userId, data.dayType)) { fail(res, "Workout day not found", 404); return; }
   const saved = await workout.saveLog(req.auth!.userId, data);
   if (!saved) { fail(res, "This workout is already complete for that day", 409); return; }
-  res.status(201).json(saved);
+  let feedback: Awaited<ReturnType<typeof evaluateWorkoutPerformance>> = [];
+  try { feedback = await evaluateWorkoutPerformance(req.auth!.userId, saved as any); }
+  catch { /* A notification insight must never turn a saved workout into a failed request. */ }
+  res.status(201).json({ ...saved.toObject(), feedback });
 };

@@ -6,6 +6,7 @@ import { WorkoutLog, WorkoutProgram } from "../../models/workout/workout.model.j
 import { WellnessLog } from "../../models/wellness/wellness.model.js";
 import { User, type PrayerTimes } from "../../models/auth/user.model.js";
 import { logger } from "../../utils/logger.js";
+import { trackNotificationEvent } from "./notification-telemetry.service.js";
 
 const publicKey = process.env.VAPID_PUBLIC_KEY ?? "";
 const privateKey = process.env.VAPID_PRIVATE_KEY ?? "";
@@ -136,6 +137,11 @@ async function deliverScheduledNotification(event: any, now: Date) {
   try {
     const subscription = await PushSubscription.findOne({ _id: event.subscriptionId, ownerId: event.ownerId }).lean();
     if (!subscription) { await update({ status: "skipped" }); return; }
+    if (!configured) {
+      trackNotificationEvent("notification_push_suppressed", { channel: "web_push", category: event.category, reason: "server_push_not_configured" });
+      await update({ status: "skipped" });
+      return;
+    }
     const preferenceKey = ({ task: "taskTimes", prayer: "prayerTimes", workout: "workoutAtNine", hydration: "hydration", movement: "movement" } as const)[event.category as "task" | "prayer" | "workout" | "hydration" | "movement"];
     if (preferenceKey && !subscription.preferences?.[preferenceKey]) { await update({ status: "skipped" }); return; }
     if (event.category === "task") {
@@ -162,7 +168,7 @@ async function deliverScheduledNotification(event: any, now: Date) {
       if (event.category === "hydration" && (wellness?.waterGlasses ?? 0) >= 8) { await update({ status: "skipped" }); return; }
       if (event.category === "movement" && (wellness?.movementBreaks ?? 0) >= 6) { await update({ status: "skipped" }); return; }
     }
-    await send(subscription, `scheduled:${event.scheduleKey}`, event.title, event.body, event.url);
+    await send(subscription, `scheduled:${event.scheduleKey}`, event.title, event.body, event.url, event.category);
     if (event.category === "task") {
       const marked = await RoutineReminder.updateOne({ ownerId: event.ownerId, taskId: event.taskId, date: event.taskDate, status: "scheduled" }, { $set: { status: "sent", sentAt: now, timezone: event.timezone } });
       if (marked.modifiedCount) await recordReminderEvent(event.ownerId, event.taskId, event.taskDate, "push_sent", `reminder-sent:${event.taskDate}:${String(event.taskId)}`, { taskTitle: event.body, reminderTime: localCalendarParts(event.dueAt, event.timezone).time });
@@ -238,20 +244,11 @@ async function dispatchReminderFollowups(now: Date) {
     const claimed = await RoutineReminder.updateOne({ _id: reminder._id, status: "sent" }, { $set: { status: "ignored" } });
     if (!claimed.modifiedCount) continue;
     await recordReminderEvent(reminder.ownerId, reminder.taskId, reminder.date, "reminder_ignored", `ignored:${reminder._id}`, { responseWindowMinutes: 10 });
-    const task = await RoutineTask.findOne({ _id: reminder.taskId, ownerId: reminder.ownerId }).select("title").lean();
-    const eventId = `followup:${String(reminder._id)}`;
-    const result = await sendOwnerPush(String(reminder.ownerId), eventId, "One more reminder", `${task?.title ?? "Your task"} is still waiting. Open Routine to start or snooze it.`, "/routine");
-    if (result.sent) {
-      await RoutineReminder.updateOne({ _id: reminder._id, status: "ignored" }, { $set: { status: "followup_sent", followupSentAt: now } });
-      await recordReminderEvent(reminder.ownerId, reminder.taskId, reminder.date, "notification_followup", eventId, { taskTitle: task?.title ?? "Task" });
-    } else {
-      await RoutineReminder.updateOne({ _id: reminder._id, status: "ignored" }, { $set: { status: "sent" } });
-    }
   }
 
-  const unanswered = await RoutineReminder.find({ status: "followup_sent", followupSentAt: { $lte: new Date(now.getTime() - 10 * 60_000) } }).limit(100);
+  const unanswered = await RoutineReminder.find({ status: { $in: ["ignored", "followup_sent"] }, sentAt: { $lte: new Date(now.getTime() - 20 * 60_000) } }).limit(100);
   for (const reminder of unanswered) {
-    const claimed = await RoutineReminder.updateOne({ _id: reminder._id, status: "followup_sent" }, { $set: { status: "deferred", deferredAt: now } });
+    const claimed = await RoutineReminder.updateOne({ _id: reminder._id, status: { $in: ["ignored", "followup_sent"] } }, { $set: { status: "deferred", deferredAt: now } });
     if (!claimed.modifiedCount) continue;
     const task = await RoutineTask.findOne({ _id: reminder.taskId, ownerId: reminder.ownerId }).lean();
     if (!task) continue;
@@ -263,12 +260,11 @@ async function dispatchReminderFollowups(now: Date) {
     const occurrence = await RoutineTaskOccurrence.findOneAndUpdate({ ownerId: reminder.ownerId, taskId: reminder.taskId, date: destinationDate }, { $set: { dayType, block: "isha", status: "deferred", startAt, endAt: new Date(startAt.getTime() + 45 * 60_000), timezone: reminder.timezone, workMinutes: 45 } }, { upsert: true, new: true, setDefaultsOnInsert: true });
     const eventId = `defer:${String(reminder._id)}`;
     await recordReminderEvent(reminder.ownerId, reminder.taskId, destinationDate, "task_deferred", eventId, { taskTitle: task.title, prayerCard: "isha", movedToDate: destinationDate });
-    await sendOwnerPush(String(reminder.ownerId), eventId, "Task moved to the last prayer card", `${task.title} had no response after its follow-up. It was moved to Isha on ${destinationDate}.`, "/routine");
     await RoutineTaskOccurrence.updateOne({ _id: occurrence._id }, { $set: { lastParentEventId: eventId } });
   }
 }
 
-async function send(subscription: any, deliveryKey: string, title: string, body: string, url: string) {
+async function send(subscription: any, deliveryKey: string, title: string, body: string, url: string, category = "other") {
   if (!configured) return;
   const deviceDeliveryKey = `${deliveryKey}:${subscription._id}`;
   try {
@@ -278,12 +274,15 @@ async function send(subscription: any, deliveryKey: string, title: string, body:
     throw error;
   }
   const target: WebPushSubscription = { endpoint: subscription.endpoint, keys: subscription.keys };
+  trackNotificationEvent("notification_push_attempted", { channel: "web_push", category });
   try {
     await webpush.sendNotification(target, JSON.stringify({ title, body, url, icon: "/icon.svg" }), { TTL: 3600, urgency: "normal" });
+    trackNotificationEvent("notification_push_provider_accepted", { channel: "web_push", category });
   } catch (error: any) {
     await PushDelivery.deleteOne({ ownerId: subscription.ownerId, deliveryKey: deviceDeliveryKey });
     if (error?.statusCode === 404 || error?.statusCode === 410) await PushSubscription.deleteOne({ _id: subscription._id });
     else logger.warn({ errorName: error?.name ?? "PushError", statusCode: error?.statusCode, errorCode: error?.code }, "Push notification delivery failed");
+    trackNotificationEvent("notification_push_provider_failed", { channel: "web_push", category, status_code: typeof error?.statusCode === "number" ? error.statusCode : null, reason: error?.statusCode === 404 || error?.statusCode === 410 ? "subscription_expired" : "provider_error" });
     throw error;
   }
 }
@@ -295,11 +294,22 @@ export async function sendOwnerPush(ownerId: string, parentEventId: string, titl
   return { configured: true, subscribed: subscriptions.length > 0, sent: results.filter(result => result.status === "fulfilled").length, failed: results.filter(result => result.status === "rejected").length };
 }
 
+export async function sendOwnerPerformancePush(ownerId: string, eventId: string, title: string, body: string, url: string, category: "personal_record" | "down_week" | "milestone" | "gentle_nudge") {
+  if (!configured) {
+    trackNotificationEvent("notification_push_suppressed", { channel: "web_push", category, reason: "server_push_not_configured" });
+    return { configured: false, subscribed: false, sent: 0, failed: 0 };
+  }
+  const subscriptions = await PushSubscription.find({ ownerId, "preferences.performanceAlerts": { $ne: false } });
+  if (!subscriptions.length) trackNotificationEvent("notification_push_suppressed", { channel: "web_push", category, reason: "no_eligible_subscription" });
+  const results = await Promise.allSettled(subscriptions.map(subscription => send(subscription, `event:${eventId}`, title, body, url, category)));
+  return { configured: true, subscribed: subscriptions.length > 0, sent: results.filter(result => result.status === "fulfilled").length, failed: results.filter(result => result.status === "rejected").length };
+}
+
 export async function sendTestPush(ownerId: string) {
   if (!configured) throw new Error("Background push is not configured. Add the VAPID keys to the server environment.");
   const subscriptions = await PushSubscription.find({ ownerId });
   if (!subscriptions.length) throw new Error("Enable background notifications on this device first.");
-  await Promise.all(subscriptions.map(subscription => send(subscription, `test:${Date.now()}:${subscription.id}`, "IronTrack test", "Background notifications are connected to your server.", "/wellness")));
+  await Promise.all(subscriptions.map(subscription => send(subscription, `test:${Date.now()}:${subscription.id}`, "IronTrack test", "Background notifications are connected to your server.", "/wellness", "test")));
 }
 
 let checking = false;

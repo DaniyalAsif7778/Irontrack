@@ -17,6 +17,7 @@ type WorkoutLog = { _id: string; date: string; dayType: DayType; dayName?: strin
 type WeekDay = { key: string; label: string; planId: DayType | null };
 type SetEntry = { reps: number; weight: number; completed: boolean };
 type WorkoutLogPage = { items: WorkoutLog[]; nextCursor: string | null; hasMore: boolean };
+type WorkoutSaveResult = { queuedOffline?: boolean; feedback?: { type: string; title: string; message: string }[] };
 type ActiveWorkout = { date: string; dayType: DayType; dayName: string; startedAt: number; exerciseStartedAt?: number; elapsedBeforePause: number; pausedAt: number | null; pausedRestSeconds: number | null; entries: Record<string, SetEntry[]>; restUntil: number | null; repStartedAt?: number; repElapsedBeforePause?: number; currentExerciseIndex?: number; pendingExerciseIndex?: number | null; restMode?: "set" | "exercise" | "rep"; exerciseSnapshots?: Exercise[]; autoAdvance?: boolean; voiceCoach?: boolean; skippedExercises?: string[] };
 
 const activeKey = (accountId?: string) => `irontrack_active_workout_v1:${accountId ?? "local"}`;
@@ -85,7 +86,7 @@ export default function Workout({ onError, accountId }: { onError: (message: str
   const loaded = !plansQuery.isPending && !weekQuery.isPending && !libraryQuery.isPending && !logsQuery.isPending;
   const finishMutation = useMutation({
     mutationFn: async (payload: { date: string; dayType: DayType; dayName: string; exercises: { exerciseId: string; name: string; muscle: string; sets: { reps: number; weight: number }[] }[]; duration: number; actionId: string }) => {
-      try { return await api("/workout-logs", { method: "POST", body: JSON.stringify(payload) }); }
+      try { return await api<WorkoutSaveResult>("/workout-logs", { method: "POST", body: JSON.stringify(payload) }); }
       catch (error) {
         if (!accountId || !(error instanceof ApiError && error.status === 0)) throw error;
         await enqueueOfflineAction({ id: payload.actionId, accountId, kind: "workout_log", path: "/workout-logs", body: payload });
@@ -329,9 +330,10 @@ export default function Workout({ onError, accountId }: { onError: (message: str
       return;
     }
     try {
-      const result = await finishMutation.mutateAsync({ date: active.date, dayType: active.dayType, dayName: active.dayName, exercises, duration: elapsed, actionId: crypto.randomUUID() }) as { queuedOffline?: boolean };
+      const result = await finishMutation.mutateAsync({ date: active.date, dayType: active.dayType, dayName: active.dayName, exercises, duration: elapsed, actionId: crypto.randomUUID() });
       setActive(null);
       if (result.queuedOffline) toast.success("Workout saved on this device. It will sync when you reconnect.");
+      else for (const item of result.feedback ?? []) toast.success(item.title, { description: item.message });
     } catch (reason) { onError((reason as Error).message); }
   }
 

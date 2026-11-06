@@ -589,6 +589,10 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .settings-session-list small { color: var(--quiet); font-size: 11px; overflow-wrap: anywhere; }
 .settings-current-session { padding: 3px 7px; color: hsl(var(--accent)); background: hsl(var(--accent) / .1); border-radius: 999px; font-size: 10px; font-weight: 600; }
 .settings-actions { display: flex; justify-content: flex-end; }
+.settings-layout > .settings-security, .settings-layout > .settings-actions, .settings-layout > .settings-sessions, .settings-layout > .settings-prayer, .settings-layout > .settings-notifications, .settings-layout > .settings-delete, .settings-layout > .notification-card { grid-column: 1 / -1; }
+@media (min-width: 1050px) {
+  .settings-layout { max-width: 1100px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
 .settings-save { color: hsl(var(--primary-foreground)); background: var(--orange); border: 0; }
 .settings-save:hover { background: hsl(var(--primary) / .86); }
 .settings-save:disabled { opacity: .5; cursor: not-allowed; }
@@ -760,6 +764,7 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .wellness-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .wellness-legend i { width: 7px; height: 7px; border-radius: 50%; }
 .notification-card { margin-bottom: 20px; }
+.settings-layout .notification-card { margin-bottom: 0; }
 .notification-card > .section-heading > svg { color: hsl(var(--primary)); width: 18px; }
 .notification-card > .section-heading p { margin: 4px 0 0; font-size: 11px; }
 .permission-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 4px; padding: 12px; background: hsl(var(--background) / .65); border: 1px solid hsl(var(--border) / .55); border-radius: 8px; }

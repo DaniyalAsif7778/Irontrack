@@ -14,7 +14,10 @@ import { randomUUID } from "node:crypto";
 export const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : false);
 
-const apiLimiter = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
+// One page view fans out across several authenticated reads. Keep the IP-wide
+// ceiling high enough for households and small teams while endpoint and
+// per-account write limiters retain their narrower abuse controls.
+const apiLimiter = rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }) as unknown as RequestHandler;
 const normalizeOrigin = (value: string) => {
   try {
     const url = new URL(value.trim());

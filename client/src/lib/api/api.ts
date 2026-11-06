@@ -36,6 +36,10 @@ export class ApiError extends Error {
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezone) headers.set("X-Client-Timezone", timezone);
+  } catch { /* Date-based reminders fall back to UTC when the browser has no timezone API. */ }
 
   try {
     const config = {

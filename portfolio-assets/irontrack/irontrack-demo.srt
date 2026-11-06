@@ -1,0 +1,15 @@
+1
+00:00:00,150 --> 00:00:08,876
+Meet IronTrack: a personal training and daily routine app that brings strength, structure, and progress into one calm workspace.
+
+2
+00:00:09,576 --> 00:00:18,275
+Plan your day around five prayer anchors. Keep tasks in clear blocks and follow through while keeping the next part of your day in view.
+
+3
+00:00:18,975 --> 00:00:26,756
+Build focused dumbbell sessions, record each set, and carry your last session forward when it is time to train again.
+
+4
+00:00:27,456 --> 00:00:35,442
+Then review training, body weight, and wellness check-ins together. IronTrack helps you build strength and keep your rhythm.

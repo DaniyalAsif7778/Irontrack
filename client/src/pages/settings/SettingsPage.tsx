@@ -11,6 +11,7 @@ import { settingsSchema, type SettingsValues } from "../../schemas/settings";
 import { useAppStore } from "../../stores/appStore";
 import { DEFAULT_PRAYER_TIMES } from "../../types";
 import type { AuthUser } from "../../types";
+import ReminderSettings from "./ReminderSettings";
 
 const sessionKey = ["auth", "me"] as const;
 const notificationsEnabledKey = "irontrack_notifications_enabled_v1";
@@ -23,7 +24,7 @@ function deviceName(userAgent: string) {
   return `${browser} on ${device}`;
 }
 
-export default function SettingsPage({ user }: { user: AuthUser | null }) {
+export default function SettingsPage({ user, onError }: { user: AuthUser | null; onError: (message: string) => void }) {
   const queryClient = useQueryClient();
   const localPreferences = useAppStore(state => state.preferences);
   const setPreferences = useAppStore(state => state.setPreferences);
@@ -137,7 +138,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
             const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
             const keys = subscription.toJSON().keys;
             if (!keys?.p256dh || !keys.auth) throw new Error("Could not create a complete background notification subscription");
-            let preferences = { taskTimes: true, workoutAtNine: true, hydration: false, movement: false, prayerTimes: false };
+            let preferences = { taskTimes: true, workoutAtNine: true, hydration: false, movement: false, prayerTimes: false, performanceAlerts: true };
             try { preferences = { ...preferences, ...JSON.parse(localStorage.getItem("irontrack_reminder_preferences_v1") ?? "{}") }; } catch { /* Use safe defaults for damaged local settings. */ }
             await api("/notifications/subscriptions", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint, keys, preferences, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }) });
             localStorage.setItem(pushSubscribedKey, "true");
@@ -217,7 +218,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
   return <>
     <header><div><h1>Settings</h1><p>Make IronTrack fit your training routine.</p></div></header>
     <form className="settings-layout" onSubmit={handleSubmit(save)}>
-      <section className="settings-card">
+      <section className="settings-card settings-account">
         <div className="settings-heading"><span><CircleUserRound size={18} /></span><div><h2>Account</h2><p>Your profile and sign-in identity.</p></div></div>
         {user ? <>
           <label className="settings-field">Display name<input {...register("name")} autoComplete="name" />{errors.name && <small role="alert">{errors.name.message}</small>}</label>
@@ -239,7 +240,7 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         </ul>}
       </section>}
 
-      <section className="settings-card">
+      <section className="settings-card settings-training">
         <div className="settings-heading"><span><Clock3 size={18} /></span><div><h2>Training defaults</h2><p>Used for new logs and newly started focus timers.</p></div></div>
         <div className="settings-fields">
           <label className="settings-field"><span><Scale size={15} /> Default weight unit</span><select {...register("weightUnit")}><option value="kg">Kilograms (kg)</option><option value="lb">Pounds (lb)</option></select></label>
@@ -249,18 +250,20 @@ export default function SettingsPage({ user }: { user: AuthUser | null }) {
         <p className="settings-hint">Changing timer lengths affects the next session, not a timer already running.</p>
       </section>
 
-      <section className="settings-card">
+      <section className="settings-card settings-prayer">
         <div className="settings-heading"><span><Clock3 size={18} /></span><div><h2>Prayer anchors</h2><p>Set fixed reference times for moving delayed tasks into the next prayer card.</p></div></div>
         <div className="settings-prayer-grid">
           {([["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]] as const).map(([key, label]) => <label className="settings-field" key={key}>{label}<input type="time" {...register(`prayerTimes.${key}`)} /></label>)}
         </div>
-        <p className="settings-hint">These are manual reference times; IronTrack does not calculate or change them. Prayer reminders use these times when enabled under Wellness → Reminders. Leave a time blank to skip that prayer reminder.</p>
+        <p className="settings-hint">These are manual reference times; IronTrack does not calculate or change them. Prayer reminders use these times when enabled below. Leave a time blank to skip that prayer reminder.</p>
       </section>
 
-      <section className="settings-card">
+      <section className="settings-card settings-notifications">
         <div className="settings-heading"><span>{notificationsEnabled ? <Bell size={18} /> : <BellOff size={18} />}</span><div><h2>Notifications</h2><p>One control for focus timers, routine, workout, wellness, and prayer reminders.</p></div></div>
         <div className="settings-notification"><div><strong>{notificationsEnabled ? "Enabled for this device" : permissionText}</strong><span>{notificationPermission === "denied" ? "Allow notifications in your browser’s site settings, then try again." : "Background delivery is enabled automatically when the server supports it."}</span></div><button className="settings-secondary" type="button" role="switch" aria-checked={notificationsEnabled} disabled={notificationBusy || notificationPermission === "denied" || notificationPermission === "unsupported"} onClick={() => void toggleNotifications()}>{notificationBusy ? "Updating…" : notificationsEnabled ? "Turn off" : "Enable notifications"}</button></div>
       </section>
+
+      <ReminderSettings user={user} onError={onError} />
 
       {user && <section className="settings-security"><ShieldCheck size={17} /><span><b>Private account data</b> Your routines, weight logs, workouts, and analytics are tied to your account.</span></section>}
       <div className="settings-actions"><button className="settings-save" type="submit" disabled={isSubmitting || (!isDirty && Boolean(user))}><Save size={16} />{isSubmitting ? "Saving…" : "Save settings"}</button></div>

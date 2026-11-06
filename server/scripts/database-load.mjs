@@ -44,6 +44,7 @@ async function request(name, path, { ip, cookie, body, method } = {}) {
     const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
       method: method ?? (body === undefined ? "GET" : "PUT"),
       headers: {
+        origin: "https://irontrack-nu.vercel.app",
         ...(body === undefined ? {} : { "content-type": "application/json" }),
         ...(cookie ? { cookie } : {}),
         ...(ip ? { "x-forwarded-for": ip } : {}),
@@ -111,13 +112,21 @@ try {
         const plans = await request("GET /workout-plans", "/api/workout-plans", { ip, cookie: sessionCookie });
         const week = await request("GET /workout-week", "/api/workout-week", { ip, cookie: sessionCookie });
         const logs = await request("GET /workout-logs", "/api/workout-logs", { ip, cookie: sessionCookie });
-        if (plans.data.length !== 1 || week.data[0]?.planId !== planId || logs.data.length !== 1) throw new Error("Account data isolation/read-after-write check failed.");
+        if (plans.data.length !== 1 || week.data[0]?.planId !== planId || logs.data.items?.length !== 1) {
+          throw new Error("Account data isolation/read-after-write check failed.");
+        }
       } catch (error) {
         stageFailures.push({ syntheticUser: index + 1, error: error instanceof Error ? error.message : String(error) });
       }
     }));
     const durationMs = performance.now() - stageStarted;
-    stages.push({ fakeUsersAtOnce: userCount, elapsedSeconds: Number((durationMs / 1000).toFixed(2)), usersPerSecond: Number((userCount / (durationMs / 1000)).toFixed(2)), failures: stageFailures });
+    stages.push({
+      fakeUsersAtOnce: userCount,
+      elapsedSeconds: Number((durationMs / 1000).toFixed(2)),
+      usersPerSecond: Number((userCount / (durationMs / 1000)).toFixed(2)),
+      failureCount: stageFailures.length,
+      failureSamples: stageFailures.slice(0, 5),
+    });
     userOffset += userCount;
   }
 
@@ -132,6 +141,7 @@ try {
     sampleFailures: failures.slice(0, 12),
     cleanup: "test database dropped; synthetic records removed",
   }, null, 2));
+  if (failures.length > 0 || stages.some(stage => stage.failureCount > 0)) process.exitCode = 1;
 } finally {
   if (mongoose.connection.readyState === 1 && mongoose.connection.name === "irontrack_loadtest") {
     await Promise.all([AuthSession.deleteMany({}), AuthChallenge.deleteMany({}), WorkoutLog.deleteMany({}), WorkoutProgram.deleteMany({}), WorkoutPlan.deleteMany({}), User.deleteMany({})]);

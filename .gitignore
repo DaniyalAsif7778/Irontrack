@@ -5,3 +5,6 @@ coverage/
 *.tsbuildinfo
 .agents/
 .npm-cache/
+.env.userSimulation.local
+playwright-report/
+test-results/

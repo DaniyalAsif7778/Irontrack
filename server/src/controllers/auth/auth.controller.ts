@@ -6,6 +6,7 @@ import { requireAuth, REFRESH_COOKIE, refreshCookieOptions, SESSION_COOKIE, sess
 import { asyncHandler } from "../../middlewares/asyncHandler.js";
 import { issueSession, listSessions, revokeSession, revokeSessionById, rotateSession } from "../../services/auth/session.service.js";
 import { isAuthEmailConfigured } from "../../services/auth/email.service.js";
+import { evaluateMissedWorkoutNudge } from "../../services/notifications/performance-alerts.service.js";
 
 function setSessionCookies(res: Parameters<RequestHandler>[1], tokens: Awaited<ReturnType<typeof issueSession>>) {
   res.cookie(SESSION_COOKIE, tokens.accessToken, sessionCookieOptions);
@@ -17,6 +18,12 @@ function clearSessionCookies(res: Parameters<RequestHandler>[1]) {
   const { maxAge: _refreshMaxAge, ...refreshOptions } = refreshCookieOptions;
   res.clearCookie(SESSION_COOKIE, sessionOptions);
   res.clearCookie(REFRESH_COOKIE, refreshOptions);
+}
+
+function clientTimezone(req: Parameters<RequestHandler>[0]) {
+  const requestedTimezone = req.get("x-client-timezone") || "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: requestedTimezone }); return requestedTimezone; }
+  catch { return "UTC"; }
 }
 
 export const register: RequestHandler = asyncHandler(async (req, res) => {
@@ -43,6 +50,7 @@ export const login: RequestHandler = asyncHandler(async (req, res) => {
   if (!parsed.success) { fail(res, "Enter a valid email and password"); return; }
   const user = await authenticateAccount(parsed.data.email, parsed.data.password);
   if (!user) { fail(res, "Email, password, or verification status is incorrect", 401); return; }
+  await evaluateMissedWorkoutNudge(user.id, clientTimezone(req)).catch(() => undefined);
   setSessionCookies(res, await issueSession(user.id, requestMetadata(req)));
   res.json({ user });
 });
