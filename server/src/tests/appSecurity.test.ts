@@ -45,12 +45,14 @@ describe("API abuse and error controls", () => {
 
   it("returns a fast generic 503 for API requests while MongoDB is disconnected", async () => {
     const started = performance.now();
-    const [health, api] = await Promise.all([
+    const [health, api, signedOutSession] = await Promise.all([
       request(app).get("/api/health").expect(503),
       request(app).get("/api/notifications/config").expect(503),
+      request(app).get("/api/auth/session").expect(200),
     ]);
     expect(health.body).toEqual({ status: "degraded", database: "disconnected" });
     expect(api.body).toEqual({ error: "Something went wrong. Please try again later." });
+    expect(signedOutSession.body).toEqual({ user: null });
     expect(performance.now() - started).toBeLessThan(500);
   });
 

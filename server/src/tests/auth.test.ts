@@ -114,6 +114,12 @@ describe("API authentication boundary", () => {
     await request(app).get("/api/workout-plans").expect(401);
   });
 
+  it("returns a signed-out session without a follow-up refresh request", async () => {
+    const response = await request(app).get("/api/auth/session").expect(200);
+    expect(response.body).toEqual({ user: null });
+    expect(mocks.getAccount).not.toHaveBeenCalled();
+  });
+
   it("returns a clean unauthorized response when the refresh cookie is missing", async () => {
     await request(app).post("/api/auth/refresh").expect(401);
   });

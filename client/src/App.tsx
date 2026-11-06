@@ -3,8 +3,7 @@ import { useLocation, useNavigate, useRoutes } from "react-router-dom";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import AppShell from "./Layout";
-import { HomePage, RoutinePage, TaskDialog, ScheduleManager, WeightPage, WorkoutPage } from "./pages/pages";
-import { useAnalytics, useRoutineDay, useRoutineMutations, useWeightLogs, useWeightMutations } from "./hooks/hooks";
+import { useAnalytics, useLatestWeight, useRoutineDay, useRoutineMutations, useWeightLogs, useWeightMutations } from "./hooks/hooks";
 import { ironToday } from "./utils/date";
 import type { AppView, Task, TaskEditing } from "./types";
 import type { TaskFormValues } from "./schemas/routine";
@@ -21,6 +20,12 @@ const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const WorkoutStatsPage = lazy(() => import("./pages/workout/WorkoutStatsPage"));
 const ExerciseDetailPage = lazy(() => import("./pages/workout/ExerciseDetailPage"));
+const HomePage = lazy(() => import("./pages/home/HomePage"));
+const RoutinePage = lazy(() => import("./pages/routine/RoutinePage"));
+const TaskDialog = lazy(() => import("./pages/routine/components/TaskDialog"));
+const ScheduleManager = lazy(() => import("./pages/schedules/ScheduleManager"));
+const WeightPage = lazy(() => import("./pages/weight/WeightPage"));
+const WorkoutPage = lazy(() => import("./pages/workout/WorkoutPage"));
 
 export default function App() {
   const { user, signOut } = useSession();
@@ -39,15 +44,16 @@ export default function App() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<TaskEditing | null>(null);
   const dayQuery = useRoutineDay(date);
-  const weightsQuery = useWeightLogs();
-  const analyticsQuery = useAnalytics(analyticsPeriod);
+  const weightsQuery = useWeightLogs(view === "weight");
+  const latestWeightQuery = useLatestWeight(view === "home");
+  const analyticsQuery = useAnalytics(analyticsPeriod, location.pathname === "/analytics");
   const { completeTask, saveSubtasks: saveSubtasksMutation, saveTask: saveTaskMutation, removeTask: removeTaskMutation, startTask: startTaskMutation, queueTask: queueTaskMutation, extendTask: extendTaskMutation, snoozeTask: snoozeTaskMutation } = useRoutineMutations(date, user?.id);
   const { saveWeight: saveWeightMutation, removeWeight: removeWeightMutation } = useWeightMutations();
   const day = dayQuery.data ?? null;
   const selectedDayType = day?.dayType ?? ([0, 6].includes(new Date(`${date}T12:00:00`).getDay()) ? "weekend" : "weekday");
   const weights = weightsQuery.data?.pages.flat() ?? [];
   const analytics = analyticsQuery.data ?? null;
-  const latest = weights[0];
+  const latest = view === "home" ? latestWeightQuery.data?.[0] : weights[0];
 
   useEffect(() => {
     if (user) setPreferences(user.preferences);
@@ -73,9 +79,10 @@ export default function App() {
   }, [date, setDate]);
 
   useEffect(() => {
-    const queryError = dayQuery.error ?? weightsQuery.error ?? analyticsQuery.error;
+    const weightQueryError = view === "home" ? latestWeightQuery.error : view === "weight" ? weightsQuery.error : null;
+    const queryError = dayQuery.error ?? weightQueryError ?? analyticsQuery.error;
     if (queryError) setError(queryError.message);
-  }, [dayQuery.error, weightsQuery.error, analyticsQuery.error]);
+  }, [dayQuery.error, latestWeightQuery.error, weightsQuery.error, analyticsQuery.error, view]);
 
   useEffect(() => {
     if (error) {
@@ -145,8 +152,8 @@ export default function App() {
   ]);
   return <AppShell view={view} setView={setView} user={user} signOut={signOut} focusMinutes={preferences.focusMinutes} breakMinutes={preferences.breakMinutes}>
     <OfflineSyncStatus accountId={user?.id} />
-    {page}
+    <Suspense fallback={<p className="page-loading" role="status">Loading page…</p>}>{page}</Suspense>
     <NotificationScheduler />
-    {editing && <TaskDialog editing={editing} prayerTimes={preferences.prayerTimes} scheduledTasks={day?.blocks.find(block => block.id === editing.block)?.tasks ?? []} onClose={() => setEditing(null)} onSave={saveTask} />}
+    {editing && <Suspense fallback={null}><TaskDialog editing={editing} prayerTimes={preferences.prayerTimes} scheduledTasks={day?.blocks.find(block => block.id === editing.block)?.tasks ?? []} onClose={() => setEditing(null)} onSave={saveTask} /></Suspense>}
   </AppShell>;
 }

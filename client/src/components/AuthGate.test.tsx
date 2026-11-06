@@ -26,6 +26,8 @@ describe("AuthGate sign-in entry", () => {
     expect(await screen.findByRole("heading", { name: "Welcome back" }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Private app")).not.toBeInTheDocument();
+    expect(api).toHaveBeenCalledTimes(1);
+    expect(api).toHaveBeenCalledWith("/auth/session");
   });
 
   it("keeps sign-in available while account lookup continues", async () => {
@@ -75,7 +77,7 @@ describe("AuthGate sign-in entry", () => {
     expect(await screen.findByRole("heading", { name: "Create your account" }, { timeout: 10_000 })).toBeInTheDocument();
   }, 15_000);
   it("redirects to sign-in after the server confirms sign-out", async () => {
-    api.mockImplementation((path: string) => path === "/auth/me"
+    api.mockImplementation((path: string) => path === "/auth/session"
       ? Promise.resolve({ user: { id: "user-1", name: "Amina", email: "amina@example.com", preferences: { weightUnit: "kg", focusMinutes: 45, breakMinutes: 15, prayerTimes: { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" } } } })
       : Promise.resolve({}));
     renderGate("/profile", <SignOutControl />);

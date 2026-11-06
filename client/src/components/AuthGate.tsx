@@ -26,7 +26,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     queryKey: sessionKey,
     queryFn: async () => {
       try {
-        const response = await api<{ user: AuthUser | null }>("/auth/me");
+        const response = await api<{ user: AuthUser | null }>("/auth/session");
         if (!response || typeof response !== "object" || !("user" in response)) {
           throw new ApiError("The server returned an invalid account session response.", 502);
         }

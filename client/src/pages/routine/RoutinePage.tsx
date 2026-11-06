@@ -69,7 +69,7 @@ export default function RoutinePage({
   const [tab, setTab] = useState<"routine" | "analytics">("routine");
   const [activityPage, setActivityPage] = useState(1);
   const activityToday = ironToday();
-  const analytics = useAnalytics(analyticsPeriod);
+  const analytics = useAnalytics(analyticsPeriod, tab === "analytics");
   const eventQuery = useQuery({
     queryKey: queryKeys.routineEvents(analyticsPeriod, activityPage, activityToday),
     queryFn: () => api<RoutineEventStats>(`/routine/events/analytics?period=${analyticsPeriod}&page=${activityPage}&today=${activityToday}`),

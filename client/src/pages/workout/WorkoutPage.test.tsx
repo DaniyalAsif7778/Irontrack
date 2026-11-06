@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WorkoutPage from "./WorkoutPage";
 import { useAppStore } from "../../stores/appStore";
+import { ironToday } from "../../utils/date";
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock("../../lib/api/api", () => ({ api }));
@@ -12,7 +13,7 @@ const exercise = {
   id: "row", name: "Dumbbell Row", muscle: "Back", sets: 1, reps: 8,
   tempo: "3-1-2", rest: 0, cues: ["Keep your back neutral."],
 };
-const dayKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
+const dayKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(`${ironToday()}T12:00:00`).getDay()];
 const dayLabel = dayKey[0].toUpperCase() + dayKey.slice(1);
 const plan = { id: "day-pull", name: "Pull", exercises: [exercise] };
 const library = [{ id: "row", name: "Dumbbell Row", muscle: "Back", cues: ["Keep your back neutral."] }];

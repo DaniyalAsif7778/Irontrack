@@ -7,6 +7,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import apiRoutes from "./routes/routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import { REFRESH_COOKIE, SESSION_COOKIE } from "./middlewares/requireAuth.js";
 import { logger } from "./utils/logger.js";
 import mongoose from "mongoose";
 import { randomUUID } from "node:crypto";
@@ -80,6 +81,10 @@ app.get("/api/health", (_req, res) => {
   res.status(status === "ok" ? 200 : 503).json({ status, database });
 });
 app.use("/api", apiLimiter, (_req, res, next) => {
+  if (_req.path === "/auth/session" && !_req.cookies?.[SESSION_COOKIE] && !_req.cookies?.[REFRESH_COOKIE]) {
+    res.json({ user: null });
+    return;
+  }
   if (mongoose.connection.readyState !== 1) {
     res.status(503).json({ error: "Something went wrong. Please try again later." });
     return;
