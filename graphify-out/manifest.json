@@ -235,10 +235,10 @@
     "semantic_hash": "e4850d4b9be0f2e45dcb8ade46ffd937"
   },
   "client/src/pages/analytics/AnalyticsPage.tsx": {
-    "mtime": 1793894815.8684437,
-    "seen": 1793963858.6727355,
-    "ast_hash": "6f342a906f02e0f8b8bfb2c031d20fd6",
-    "semantic_hash": "6f342a906f02e0f8b8bfb2c031d20fd6"
+    "mtime": 1793986774.141089,
+    "seen": 1793986874.4315183,
+    "ast_hash": "e6a4a7ff70d768682884dcf39d836fff",
+    "semantic_hash": ""
   },
   "client/src/pages/auth/AuthPage.test.tsx": {
     "mtime": 1793803680.7989645,
