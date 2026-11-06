@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BellRing, Check, Volume2 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "../../lib/api/api";
 import { defaultReminderPreferences, pushSubscribedKey, readReminderPreferences, reminderStorageKey, type ReminderPreferences } from "../../lib/reminderPreferences";
 import { isNotificationSoundEnabled, notificationSoundKey, playNotificationSound } from "../../utils/notificationSound";
@@ -12,7 +13,7 @@ export default function ReminderSettings({ user, onError }: { user: AuthUser | n
   const [preferences, setPreferences] = useState(readReminderPreferences);
   const [testing, setTesting] = useState(false);
   const [pushConfig, setPushConfig] = useState<PushConfig | null>(null);
-  const [pushSubscribed, setPushSubscribed] = useState(() => localStorage.getItem(pushSubscribedKey) === "true");
+  const [pushSubscribed, setPushSubscribed] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(isNotificationSoundEnabled);
 
   useEffect(() => {
@@ -45,6 +46,9 @@ export default function ReminderSettings({ user, onError }: { user: AuthUser | n
           localStorage.setItem(reminderStorageKey, JSON.stringify(savedPreferences));
           window.dispatchEvent(new Event("irontrack-reminders-updated"));
         }
+      } else {
+        setPushSubscribed(false);
+        localStorage.setItem(pushSubscribedKey, "false");
       }
     })().catch(() => {
       if (active) setPushConfig({ enabled: false, publicKey: null });
@@ -84,6 +88,7 @@ export default function ReminderSettings({ user, onError }: { user: AuthUser | n
       }
       if (pushSubscribed) {
         await api("/notifications/test", { method: "POST" });
+        toast.success("Server test notification sent.");
         return;
       }
       const options = { body: "Notifications are ready on this device.", icon: "/icon.svg", tag: "irontrack-test", silent: false };
@@ -91,8 +96,8 @@ export default function ReminderSettings({ user, onError }: { user: AuthUser | n
       if (registration) await registration.showNotification("IronTrack check-in", options);
       else new Notification("IronTrack check-in", options);
       void playNotificationSound();
-    } catch {
-      onError("This browser could not show a notification. Check its site notification permissions.");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "This browser could not show a notification. Check its site notification permissions.");
     } finally {
       setTesting(false);
     }

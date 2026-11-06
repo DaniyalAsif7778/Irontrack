@@ -1,17 +1,17 @@
 # Graph Report - irontrack  (2026-11-06)
 
 ## Corpus Check
-- 176 files · ~96,888 words
+- 176 files · ~97,031 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 8 file(s) not represented in the graph (top: .example 4, (none) 1, .webmanifest 1)
 
 ## Summary
-- 1158 nodes · 2687 edges · 69 communities (57 shown, 12 thin omitted)
+- 1158 nodes · 2689 edges · 69 communities (57 shown, 12 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 34 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8829ec34`
+- Built from commit: `f732f3c6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -93,16 +93,16 @@
 10. `routeParam()` - 21 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `startWorkout()` --calls--> `ironToday()`  [EXTRACTED]
-  client/src/pages/workout/WorkoutPage.tsx → client/src/utils/date.ts
-- `createApp()` --indirect_call--> `subscribe()`  [INFERRED]
-  server/src/tests/notificationOwnership.test.ts → server/src/controllers/notifications/notifications.controller.ts
-- `unsubscribe()` --calls--> `fail()`  [EXTRACTED]
-  server/src/controllers/notifications/notifications.controller.ts → server/src/middlewares/errorHandler.ts
 - `updatePreference()` --calls--> `api()`  [EXTRACTED]
   client/src/pages/settings/ReminderSettings.tsx → client/src/lib/api/api.ts
 - `revokeSession()` --calls--> `api()`  [EXTRACTED]
   client/src/pages/settings/SettingsPage.tsx → client/src/lib/api/api.ts
+- `toggleNotifications()` --calls--> `api()`  [EXTRACTED]
+  client/src/pages/settings/SettingsPage.tsx → client/src/lib/api/api.ts
+- `startWorkout()` --calls--> `ironToday()`  [EXTRACTED]
+  client/src/pages/workout/WorkoutPage.tsx → client/src/utils/date.ts
+- `createApp()` --indirect_call--> `subscribe()`  [INFERRED]
+  server/src/tests/notificationOwnership.test.ts → server/src/controllers/notifications/notifications.controller.ts
 
 ## Import Cycles
 - None detected.
@@ -343,17 +343,17 @@ Nodes (3): PrayerTimes, prayerLabels, prayersDueAt()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `api()` connect `types.ts` to `App.tsx`, `ScheduleManager.tsx`, `ref_vitest`, `WorkoutPage.test.tsx`, `NotificationScheduler.tsx`, `offlineQueue.ts`, `SettingsPage.tsx`, `AnalyticsPage.tsx`, `Workout`, `AuthPage`, `WorkoutStatsPage.tsx`, `ironToday`?**
-  _High betweenness centrality (0.045) - this node is a cross-community bridge._
+- **Why does `Workout()` connect `Workout` to `offlineQueue.ts`, `WorkoutPage.test.tsx`, `types.ts`, `ironToday`?**
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._
 - **Are the 8 inferred relationships involving `api()` (e.g. with `AuthGate.test.tsx` and `offlineQueue.test.ts`) actually correct?**
   _`api()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **Should `requireAuth.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.1455026455026455 - nodes in this community are weakly interconnected._
-- **Why does `fail()` connect `fail` to `requireAuth.ts`, `email.service.ts`, `auth.controller.ts`, `workout.model.ts`, `errorHandler.ts`, `user.model.ts`, `app.ts`, `auth.service.ts`, `notifications.controller.ts`, `workout.controller.ts`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `api()` connect `types.ts` to `App.tsx`, `ScheduleManager.tsx`, `ref_vitest`, `WorkoutPage.test.tsx`, `NotificationScheduler.tsx`, `offlineQueue.ts`, `SettingsPage.tsx`, `AnalyticsPage.tsx`, `Workout`, `AuthPage`, `WorkoutStatsPage.tsx`, `ironToday`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 - **Should `workout.service.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.12433862433862433 - nodes in this community are weakly interconnected._
-- **Why does `mongoose` connect `auth.service.ts` to `requireAuth.ts`, `workout.service.ts`, `app.ts`, `server/package.json`, `performance-alerts.service.ts`, `fail`, `workout.model.ts`, `errorHandler.ts`, `database-load.mjs`, `wellness.model.ts`, `dependencies`, `user.model.ts`, `notification.model.ts`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `express` connect `app.ts` to `requireAuth.ts`, `app.ts`, `server/package.json`, `fail`, `auth.controller.ts`, `errorHandler.ts`, `dependencies`, `notifications.controller.ts`, `workout.controller.ts`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **Should `ref_vitest` be split into smaller, more focused modules?**
   _Cohesion score 0.08599033816425121 - nodes in this community are weakly interconnected._
