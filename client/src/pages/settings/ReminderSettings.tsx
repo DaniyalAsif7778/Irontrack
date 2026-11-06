@@ -87,7 +87,13 @@ export default function ReminderSettings({ user, onError }: { user: AuthUser | n
         return;
       }
       if (pushSubscribed) {
-        await api("/notifications/test", { method: "POST" });
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (!subscription) throw new Error("This device’s push subscription is missing. Re-enable background notifications.");
+        await api("/notifications/test", {
+          method: "POST",
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
         toast.success("Server test notification sent.");
         return;
       }

@@ -386,6 +386,9 @@ main { width: min(1200px, calc(100% - 224px)); margin-left: 224px; padding: 38px
 .exercise-plan-sets { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 7px 9px; margin-top: 13px; color: var(--quiet); font-size: 11px; }
 .exercise-plan-sets > b { color: var(--subtle); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .workout-page-header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.workout-heading-row { display:flex; flex:1 1 auto; min-width:0; align-items:center; justify-content:space-between; gap:12px; }
+.workout-heading-row > div { min-width:0; }
+.workout-edit-top { flex:0 0 auto; }
 .workout-header-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
 .workout-save-top { min-width:132px; }
 .workout-cancel-edit { display:inline-flex; min-height:38px; align-items:center; justify-content:center; gap:5px; padding:0 10px; color:var(--quiet); background:transparent; border:1px solid var(--line); border-radius:8px; font-size:11px; }
@@ -1359,8 +1362,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @media (max-width: 700px) {
-  .workout-page-header { display:flex; align-items:flex-start; flex-direction:row; flex-wrap:wrap; gap:8px 12px; }
-  .workout-page-header > div:first-child { flex:1 1 100%; min-width:0; }
+  .page-transition > header.workout-page-header { display:flex; align-items:center; flex-direction:row; flex-wrap:wrap; gap:10px 12px; }
+  .page-transition > header.workout-page-header > .workout-heading-row { flex:1 1 100%; min-width:0; }
+  .workout-heading-row h1 { font-size:25px; }
+  .workout-edit-top { width:auto; min-height:40px; padding:0 12px; }
   .workout-header-actions { display:flex; width:100%; justify-content:flex-start; flex-wrap:wrap; gap:6px; }
   .week-strip-editing { padding-bottom:6px; }
   .week-day-editor { flex-basis:118px; min-height:112px; }

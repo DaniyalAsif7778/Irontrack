@@ -305,11 +305,11 @@ export async function sendOwnerPerformancePush(ownerId: string, eventId: string,
   return { configured: true, subscribed: subscriptions.length > 0, sent: results.filter(result => result.status === "fulfilled").length, failed: results.filter(result => result.status === "rejected").length };
 }
 
-export async function sendTestPush(ownerId: string) {
+export async function sendTestPush(ownerId: string, endpoint: string) {
   if (!configured) throw new Error("Background push is not configured. Add the VAPID keys to the server environment.");
-  const subscriptions = await PushSubscription.find({ ownerId });
-  if (!subscriptions.length) throw new Error("Enable background notifications on this device first.");
-  await Promise.all(subscriptions.map(subscription => send(subscription, `test:${Date.now()}:${subscription.id}`, "IronTrack test", "Background notifications are connected to your server.", "/wellness", "test")));
+  const subscription = await PushSubscription.findOne({ ownerId, endpoint });
+  if (!subscription) throw new Error("Enable background notifications on this device first.");
+  await send(subscription, `test:${Date.now()}:${subscription.id}`, "IronTrack test", "Background notifications are connected to your server.", "/wellness", "test");
 }
 
 let checking = false;

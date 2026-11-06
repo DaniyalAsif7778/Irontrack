@@ -65,6 +65,8 @@ export const unsubscribe: RequestHandler = async (req, res) => {
   res.json({ subscribed: false });
 };
 export const test: RequestHandler = async (req, res) => {
-  try { await sendTestPush(req.auth!.userId); res.json({ sent: true }); }
+  const parsed = z.object({ endpoint: z.string().url().max(2048) }).strict().safeParse(req.body);
+  if (!parsed.success) { fail(res, parsed.error.issues[0]?.message ?? "Invalid push subscription endpoint"); return; }
+  try { await sendTestPush(req.auth!.userId, parsed.data.endpoint); res.json({ sent: true }); }
   catch (error) { fail(res, error instanceof Error ? error.message : "Could not send a push notification", 503); }
 };
